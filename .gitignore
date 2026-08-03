@@ -1,0 +1,123 @@
+# ============================================================================
+#  RXSDR - o que vai (e o que NUNCA vai) para o GitHub
+#
+#  A regra e ao contrario do normal: primeiro IGNORA TUDO, depois libera
+#  item por item o que e seguro publicar. Assim, qualquer arquivo novo que
+#  voce criar na pasta fica de fora por padrao e nada vaza por acidente.
+#
+#  Para publicar algo novo, acrescente uma linha com "!" na frente.
+# ============================================================================
+
+# ---- 1) ignora tudo que esta na raiz -------------------------------------
+/*
+
+# ---- 2) libera os arquivos soltos da raiz --------------------------------
+!/.gitignore
+!/README.md
+!/LICENSE.txt
+!/LICENSE-DSD.txt
+!/RXSDR_Arquitetura.md
+!/DigitalDecoder_Architecture.md
+
+# scripts de build do Windows (nao tem senha nem IP da rede)
+!/ABRIR.bat
+!/COMPILAR.bat
+!/COMPILAR_WIN7.bat
+!/ATUALIZAR_WEB.bat
+!/GERAR_INSTALADOR.bat
+!/GERAR_INSTALADOR_WIN7.bat
+!/LIMPAR_PROJETO.bat
+!/SUBIR_GITHUB.bat
+
+# ---- 3) codigo-fonte -----------------------------------------------------
+!/project/
+/project/*
+!/project/CMakeLists.txt
+!/project/build-msvc.bat
+!/project/configure-msvc.bat
+!/project/setup-msvc-env.bat
+!/project/web_sem_backup.txt
+!/project/src/
+!/project/include/
+!/project/web/
+!/project/installer/
+!/project/third_party/
+!/project/docs/
+!/project/scripts/
+!/project/tests/
+
+!/project-win7/
+/project-win7/*
+!/project-win7/CMakeLists.txt
+!/project-win7/src/
+!/project-win7/installer/
+
+# ---- 4) NUNCA, em hipotese alguma ----------------------------------------
+# chaves e credenciais
+_ssh_agent/
+id_ed25519*
+id_rsa*
+*.pem
+*.key
+*.keystore
+keystore.properties
+local.properties
+
+# scripts dos TV box: tem a senha de root e os IPs da sua rede
+ALTERAR_MODO_TVBOX.bat
+ATUALIZAR_TVBOX.bat
+COMPILAR_TVBOX.bat
+CONFIGURAR_SSH_BOX_H3.bat
+INSTALAR_OPENWEBRX.bat
+instalar_chave_agente.bat
+instalar_no_tvbox.bat
+gerar_imagem_rk3229.bat
+gerar_cartao*
+DICAS*.txt
+INFO.txt
+PROXIMO_PASSO.txt
+CONTINUAR_OUTRA_IA.txt
+GUIA_DECODERS_CARTAO.md
+README_DECODERS_CARTAO.md
+
+# ---- 5) binarios de terceiros ---------------------------------------------
+# DSDPlus, FMP24, FMPA, FMPP, AIS-catcher e afins nao sao nossos e nao podem
+# ser redistribuidos aqui. Quem compilar baixa direto dos autores.
+decoders/
+/project/decoders/
+/project-win7/build-win7/decoders/
+
+# codigo de terceiros trazido para dentro da pasta
+/direwolf/
+/libacars/
+/liquid-dsp/
+/magiceye/
+/yaesu9000-ananMM/
+
+# ---- 6) resultado de compilacao (pesado, se refaz sozinho) ----------------
+/project/build/
+/project-win7/build-win7/
+/project/installer/output/
+/project-win7/installer/Output/
+/project-win7/installer/output/
+/imagens/
+*.exe
+*.obj
+*.lib
+*.pdb
+*.ilk
+*.dll
+
+# ---- 7) backups e lixo de desenvolvimento --------------------------------
+*.bak
+*.bak_*
+*_bak_*
+*.old
+*.tmp
+*~
+__pycache__/
+run.txt
+/project/scratch/
+/index_backup/
+/skills/
+/tools/
