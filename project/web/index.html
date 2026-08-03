@@ -1062,6 +1062,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
             <div class="step-opt" data-hz="25000">25 kHz</div>
             <div class="step-opt" data-hz="100000">100 kHz</div>
             <div class="step-opt" data-hz="200000">200 kHz</div>
+            <div class="step-opt" data-hz="1000000">1 MHz</div>
           </div>
         </div>
         <button id="centerBtn" title="Centralizar sinal e VFO no centro do espectro">&gt;.&lt;</button><button id="autoBtn">AUTO</button>
@@ -1349,7 +1350,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
               <span id="cfgPpmVal" style="min-width:42px;text-align:right">0 ppm</span>
             </div>
             <label class="config-check" id="rowCfgBiasT"><input type="checkbox" id="cfgBiasT"> Bias-T (5V)</label>
-            <label class="config-check" id="rowCfgAgc"><input type="checkbox" id="cfgAgc"> AGC <span style="opacity:0.7">Auto</span></label>
+            <label class="config-check" id="rowCfgAgc"><input type="checkbox" id="cfgAgc"> AGC <span style="opacity:0.7">Auto</span> <span id="cfgAgcGainVal" style="display:none;color:var(--accent-lcd);font-weight:700"></span></label>
             <div class="config-gain-row" id="rowCfgGain">
               <label>Gain <span id="cfgGainVal">49.6 dB</span></label>
               <input type="range" id="cfgGain" min="0" max="496" value="496" step="1">
@@ -3897,9 +3898,9 @@ document.getElementById('ppmSlider')?.addEventListener('input', (e) => {
     audioAgcSlider:  5,    // Audio AGC: ±5
     audioNrSlider:   1,    // Redutor de Ruído: ±1%
     ssbAgcSlider:    5,    // Ganho de RF: ±5%
-    rangeSlider:     5,    // Range: ±5 dB
-    contrastSlider:  5,    // Contraste: ±5
-    brightnessSlider:5,    // Brilho: ±5
+    rangeSlider:     1,    // Range: ±1 dB
+    contrastSlider:  5,    // Contraste: ±5 (oculto no modo OpenWebRX+)
+    brightnessSlider:1,    // Brilho: ±1
     speedSlider:     1,    // Speed: ±1
     gainSlider:      10,   // Gain (oculto): ±10 tenths
     cfgPpm:          1,    // PPM: ±1
@@ -4001,6 +4002,23 @@ if (volSliderEl) {
     }
   });
 }
+
+// -- Ganho estimado enquanto o AGC (Auto) esta ligado ------------------------
+// O RTL-SDR nao informa qual ganho o AGC escolheu internamente, entao
+// mostramos a estimativa que o S-meter ja calcula a partir do piso de ruido.
+// Por isso o "~" na frente: e valor aproximado, nao leitura do hardware.
+setInterval(function(){
+  const el = document.getElementById('cfgAgcGainVal');
+  if (!el) return;
+  const ligado = document.getElementById('cfgAgc')?.checked || false;
+  const isSdrplay = (typeof _vfoDevType !== 'undefined' && _vfoDevType === 'sdrplay');
+  if (!ligado || isSdrplay) { el.style.display = 'none'; return; }
+  let db = null;
+  try { db = Smeter.getGainCorrection(); } catch (e) { db = null; }
+  if (db === null || !isFinite(db)) { el.style.display = 'none'; return; }
+  el.style.display = '';
+  el.textContent = '~ ' + db.toFixed(1) + ' dB';
+}, 500);
 
 const toneSliderEl = document.getElementById('toneSlider');
 if (toneSliderEl) {

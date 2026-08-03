@@ -1,0 +1,64 @@
+===============================================================================
+                       RXSDR - Informações Gerais
+===============================================================================
+
+Bem-vindo ao RXSDR! Este documento contém informações importantes sobre o
+funcionamento, suporte de hardware, compatibilidade e decodificadores do software.
+
+-------------------------------------------------------------------------------
+1. HARDWARES SUPORTADOS
+-------------------------------------------------------------------------------
+Atualmente, o RXSDR oferece suporte nativo para os seguintes dispositivos:
+- RTL-SDR
+- RTL-TCP
+- SDRplay (requer instalação da API oficial do SDRplay no sistema)
+
+-------------------------------------------------------------------------------
+2. COMPATIBILIDADE E SISTEMAS OPERACIONAIS
+-------------------------------------------------------------------------------
+
+O RXSDR está estruturado e otimizado para as seguintes plataformas:
+
+* Windows 10 e Windows 11 (Nativo):
+  - Versão completa com interface gráfica Qt6 local ou acessível pelo navegador.
+  - Conjunto completo de decodificadores ativos.
+
+* Windows 7 e 8 (Leve):
+  - Versão customizada sem as dependências pesadas do Qt6 para máquinas antigas.
+  - Executável com CRT estático: não exige vcruntime instalado no sistema.
+
+* TV Boxes (RK3229 e Allwinner H3/H313) - Via Docker:
+  - Distribuição padronizada e unificada utilizando containers Docker.
+  - Resolve conflitos de bibliotecas entre kernels antigos e o runtime moderno.
+
+-------------------------------------------------------------------------------
+3. MODOS DE RECEPÇÃO
+-------------------------------------------------------------------------------
+AM, FM, NFM, WFM, USB, LSB e CW.
+
+-------------------------------------------------------------------------------
+4. DECODIFICADORES POR PLATAFORMA
+-------------------------------------------------------------------------------
+
+* Versão Windows (7/8/10/11):
+  - DMR, P25, NXDN, D-Star, TETRA, ACARS, APRS e PACKET.
+
+* Versão TV Box (Docker - RK3229 e Allwinner H3/H313):
+  Arquitetura otimizada para processadores ARMv7 com os decodificadores
+  principais:
+  - DMR, TETRA (incluído nativamente), ACARS, APRS e PACKET.
+
+-------------------------------------------------------------------------------
+5. ESPECTRO E CACHOEIRA
+-------------------------------------------------------------------------------
+A cachoeira usa a paleta Eclipse e o mesmo tratamento do OpenWebRX+: a potência
+de todos os blocos recebidos é somada e a média é enviada a cada linha, o que
+deixa o piso de ruído estável em vez de tremer.
+
+O botão AUTO mede o espectro que está na tela no momento do clique e encaixa a
+escala de cores nele, funcionando igual em qualquer banda ou frequência. O
+ajuste só muda quando você clica — nunca sozinho.
+
+===============================================================================
+*Mantido e desenvolvido por Ruben (PU1XTB)*
+===============================================================================

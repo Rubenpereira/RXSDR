@@ -17,6 +17,7 @@
 !/LICENSE.txt
 !/LICENSE-DSD.txt
 !/RXSDR_Arquitetura.md
+!/INFO.txt
 !/DigitalDecoder_Architecture.md
 
 # scripts de build do Windows (nao tem senha nem IP da rede)
@@ -74,7 +75,6 @@ instalar_no_tvbox.bat
 gerar_imagem_rk3229.bat
 gerar_cartao*
 DICAS*.txt
-INFO.txt
 PROXIMO_PASSO.txt
 CONTINUAR_OUTRA_IA.txt
 GUIA_DECODERS_CARTAO.md
