@@ -24,9 +24,9 @@ xcopy /Y /S /I "%~dp0project\web" "%~dp0project\build\web" >nul
 echo Copiando decoders externos atualizados...
 xcopy /Y /S /I "%~dp0project\decoders" "%~dp0project\build\decoders" >nul
 
-echo Copiando dependencias do SDRplay, Perseus e PlutoSDR...
+echo Copiando dependencias do SDRplay...
 if not exist "%~dp0project\build\Release" mkdir "%~dp0project\build\Release" >nul 2>&1
-for %%F in (sdrplay_api.dll perseus-sdr.dll libiio.dll libad9361.dll libusb-1.0.dll) do (
+for %%F in (sdrplay_api.dll libusb-1.0.dll) do (
     if exist "%~dp0sdrpp_windows_x64\%%F" (
         copy /Y "%~dp0sdrpp_windows_x64\%%F" "%~dp0project\build\" >nul
         copy /Y "%~dp0sdrpp_windows_x64\%%F" "%~dp0project\build\Release\" >nul

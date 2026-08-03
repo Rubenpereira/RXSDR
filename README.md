@@ -14,8 +14,8 @@ Feito por **PU1XTB — Ruben**, radioamador e radioescuta, em Araruama/RJ.
 - **Espectro e cachoeira** com paleta Eclipse e média de espectros, o mesmo
   tratamento usado pelo OpenWebRX+ (o piso de ruído fica liso em vez de tremer)
 - **S-meter analógico**, controle de ganho de RF, squelch, AGC e filtro de tom
-- **Decodificadores digitais**: DMR, P25, NXDN, D-Star, TETRA, ACARS, APRS,
-  PACKET, ADS-B, AIS, SITOR-B, RTTY, PACTOR, SELCALL, BPSK, CW e sondas
+- **Decodificadores digitais**: DMR, P25, NXDN, D-Star, TETRA, ACARS, APRS
+  e PACKET
 - Marcadores de banda, memórias e ajuste de sintonia de 1 Hz a 1 MHz
 - Interface responsiva — funciona no navegador do PC, do celular e do tablet
 
@@ -26,7 +26,6 @@ Feito por **PU1XTB — Ruben**, radioamador e radioescuta, em Araruama/RJ.
 | RTL-SDR (todos os modelos) | funciona direto, drivers inclusos |
 | RTL-TCP | rádio remoto pela rede |
 | SDRplay (RSP1/1A/1B/2/duo/dx) | exige a API oficial da SDRplay |
-| Airspy, PlutoSDR, Perseus | suporte parcial |
 
 ---
 
@@ -66,7 +65,7 @@ e não vir mudança, confira qual `RXSDR.exe` você abriu.
 
 ### Decodificadores
 
-Os decodificadores externos (DSDPlus, FMP24, AIS-catcher, Direwolf e outros)
+Os decodificadores externos (DSDPlus, FMP24, Direwolf e outros)
 **não estão neste repositório** — são programas de terceiros, com licenças
 próprias, e precisam ser obtidos direto com seus autores. Os instaladores da
 aba Releases já vêm com eles configurados.

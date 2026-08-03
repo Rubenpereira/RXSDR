@@ -3408,12 +3408,10 @@ function drawSpectrum(){
 /* =========================================================
    3. CACHOEIRA — desliza para baixo, paleta azul profundo
    ========================================================= */
-// Paleta RXSDR (estilo OpenWebRX) — fundo azul-marinho escuro/piso de ruido
-// mantido; sinais acima do piso vao de ciano (fraco) a verde, amarelo,
-// laranja, vermelho e vermelho escuro (forte/local), intensificando aos poucos.
-// Paleta SDR# / Airspy WebSpy (gradiente oficial do SDR#):
-// fundo azul-marinho -> azul -> azul-royal (ruido) -> branco (sinal fraco)
-// -> amarelo -> laranja -> vermelho -> vermelho escuro (sinal forte/local).
+// Paleta Eclipse do OpenWebRX+ (tema de Dimitar LZ2DMV e LZ4ZD), as mesmas
+// 13 cores do owrx/waterfall.py: azul-marinho no piso de ruido -> azul ->
+// azul-royal -> branco (sinal fraco) -> amarelo -> laranja -> vermelho ->
+// vermelho escuro (sinal forte/local).
 const WF_ECLIPSE_STOPS = [
   [0.000, [0, 0, 32]],
   [0.083, [0, 0, 48]],
