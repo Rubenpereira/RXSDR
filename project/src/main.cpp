@@ -16,6 +16,10 @@
 #include <QDir>
 #include <QFile>
 
+#include <chrono>
+#include <cstdlib>
+#include <thread>
+
 #include "app/Application.h"
 
 int main(int argc, char** argv)
@@ -70,7 +74,25 @@ int main(int argc, char** argv)
 #endif
         return 2;
     }
-    QObject::connect(&app, &QCoreApplication::aboutToQuit, [&masterApp]() {
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, [&masterApp, lockDir]() {
+        // --- Cao de guarda do encerramento -------------------------------
+        // O stop() pode ficar preso esperando a thread de leitura do dongle:
+        // o rtlsdr_cancel_async nem sempre consegue interromper o driver USB
+        // (dongle removido, libusb travada) e o wait() nao tem prazo. Quando
+        // isso acontecia, o RXSDR sumia da tela mas continuava vivo no
+        // Gerenciador de Tarefas segurando o lock, e a abertura seguinte
+        // reclamava "O RXSDR ja esta em execucao".
+        //
+        // Este fio dorme 5 s em paralelo. Se o encerramento correr normal, o
+        // processo termina antes e ele morre junto. Se travar, ele apaga o
+        // lock e derruba o processo a forca com _Exit - sem destrutores, para
+        // nao esbarrar em objetos que a thread presa ainda esteja usando.
+        std::thread([lockDir]{
+            std::this_thread::sleep_for(std::chrono::seconds(5));
+            QFile::remove(lockDir + "/rxsdr.lock");
+            std::_Exit(0);
+        }).detach();
+
         masterApp.stop();
     });
 

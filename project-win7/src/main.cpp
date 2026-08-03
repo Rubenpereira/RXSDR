@@ -11,6 +11,10 @@
 #include "app/TrayController.h"
 #include "util/Logger.h"
 
+#include <chrono>
+#include <cstdlib>
+#include <thread>
+
 static masdr::TrayController* g_tray = nullptr;
 
 static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
@@ -69,6 +73,18 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
 
     tray.destroy();
     g_tray = nullptr;
+
+    // --- Cao de guarda do encerramento -----------------------------------
+    // Se o app.stop() ficar preso no join() da thread de leitura do dongle
+    // (o rtlsdr_cancel_async nem sempre interrompe o driver USB), o processo
+    // ficava vivo no Gerenciador de Tarefas e o mutex de instancia unica
+    // continuava tomado. Este fio derruba o processo a forca depois de 5 s.
+    // No caminho normal o encerramento termina antes e ele morre junto.
+    std::thread([]{
+        std::this_thread::sleep_for(std::chrono::seconds(5));
+        std::_Exit(0);
+    }).detach();
+
     app.stop();
     masdr::Logger::info("=== RXSDR encerrado ===");
 
