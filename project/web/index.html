@@ -105,6 +105,20 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
 #autoBtn.auto-on{background:#3a2800;color:#ffcc00;border-color:#cc8800;
   box-shadow:0 0 6px rgba(255,180,0,0.35);text-shadow:0 0 6px rgba(255,200,0,0.6)}
 .af-block{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-dim)}
+/* SQL vira botao de 1 clique: ajusta o squelch rente ao piso de ruido */
+.sql-btn{cursor:pointer;user-select:none;padding:0 4px;border-radius:3px;
+  border:1px solid transparent;transition:color .15s,border-color .15s,text-shadow .15s}
+.sql-btn:hover{border-color:#25467a;color:#37c0d6}
+.sql-btn.medindo{color:#37c0d6;border-color:#37c0d6}
+/* aceso em ambar enquanto o audio esta passando */
+.sql-btn.aberto{color:#FFA038;border-color:#FFA038;text-shadow:0 0 6px rgba(255,160,56,.6)}
+/* --- painel AIS --- */
+.ais-linha{padding:1px 0;border-bottom:1px dotted #0d2a14}
+.ais-mmsi{color:#FFA038;font-weight:bold;cursor:pointer;text-decoration:underline}
+.ais-mmsi:hover{color:#ffd090;text-shadow:0 0 6px rgba(255,160,56,.7)}
+.ais-vf{color:#7fb0ff;cursor:pointer;font-size:9px;border:1px solid #25467a;border-radius:3px;padding:0 3px}
+.ais-vf:hover{color:#b0d0ff;border-color:#7fb0ff}
+.ais-nmea{color:#30dd70;opacity:.85}
 .af-block .val{color:var(--accent-lcd);font-weight:700;font-size:11px}
 
 .smeter-panel{background:#0e0c0a;border:1.5px solid var(--border);border-radius:6px;padding:0;
@@ -697,9 +711,6 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
   box-shadow:0 0 14px rgba(220,120,255,0.55);color:#ffb0ff}
 
 
-
-
-
 /* ── PAINEL DIGITAL DMR/P25/NXDN AVANÇADO ────────────────────────────────── */
 .decoder-panel.dp-digital {
   width: 460px; height: 480px;
@@ -1008,8 +1019,9 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
     <div class="item menubar-dropdown-container" id="menuDecoderDigital">
       Digital Decoder ▾
       <div class="menubar-dropdown-menu" id="decoderDigitalDropdown" style="right:0;left:auto">
-        <a onclick="openDecoderPanel('acars')" href="javascript:void(0)">ACARS</a>        <a onclick="openDecoderPanel('packetradio')"href="javascript:void(0)">Packet</a>
+        <a onclick="openDecoderPanel('acars')" href="javascript:void(0)">ACARS</a>
         <a onclick="openDecoderPanel('packet')"href="javascript:void(0)">APRS</a>
+        <a onclick="openDecoderPanel('ais')" href="javascript:void(0)">AIS</a>
       </div>
     </div>
     <div class="item" id="menuGravar" onclick="openGravarModal()" style="cursor:pointer; color:#ff5252; font-weight:bold;" title="Gravar áudio da frequência atual em MP3">
@@ -1166,7 +1178,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
         </div>
         <div class="horizontal-slider">
           <div class="slider-hdr">
-            <span class="lbl">SQL</span>
+            <span class="lbl sql-btn" id="sqlBtn" title="Clique para ajustar o squelch na beirada do silencio">SQL</span>
             <span class="val"><span id="sqlVal">-2</span>dB</span>
           </div>
           <input type="range" min="-90" max="30" value="-2" id="sqlSlider">
@@ -3059,7 +3071,7 @@ const Backend = {
             if (msg.decoder === 'DSD') DsdDecoder.appendLine(msg.text);
             else if (msg.decoder === 'TETRA') TetraDecoder.appendLine(msg.text);
             if (msg.decoder === 'APRS') AprsDecoder.appendLine(msg.text);
-            if (msg.decoder === 'PACKET') PacketDecoder.appendLine(msg.text);
+            if (msg.decoder === 'AIS') AisDecoder.appendLine(msg.text);
           }
         } catch (_) {}
         return;
@@ -4020,6 +4032,65 @@ setInterval(function(){
   el.textContent = '~ ' + db.toFixed(1) + ' dB';
 }, 500);
 
+/* ===== Botao SQL: ajuste automatico + luz de audio aberto ================= */
+(function sqlBotao(){
+  const btn = document.getElementById('sqlBtn');
+  const sld = document.getElementById('sqlSlider');
+  if (!btn || !sld) return;
+
+  // -- 2) acende em ambar enquanto o squelch estiver aberto ----------------
+  setInterval(function(){
+    let aberto = false;
+    try {
+      aberto = !!(powerOn && Smeter.rfLive && Smeter._sqlOpen());
+    } catch (e) { aberto = false; }
+    btn.classList.toggle('aberto', aberto);
+  }, 120);
+
+  // -- 1) clique: mede o piso de ruido e encosta o squelch nele ------------
+  // Amostra o pico por 1,5 s. O maior valor visto e o topo do ruido; o
+  // squelch fica 2 dB acima disso, ou seja, fechado no silencio e abrindo
+  // em qualquer coisa mais forte que o proprio ruido.
+  const MARGEM_DB = 2;
+  const DURACAO_MS = 1500;
+  const INTERVALO_MS = 100;
+  let medindo = false;
+
+  btn.addEventListener('click', function(){
+    if (medindo) return;
+    if (typeof Smeter === 'undefined') return;
+    medindo = true;
+    btn.classList.add('medindo');
+    const rotuloOriginal = btn.textContent;
+
+    const amostras = [];
+    let passos = 0;
+    const total = Math.round(DURACAO_MS / INTERVALO_MS);
+
+    const t = setInterval(function(){
+      const v = Number(Smeter.peakDb);
+      if (isFinite(v)) amostras.push(v);
+      passos++;
+      btn.textContent = (passos % 2) ? '\u00b7\u00b7\u00b7' : 'SQL';
+
+      if (passos >= total) {
+        clearInterval(t);
+        btn.textContent = rotuloOriginal;
+        btn.classList.remove('medindo');
+        medindo = false;
+        if (!amostras.length) return;
+
+        const topoRuido = Math.max.apply(null, amostras);
+        const min = Number(sld.min), max = Number(sld.max);
+        const alvo = Math.max(min, Math.min(max, Math.round(topoRuido + MARGEM_DB)));
+
+        sld.value = alvo;
+        sld.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    }, INTERVALO_MS);
+  });
+})();
+
 const toneSliderEl = document.getElementById('toneSlider');
 if (toneSliderEl) {
   const savedTone = localStorage.getItem('rxsdr_tone') || '50';
@@ -4895,8 +4966,8 @@ setInterval(tickClock, 1000); tickClock();
 const DECODERS = [
   {id:'acars', name:'ACARS',    freq:'131.55 MHz',   mod:'AM-MSK 2400 bps'},
 {id:'dsd',   name:'DMR / P25 / NXDN', freq:'VHF/UHF',  mod:'DSD+ decodificação'},
-  {id:'tetra', name:'TETRA',    freq:'380-470 MHz',  mod:'π/4-DQPSK 36 kbps'},  {id:'packetradio',name:'Packet', freq:'VHF/HF',  mod:'AFSK/FSK AX.25'},
-  {id:'packet',name:'APRS',   freq:'VHF/HF',       mod:'AFSK/FSK AX.25'}
+  {id:'tetra', name:'TETRA',    freq:'380-470 MHz',  mod:'π/4-DQPSK 36 kbps'},    {id:'packet',name:'APRS',   freq:'VHF/HF',       mod:'AFSK/FSK AX.25'},
+  {id:'ais',   name:'AIS',    freq:'161.975 / 162.025 MHz', mod:'GMSK 9600 bps'}
 ];
 
 function buildDecoderContent(d){
@@ -4906,10 +4977,10 @@ function buildDecoderContent(d){
     return DsdDecoder.buildPanelHTML();
   } else if(d.id==='tetra'){
     return TetraDecoder.buildPanelHTML();
-  } else if(d.id==='packetradio'){
-    return PacketDecoder.buildPanelHTML();
   } else if(d.id==='packet'){
     return AprsDecoder.buildPanelHTML();
+  } else if(d.id==='ais'){
+    return AisDecoder.buildPanelHTML();
   }
   let body = `<div class="dec-info" style="margin-bottom:6px">
     <b>Freq:</b> ${d.freq} &nbsp; <b>Mod:</b> ${d.mod} &nbsp;
@@ -4929,6 +5000,14 @@ function buildDecoderContent(d){
 }
 
 function openDecoderPanel(id){
+  // O AIS toma o radio para ele: coloca o VFO em 162,000 e poe o demodulador
+  // em modo digital (filtro largo, sem de-enfase). Se ficar aberto junto com
+  // outro decoder, o audio que chega no Direwolf/acarsdec sai descaracterizado
+  // e a decodificacao para. Entao abrir outro painel fecha o AIS antes.
+  if (id !== 'ais' && document.getElementById('dpanel-ais')) {
+    closeDecoderPanel('ais');
+  }
+
   const container = document.getElementById('decoder-panels-container');
   // Se já está aberto, só traz foco (pisca borda)
   const existing = document.getElementById('dpanel-' + id);
@@ -4968,8 +5047,6 @@ function openDecoderPanel(id){
     headerBtns = `<button id="tetra-hdr-stop" class="decoder-panel-stop" onclick="TetraDecoder.stop()" style="background:#301030;border-color:#c060e0;color:#ff90ff;font-weight:bold;border-radius:3px;padding:2px 6px;font-size:9px;cursor:pointer;">⏹ Parar TETRA</button>`;
   } else if (id === 'packet') {
     headerBtns = `<button class="decoder-panel-stop" onclick="AprsDecoder.tuneToAprs()" style="background:#102030;border-color:#2060a0;color:#80c0ff;margin-right:4px;font-weight:bold;border-radius:3px;padding:2px 6px;font-size:9px;cursor:pointer;">🎯 145.570</button><button id="aprs-hdr-stop" class="decoder-panel-stop" onclick="AprsDecoder.stopDecoding()" style="background:#301010;border-color:#e03030;color:#ff6060;font-weight:bold;border-radius:3px;padding:2px 6px;font-size:9px;cursor:pointer;">⏹ Parar</button>`;
-  } else if (id === 'packetradio') {
-    headerBtns = `<button class="decoder-panel-stop" onclick="PacketDecoder.tuneToPacket()" style="background:#102030;border-color:#2060a0;color:#80c0ff;margin-right:4px;font-weight:bold;border-radius:3px;padding:2px 6px;font-size:9px;cursor:pointer;">🎯 145.570</button><button id="packet-hdr-stop" class="decoder-panel-stop" onclick="PacketDecoder.stopDecoding()" style="background:#301010;border-color:#e03030;color:#ff6060;font-weight:bold;border-radius:3px;padding:2px 6px;font-size:9px;cursor:pointer;">⏹ Parar</button>`;
   } else if (id === 'acars') {
     headerBtns = `<button id="acars-hdr-stop" class="decoder-panel-stop" onclick="AcarsDecoder.stopDecoding()" style="background:#301010;border-color:#e03030;color:#ff6060;font-weight:bold;border-radius:3px;padding:2px 6px;font-size:9px;cursor:pointer;">⏹ Parar</button>`;
   }
@@ -4988,10 +5065,10 @@ function openDecoderPanel(id){
   makePanelResizable(panel);
 
   if (id === 'acars') AcarsDecoder.init();
+  if (id === 'ais')   AisDecoder.init();
   if (id === 'dsd')  DsdDecoder.init();
   if (id === 'tetra') TetraDecoder.init();
   if (id === 'packet') AprsDecoder.init();
-  if (id === 'packetradio') PacketDecoder.init();
 }
 
 function closeDecoderPanel(id){
@@ -5001,7 +5078,7 @@ function closeDecoderPanel(id){
   if (id === 'dsd')  DsdDecoder.onClose();
   if (id === 'tetra') TetraDecoder.onClose();
   if (id === 'packet') AprsDecoder.onClose();
-  if (id === 'packetradio') PacketDecoder.onClose();
+  if (id === 'ais') AisDecoder.onClose();
 }
 
 function makeDecoderPanelDraggable(panel) {
@@ -7407,7 +7484,228 @@ function restoreReceiverState(state) {
 }
 
 /* =========================================================
-   ACARS DECODER — acarsdeco2 integration
+   AIS DECODER - integracao com o AIS-catcher
+   O backend (AisCatcherManager) ja existia; aqui fica so a
+   janela: liga/desliga, mostra as sentencas NMEA que chegam
+   pelo WebSocket e transforma o MMSI em link para consulta.
+   ========================================================= */
+const AisDecoder = (() => {
+  let _pollTimer = null;
+  let _running   = false;
+  let _deviceIdx = 0;
+  let _webPort   = 8092;
+  let _webUrl    = '';
+  let _linhas    = [];
+  const MAX_LINHAS = 300;
+
+  const el = id => document.getElementById(id);
+
+  /* -- AIVDM: extrai o MMSI da carga em ASCII de 6 bits -------------------
+     Cada caractere vale (codigo - 48), e se passar de 40 tira mais 8.
+     Isso rende 6 bits por caractere. O MMSI ocupa os bits 8 a 37.
+     So lemos sentencas de UMA parte (campo 2 == "1"); as partidas em
+     varios fragmentos precisariam de remontagem e sairiam erradas. */
+  function mmsiDaSentenca(nmea) {
+    try {
+      if (!nmea) return null;
+      const campos = nmea.split(',');
+      if (campos.length < 6) return null;
+      const tag = campos[0].toUpperCase();
+      if (tag.indexOf('VDM') < 0 && tag.indexOf('VDO') < 0) return null;
+      if (campos[1] !== '1' || campos[2] !== '1') return null;   // so 1 fragmento
+      const carga = campos[5];
+      if (!carga || carga.length < 8) return null;
+
+      let bits = '';
+      for (let i = 0; i < 8 && i < carga.length; i++) {
+        let v = carga.charCodeAt(i) - 48;
+        if (v > 40) v -= 8;
+        if (v < 0 || v > 63) return null;
+        bits += v.toString(2).padStart(6, '0');
+      }
+      if (bits.length < 38) return null;
+      const mmsi = parseInt(bits.substring(8, 38), 2);
+      if (!isFinite(mmsi) || mmsi <= 0) return null;
+      return String(mmsi).padStart(9, '0');
+    } catch (e) { return null; }
+  }
+
+  function escapar(t) {
+    return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function linhaHtml(txt) {
+    const mmsi = mmsiDaSentenca(txt);
+    const corpo = escapar(txt);
+    if (!mmsi) return '<div class="ais-linha">' + corpo + '</div>';
+    // Clique principal vai para o VesselFinder: ele seleciona o navio pelo
+    // MMSI direto no mapa. O MarineTraffic costuma cair na visao geral com
+    // varios navios quando nao ha sessao iniciada, e nao da para saber qual e.
+    return '<div class="ais-linha">' +
+      '<span class="ais-mmsi" title="Abrir no VesselFinder" ' +
+      'onclick="AisDecoder.abrirVF(\'' + mmsi + '\')">MMSI ' + mmsi + '</span> ' +
+      '<span class="ais-vf" title="Abrir no MarineTraffic" ' +
+      'onclick="AisDecoder.abrirMT(\'' + mmsi + '\')">MT</span> ' +
+      '<span class="ais-nmea">' + corpo + '</span></div>';
+  }
+
+  function abrirMT(mmsi) {
+    window.open('https://www.marinetraffic.com/en/ais/details/ships/mmsi:' + mmsi, '_blank');
+  }
+  function abrirVF(mmsi) {
+    window.open('https://www.vesselfinder.com/?mmsi=' + mmsi, '_blank');
+  }
+
+  function buildPanelHTML() {
+    return `
+      <div class="dec-status-banner" style="background:#020603;padding:6px 10px;border-bottom:1px solid #10301a">
+        <div style="color:#ffaa00;font-family:'Segoe UI',sans-serif;font-size:12px;font-weight:bold;margin-bottom:2px">
+          Modo: AIS | <span id="ais-status-text" style="color:#ffaa00">Parado</span>
+        </div>
+        <div style="color:#b0f020;font-family:Consolas,monospace;font-size:12px;font-weight:bold">
+          161.975 + 162.025 MHz (87B / 88B)
+        </div>
+        <div style="color:#b0f020;font-family:Consolas,monospace;font-size:12px;font-weight:bold">
+          Janela 192 kHz - Use VFO em 162.000
+        </div>
+      </div>
+
+      <div class="dig-ctrl-bar" style="gap:4px 6px">
+        <div style="display:flex;align-items:center;gap:4px">
+          <span style="color:#7fb0ff;font-size:10px">Usa o dongle do radio - modo exclusivo enquanto a janela estiver aberta</span>
+          <label for="ais-port">Porta web:</label>
+          <input type="number" id="ais-port" value="${_webPort}" style="width:52px" onchange="AisDecoder.updateParams()">
+        </div>
+        <div style="display:flex;align-items:center;gap:4px;flex-grow:1;justify-content:flex-end">
+          <button onclick="AisDecoder.start()" class="gt-btn" style="padding:3px 8px;background:#0d3a16;border:1px solid #2e7d32;color:#7CFC00;font-size:10px;font-weight:bold;cursor:pointer;border-radius:3px">Iniciar</button>
+          <button onclick="AisDecoder.stop()" class="gt-btn" style="padding:3px 8px;background:#3a1010;border:1px solid #7d2e2e;color:#ff8080;font-size:10px;font-weight:bold;cursor:pointer;border-radius:3px">Parar</button>
+          <button onclick="AisDecoder.abrirConsole()" class="gt-btn" style="padding:3px 8px;background:#0a1a3a;border:1px solid #25467a;color:#7fb0ff;font-size:10px;font-weight:bold;cursor:pointer;border-radius:3px" title="Abre o mapa do proprio AIS-catcher">Mapa</button>
+        </div>
+      </div>
+
+      <div style="height:calc(100% - 100px);width:100%;background:#020804;display:flex;flex-direction:column;padding:8px;box-sizing:border-box;flex:1">
+        <div id="ais-terminal" class="dec-terminal" style="flex:1;overflow-y:auto;background:#010402;border:1px solid #20aa40;padding:8px;color:#30dd70;font-family:Consolas,monospace;font-size:10.5px;margin-bottom:6px;min-height:0;word-break:break-all;box-shadow:inset 0 0 10px rgba(0,255,80,0.1)">Clique em Iniciar. As sentencas AIS aparecerao aqui; clique no MMSI para consultar o navio.</div>
+        <button onclick="AisDecoder.clearTerminal()" class="gt-btn" style="width:100%;padding:5px;background:#051a0b;border-color:#1e6c33;color:#40dd70;font-size:11px;font-weight:bold;cursor:pointer;border-radius:4px">Limpar</button>
+      </div>
+    `;
+  }
+
+  function updateParams() {
+    const b = el('ais-port');
+    if (b) _webPort = Number(b.value) || 8092;
+  }
+
+  function appendLine(txt) {
+    if (!txt) return;
+    _linhas.push(txt);
+    if (_linhas.length > MAX_LINHAS) _linhas = _linhas.slice(-MAX_LINHAS);
+    const term = el('ais-terminal');
+    if (!term) return;
+    const grudado = (term.scrollTop + term.clientHeight >= term.scrollHeight - 20);
+    term.innerHTML = _linhas.map(linhaHtml).join('');
+    if (grudado) term.scrollTop = term.scrollHeight;
+  }
+
+  function clearTerminal() {
+    _linhas = [];
+    const term = el('ais-terminal');
+    if (term) term.innerHTML = 'Terminal limpo.';
+  }
+
+  function mostrarEstado(data) {
+    const t = el('ais-status-text');
+    if (!t) return;
+    if (!data) { t.textContent = 'Sem resposta'; t.style.color = '#ff8080'; return; }
+    if (data.webUrl) _webUrl = data.webUrl;
+    const st = data.state || 'desconhecido';
+    _running = (st === 'running' || st === 'Running' || st === 'rodando');
+    if (data.binaryPresent === false) {
+      t.textContent = 'AIS-catcher.exe nao encontrado em ./decoders/';
+      t.style.color = '#ff8080';
+      return;
+    }
+    if (data.error) { t.textContent = 'Erro: ' + data.error; t.style.color = '#ff8080'; return; }
+    t.textContent = _running ? 'Rodando' : 'Parado';
+    t.style.color = _running ? '#7CFC00' : '#ffaa00';
+  }
+
+  function pollStatus() {
+    fetch('/api/ais/status').then(r => r.json()).then(mostrarEstado).catch(() => mostrarEstado(null));
+  }
+
+  function start() {
+    updateParams();
+    fetch('/api/ais/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deviceIndex: _deviceIdx, webPort: _webPort })
+    }).then(r => r.json()).then(function(d){
+      mostrarEstado(d);
+      if (d && d.error) appendLine('[erro] ' + d.error);
+    }).catch(function(e){ appendLine('[erro] ' + e); });
+  }
+
+  function stop() {
+    fetch('/api/ais/stop', { method: 'POST' })
+      .then(r => r.json()).then(mostrarEstado).catch(() => {});
+  }
+
+  function abrirConsole() {
+    const url = _webUrl || ('http://' + location.hostname + ':' + _webPort + '/');
+    window.open(url, '_blank');
+  }
+
+  // Abrir a janela toma o radio para o AIS; fechar devolve tudo como estava.
+  // Enquanto o painel esta aberto o dongle e exclusivo do decodificador.
+  //
+  // A sintonia vai para 162,000 MHz de proposito: os dois canais AIS
+  // (161,975 e 162,025) ficam 50 kHz separados, e o AIS-catcher recebe uma
+  // janela de 96 kHz de IQ centrada no VFO. Com o VFO no meio, os dois
+  // canais entram na mesma janela e sao decodificados juntos.
+  const AIS_FREQ_HZ = 162000000;
+  let _estadoAnterior = null;
+
+  function init() {
+    // guarda como o radio estava para devolver ao fechar
+    try {
+      _estadoAnterior = {
+        freq: currentFreqHz,
+        mode: (document.querySelector('.mode-btn.on')?.textContent || 'NFM').trim(),
+        bw:   currentBwHz,
+        step: tuningStepHz
+      };
+    } catch (e) { _estadoAnterior = null; }
+
+    if (typeof renderVfo === 'function') renderVfo(AIS_FREQ_HZ);
+    if (typeof Backend !== 'undefined' && Backend.tune) {
+      Backend.tune(AIS_FREQ_HZ, 'NFM', currentBwHz).catch(() => {});
+    }
+
+    pollStatus();
+    if (_pollTimer) clearInterval(_pollTimer);
+    _pollTimer = setInterval(pollStatus, 3000);
+    if (_linhas.length) {
+      const term = el('ais-terminal');
+      if (term) term.innerHTML = _linhas.map(linhaHtml).join('');
+    }
+    start();
+  }
+
+  function onClose() {
+    if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+    stop();
+    if (_estadoAnterior && typeof restoreReceiverState === 'function') {
+      restoreReceiverState(_estadoAnterior);
+      _estadoAnterior = null;
+    }
+  }
+
+  return { buildPanelHTML, init, onClose, start, stop, appendLine, clearTerminal,
+           updateParams, abrirConsole, abrirMT, abrirVF, mmsiDaSentenca };
+})();
+
+/* =========================================================
+   ACARS DECODER - acarsdeco2 integration
    ========================================================= */
 const AcarsDecoder = (() => {
   let _pollTimer = null;
@@ -7761,12 +8059,35 @@ const AprsDecoder = (() => {
     </div>
   </div>
   <div class="rtty-term" id="aprs-terminal" style="flex:1; overflow-y:auto; padding:5px; font-family:monospace; font-size:12px; white-space:pre-wrap; word-wrap:break-word;">Aguardando decodificacao APRS...</div>
+
+  <!-- Envio de mensagem pela internet (APRS-IS). O RTL-SDR nao transmite. -->
+  <div style="display:flex;gap:4px;align-items:center;padding:5px;border-top:1px solid #10301a;background:#020603;flex-wrap:wrap">
+    <label style="font-size:10px;color:#7fb0ff">Seu indicativo</label>
+    <input type="text" id="aprs-de" placeholder="seu indicativo" maxlength="9"
+           style="width:70px;font-size:10px;text-transform:uppercase"
+           oninput="AprsDecoder.salvarIndicativo()">
+    <label style="font-size:10px;color:#7fb0ff">Para</label>
+    <input type="text" id="aprs-para" placeholder="PY1ABC ou BLN1" maxlength="9"
+           style="width:70px;font-size:10px;text-transform:uppercase">
+    <input type="text" id="aprs-msg" placeholder="mensagem (ate 67 caracteres)" maxlength="67"
+           style="flex:1;min-width:120px;font-size:10px"
+           onkeydown="if(event.key==='Enter')AprsDecoder.enviarMensagem()">
+    <button onclick="AprsDecoder.enviarMensagem()" id="aprs-btn-env"
+            style="padding:3px 10px;background:#0d3a16;border:1px solid #2e7d32;color:#7CFC00;font-size:10px;font-weight:bold;cursor:pointer;border-radius:3px">Enviar</button>
+    <div style="width:100%;font-size:9px;color:#7a8a7a;padding-top:2px">
+      Vai pela internet (APRS-IS), nao pelo ar - o RTL-SDR so recebe. Chega no radio do
+      destinatario apenas se houver um IGate transmissor perto dele. Use o seu proprio indicativo.
+      Para falar com todos, coloque <b style="color:#7CFC00">BLN1</b> no destino: e um boletim, que
+      todas as estacoes da area recebem (BLN0 a BLN9; BLNA a BLNZ para avisos).
+    </div>
+  </div>
 </div>`;
   }
 
   function init() {
     applyAprsMode();
     startDecoding();
+    carregarIndicativo();
 
     if (!_pollTimer) {
       _pollTimer = setInterval(pollStatus, 2000);
@@ -7848,6 +8169,47 @@ const AprsDecoder = (() => {
     _lines = [];
     const term = el('aprs-terminal');
     if (term) term.innerHTML = 'Aguardando decodificacao APRS...';
+  }
+
+  // -- Envio de mensagem pela internet ------------------------------------
+  // O RTL-SDR so recebe, entao a resposta vai pela rede APRS-IS. Se houver
+  // um IGate transmissor perto do destinatario, ela entra no ar por la.
+  function salvarIndicativo() {
+    const e = el('aprs-de');
+    if (e) localStorage.setItem('rxsdr_indicativo', e.value.trim().toUpperCase());
+  }
+
+  function carregarIndicativo() {
+    const e = el('aprs-de');
+    if (e) e.value = localStorage.getItem('rxsdr_indicativo') || '';
+  }
+
+  function enviarMensagem() {
+    const de   = (el('aprs-de')   || {}).value || '';
+    const para = (el('aprs-para') || {}).value || '';
+    const msg  = (el('aprs-msg')  || {}).value || '';
+    if (!de.trim())   { appendLine('[APRS-IS] preencha o seu indicativo.'); return; }
+    if (!para.trim()) { appendLine('[APRS-IS] preencha o destinatario.');   return; }
+    if (!msg.trim())  { appendLine('[APRS-IS] a mensagem esta vazia.');     return; }
+
+    const btn = el('aprs-btn-env');
+    if (btn) { btn.disabled = true; btn.textContent = 'Enviando...'; }
+
+    fetch('/api/aprs/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: de.trim(), to: para.trim(), text: msg.trim() })
+    }).then(r => r.json()).then(d => {
+      if (d && d.ok) {
+        const m = el('aprs-msg'); if (m) m.value = '';
+      } else {
+        appendLine('[APRS-IS] ' + ((d && d.error) || 'falha ao enviar'));
+      }
+    }).catch(e => {
+      appendLine('[APRS-IS] erro: ' + e);
+    }).finally(() => {
+      if (btn) { btn.disabled = false; btn.textContent = 'Enviar'; }
+    });
   }
 
   function formatCallsignsInText(text) {
@@ -7940,405 +8302,8 @@ const AprsDecoder = (() => {
     }
   }
 
-  return { buildPanelHTML, init, onClose, stopDecoding, clearTerminal, appendLine, tuneToAprs };
-})();
-
-
-// ============================================================================
-//  DECODER TUNER — mini-espectro + cachoeira com zoom e coluna amarela
-//  arrastavel para sintonia fina (estilo OpenWebRX). Reutilizavel por
-//  qualquer janela de decoder. Apenas frontend (usa fftData global).
-// ============================================================================
-const DecoderTuner = (() => {
-  const insts = {};
-
-  function buildEl(prefix) {
-    const wrap = document.createElement('div');
-    wrap.className = 'dec-tuner';
-    wrap.id = prefix + '-tuner-wrap';
-    wrap.style.cssText = 'position:relative;flex-shrink:0;margin:4px 8px;';
-    wrap.innerHTML =
-      `<canvas id="${prefix}-tuner" style="width:100%;height:130px;display:block;background:#000;border:1px solid #1a3a5a;border-radius:3px;cursor:col-resize;"></canvas>` +
-      `<div id="${prefix}-tuner-freq" style="position:absolute;top:3px;right:6px;font:bold 11px monospace;color:#ffe082;text-shadow:0 0 3px #000;pointer-events:none;">--</div>` +
-      `<div style="position:absolute;top:3px;left:6px;font:9px monospace;color:#80c0ff;text-shadow:0 0 3px #000;pointer-events:none;">↔ arraste a coluna amarela · roda = zoom</div>`;
-    return wrap;
-  }
-
-  function colour(v) {
-    let t = (v + 110) / 90; t = Math.max(0, Math.min(1, t));
-    let r, g, b;
-    if (t < 0.5) { const q = t / 0.5; r = 0; g = Math.round(80 * q); b = Math.round(60 + 120 * q); }
-    else { const q = (t - 0.5) / 0.5; r = Math.round(255 * q); g = Math.round(80 + 175 * q); b = Math.round(180 * (1 - q)); }
-    return [r, g, b];
-  }
-
-  function attach(prefix, panelId, opts) {
-    detach(prefix);
-    const body = document.querySelector(`#dpanel-${panelId} .decoder-panel-body > div`);
-    if (!body) return;
-    const elWrap = buildEl(prefix);
-    const header = body.children[0];
-    body.insertBefore(elWrap, header ? header.nextSibling : body.firstChild);
-
-    const cv = document.getElementById(prefix + '-tuner');
-    const freqLbl = document.getElementById(prefix + '-tuner-freq');
-    const st = { cv, freqLbl, opts: opts || {}, zoomHz: 3500, dragging: false,
-                 W: 0, H: 0, specH: 44, WFH: 0, raf: 0 };
-    st.wf = document.createElement('canvas');
-    st.wfctx = st.wf.getContext('2d');
-
-    function curBw() { return (st.opts.getBw ? st.opts.getBw() : null) || currentBwHz || 3000; }
-    function curShift() { return (st.opts.getShift ? st.opts.getShift() : 170) || 170; }
-    // centro de audio atual do decoder (Hz); marca = VFO + audioCenter (USB)
-    function audioCenter() { return (st.opts.getCenterHz ? st.opts.getCenterHz() : 1700) || 1700; }
-    st.markerHz = currentFreqHz + audioCenter();
-
-    function resize() {
-      const dpr = window.devicePixelRatio || 1;
-      const w = cv.clientWidth || 320, h = 130;
-      cv.width = w * dpr; cv.height = h * dpr;
-      st.ctx = cv.getContext('2d'); st.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      st.W = w; st.H = h; st.WFH = h - st.specH;
-      st.wf.width = w; st.wf.height = st.WFH;
-    }
-    resize();
-    st._resize = resize;
-    window.addEventListener('resize', resize);
-
-    // vista fixa na passband (USB: VFO..VFO+bw). NAO segue a marca nem o VFO some.
-    function viewCenter() { const m = st.opts.mode || 'USB';
-      if (m === 'USB') return currentFreqHz + curBw() / 2;
-      if (m === 'LSB') return currentFreqHz - curBw() / 2;
-      return currentFreqHz; }
-    function base() { return viewCenter() - st.zoomHz / 2; }
-    function freqAtX(x) { return base() + (x / st.W) * st.zoomHz; }
-    function xAtFreq(f) { return ((f - base()) / st.zoomHz) * st.W; }
-
-    function clampMarker(f) {
-      const lo = currentFreqHz + 40, hi = currentFreqHz + curBw() - 40;
-      return Math.max(lo, Math.min(hi, f));
-    }
-    function moveMarker(x, final) {
-      st.markerHz = Math.round(clampMarker(freqAtX(x)));
-      if (final && st.opts.onCenter) {
-        st.opts.onCenter(st.markerHz - currentFreqHz);  // novo centro de audio
-      }
-    }
-    cv.addEventListener('mousedown', e => { st.dragging = true; moveMarker(e.offsetX, false); e.preventDefault(); });
-    st._mm = e => { if (!st.dragging) return; const r = cv.getBoundingClientRect(); moveMarker(e.clientX - r.left, false); };
-    st._mu = e => { if (st.dragging) { st.dragging = false; const r = cv.getBoundingClientRect(); moveMarker(e.clientX - r.left, true); } };
-    window.addEventListener('mousemove', st._mm);
-    window.addEventListener('mouseup', st._mu);
-    cv.addEventListener('wheel', e => { e.preventDefault();
-      st.zoomHz = Math.max(500, Math.min(16000, st.zoomHz * (e.deltaY < 0 ? 0.85 : 1.18))); }, { passive: false });
-
-    // amostra com interpolacao linear entre bins (nitidez)
-    function sampleAt(freq) {
-      const span = Number(document.getElementById('cfgSampleRate')?.value || 1024000);
-      const bins = fftData.length;
-      const fp = (freq - centerFreqHz) / span * bins + bins / 2;
-      const i = Math.floor(fp);
-      if (i < 0 || i + 1 >= bins) return -130;
-      const fr = fp - i;
-      return fftData[i] * (1 - fr) + fftData[i + 1] * fr;
-    }
-
-    function frame() {
-      st.raf = requestAnimationFrame(frame);
-      if (cv.clientWidth && cv.clientWidth !== st.W) resize();
-      if (!st.W) return;
-      // mantem a marca dentro da passband caso o VFO/bw mudem por fora
-      st.markerHz = clampMarker(st.markerHz);
-      const W = st.W, WFH = st.WFH, specH = st.specH, ctx = st.ctx, H = st.H, b0 = base();
-      // cachoeira
-      st.wfctx.drawImage(st.wf, 0, 1);
-      const row = st.wfctx.createImageData(W, 1);
-      for (let x = 0; x < W; x++) {
-        const c = colour(sampleAt(b0 + (x / W) * st.zoomHz));
-        row.data[x*4] = c[0]; row.data[x*4+1] = c[1]; row.data[x*4+2] = c[2]; row.data[x*4+3] = 255;
-      }
-      st.wfctx.putImageData(row, 0, 0);
-      // espectro
-      ctx.clearRect(0, 0, W, H);
-      ctx.fillStyle = '#001018'; ctx.fillRect(0, 0, W, specH);
-      ctx.strokeStyle = '#30ff90'; ctx.lineWidth = 1; ctx.beginPath();
-      for (let x = 0; x < W; x++) {
-        let y = specH - ((sampleAt(b0 + (x / W) * st.zoomHz) + 110) / 90) * specH;
-        y = Math.max(0, Math.min(specH, y));
-        if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-      }
-      ctx.stroke();
-      ctx.drawImage(st.wf, 0, specH);
-      // passband (referencia, leve)
-      const m = st.opts.mode || 'USB', bw = curBw();
-      let lo, hi;
-      if (m === 'USB') { lo = currentFreqHz; hi = currentFreqHz + bw; }
-      else if (m === 'LSB') { lo = currentFreqHz - bw; hi = currentFreqHz; }
-      else { lo = currentFreqHz - bw / 2; hi = currentFreqHz + bw / 2; }
-      ctx.fillStyle = 'rgba(120,150,200,0.10)';
-      ctx.fillRect(xAtFreq(lo), 0, Math.max(1, xAtFreq(hi) - xAtFreq(lo)), H);
-      // coluna amarela = centro de decodificacao (com largura = shift)
-      const sh = curShift();
-      const xm = xAtFreq(st.markerHz);
-      const xL = xAtFreq(st.markerHz - sh / 2), xR = xAtFreq(st.markerHz + sh / 2);
-      ctx.fillStyle = 'rgba(255,220,0,0.20)';
-      ctx.fillRect(xL, 0, Math.max(2, xR - xL), H);
-      ctx.strokeStyle = 'rgba(255,210,0,0.95)'; ctx.lineWidth = 1; ctx.beginPath();
-      ctx.moveTo(xm, 0); ctx.lineTo(xm, H); ctx.stroke();
-      // marcas dos dois tons mark/space
-      ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.setLineDash([3,3]); ctx.beginPath();
-      ctx.moveTo(xL, specH); ctx.lineTo(xL, H); ctx.moveTo(xR, specH); ctx.lineTo(xR, H); ctx.stroke();
-      ctx.setLineDash([]);
-      if (freqLbl) freqLbl.textContent = Math.round(st.markerHz - currentFreqHz) + ' Hz áudio';
-    }
-    st.raf = requestAnimationFrame(frame);
-    insts[prefix] = st;
-  }
-
-  function detach(prefix) {
-    const st = insts[prefix]; if (!st) return;
-    cancelAnimationFrame(st.raf);
-    window.removeEventListener('resize', st._resize);
-    window.removeEventListener('mousemove', st._mm);
-    window.removeEventListener('mouseup', st._mu);
-    const w = document.getElementById(prefix + '-tuner-wrap'); if (w) w.remove();
-    delete insts[prefix];
-    if (typeof renderVfo === 'function') {
-      renderVfo(freq);
-    } else {
-      currentFreqHz = freq;
-    }
-    
-    // Atualiza a classe ativa dos botoes de modo na UI principal do RXSDR
-    document.querySelectorAll('.mode-btn').forEach(b => {
-      b.classList.toggle('on', b.textContent.trim() === mode);
-    });
-    
-    // Atualiza BW no seletor da UI principal
-    document.querySelectorAll('.bw-opt').forEach(b => {
-      b.classList.toggle('active', parseInt(b.dataset.bw, 10) === bw);
-    });
-    const bwBtn = document.getElementById('bwBtn');
-    if (bwBtn) {
-      bwBtn.innerHTML = '12.5 kHz<br><span style="font-size:8.5px;opacity:0.65;font-weight:normal;">BW</span>';
-    }
-    
-    // Sincroniza variaveis globais do receptor
-    if (typeof currentBwHz !== 'undefined') currentBwHz = bw;
-    
-    // Forca repintura dos elementos do VFO e espectro
-    if (typeof updateWfFooter === 'function') updateWfFooter();
-  }
-
-  let _running = false;
-  let _pollTimer = null;
-  let _lines = [];
-
-  function el(id) { return document.getElementById(id); }
-
-  function buildPanelHTML() {
-    return `
-<div style="width:100%; display:flex; flex-direction:column; height:100%; padding: 4px 6px; box-sizing: border-box; background: #010402; color: #30dd70;">
-  <!-- Sub-header info row -->
-  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; flex-shrink:0; padding: 0 4px;">
-    <div id="packet-status-text" style="color:#ffd08a; font-family:sans-serif; font-size:12px; font-weight:bold;">
-      Modo: PACKET | Decodificando...
-    </div>
-    <div style="color:#8dff78; font-family:sans-serif; font-size:12px; font-weight:bold;">
-      VFO 145.570000 MHz
-    </div>
-  </div>
-  
-  <!-- Terminal window -->
-  <div id="packet-terminal" style="flex:1; overflow-y:auto; padding:8px; border:1px solid #1f5a2d; background:#040d06; color:#a2ff82; font-family:Consolas, monospace; font-size:12px; white-space:pre-wrap; word-wrap:break-word; border-radius:3px; margin: 2px 0 6px 0;">Aguardando decodificacao Packet...</div>
-  
-  <!-- Centered Clear Button -->
-  <div style="display:flex; justify-content:center; align-items:center; flex-shrink:0; padding-bottom: 2px;">
-    <button onclick="PacketDecoder.clearTerminal()" 
-            onmouseover="this.style.background='#123d1e'; this.style.borderColor='#287a3e'; this.style.color='#a2ff82';"
-            onmouseout="this.style.background='#092412'; this.style.borderColor='#1f5a2d'; this.style.color='#8dff78';"
-            style="background:#092412; border:1px solid #1f5a2d; color:#8dff78; font-family:sans-serif; font-size:12px; font-weight:bold; border-radius:4px; padding:6px 28px; cursor:pointer; min-width:140px; text-align:center; transition: all 0.2s;">
-      Limpar
-    </button>
-  </div>
-</div>`;
-  }
-
-  function init() {
-    applyPacketMode();
-    startDecoding();
-
-    if (!_pollTimer) {
-      _pollTimer = setInterval(pollStatus, 2000);
-    }
-  }
-
-  function onClose() {
-    if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
-  }
-
-  function pollStatus() {
-    fetch('/api/packet/status').then(r=>r.json()).then(d=>{
-      const was = _running;
-      _running = (d.state === 'running' || d.state === 'starting');
-      if (was !== _running) updateUI();
-    }).catch(()=>{});
-  }
-
-  function startDecoding() {
-    _running = true;
-    updateUI();
-
-    fetch('/api/tune', {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify({ freq: currentFreqHz, mode: 'NFM', bw: 12500, vfo: 'A' })
-    }).then(()=>{
-      fetch('/api/packet/start', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'})
-        .then(r=>r.json()).then(d=>{
-          _running = d.ok;
-          updateUI();
-        }).catch(()=>{
-          _running = false;
-          updateUI();
-        });
-    }).catch(()=>{
-      _running = false;
-      updateUI();
-    });
-  }
-
-  function stopDecoding() {
-    fetch('/api/packet/stop', {method:'POST'}).then(r=>r.json()).then(()=>{
-      _running = false;
-      updateUI();
-    }).catch(()=>{
-      _running = false;
-      updateUI();
-    });
-  }
-
-  function updateUI() {
-    const hdrBtn = el('packet-hdr-stop');
-    if (hdrBtn) {
-      if (_running) {
-        hdrBtn.disabled = false;
-        hdrBtn.style.opacity = '1';
-        hdrBtn.style.cursor = 'pointer';
-        hdrBtn.style.background = '#301010';
-        hdrBtn.style.borderColor = '#e03030';
-        hdrBtn.style.color = '#ff6060';
-      } else {
-        hdrBtn.disabled = true;
-        hdrBtn.style.opacity = '0.5';
-        hdrBtn.style.cursor = 'not-allowed';
-        hdrBtn.style.background = '#222';
-        hdrBtn.style.borderColor = '#444';
-        hdrBtn.style.color = '#888';
-      }
-    }
-    const statusText = el('packet-status-text');
-    if (statusText) {
-      statusText.innerHTML = _running ? 'Modo: PACKET | Decodificando...' : 'Modo: PACKET | Parado';
-      statusText.style.color = _running ? '#ffd08a' : '#888888';
-    }
-  }
-
-  function clearTerminal() {
-    _lines = [];
-    const term = el('packet-terminal');
-    if (term) term.innerHTML = 'Aguardando decodificacao Packet...';
-  }
-
-  function formatCallsignsInText(text) {
-    let result = text.replace(/\b((?:[a-zA-Z]{1,2}|\d[a-zA-Z]{1,2})\d[a-zA-Z]{1,4}(?:-[a-zA-Z0-9]{1,4})?)\b/gi, (match) => {
-      const upper = match.toUpperCase();
-      const skipList = ['WIDE1-1', 'WIDE2-1', 'WIDE2-2', 'WIDE3-3', 'APDW16', 'APRS', 'TCPIP', 'GATEWAY', 'BEACON', 'RELAY'];
-      if (skipList.includes(upper) || upper.startsWith('WIDE')) {
-        return match;
-      }
-      const encoded = encodeURIComponent(match);
-      return `<a href="https://aprs.fi/?call=${encoded}" target="_blank" class="aprs-link">${match}</a>`;
-    });
-    return result;
-  }
-
-  function formatPacketLine(line) {
-    let safeLine = escapeHtml(line);
-    const gtIdx = safeLine.indexOf('&gt;');
-    if (gtIdx !== -1) {
-      const headerPart = safeLine.substring(0, gtIdx + 4);
-      const bodyPart = safeLine.substring(gtIdx + 4);
-
-      // Extrai o remetente da parte do cabeçalho (entre o último parêntese de [PKT] e o '&gt;')
-      const bracketIdx = headerPart.lastIndexOf(']');
-      if (bracketIdx !== -1) {
-        const pref = headerPart.substring(0, bracketIdx + 1);
-        const sender = headerPart.substring(bracketIdx + 1, headerPart.length - 4).trim(); // remove &gt; e espaços
-
-        let senderLink = sender;
-        const isCallsign = /^(?:[a-zA-Z]{1,2}|\d[a-zA-Z]{1,2})\d[a-zA-Z]{1,4}(?:-[a-zA-Z0-9]{1,4})?$/i.test(sender) || /^[a-zA-Z0-9\s-]{3,20}$/i.test(sender);
-        if (sender && isCallsign && !sender.includes('[') && !sender.includes(']')) {
-          const encoded = encodeURIComponent(sender);
-          senderLink = `<a href="https://aprs.fi/?call=${encoded}" target="_blank" class="aprs-link">${sender}</a>`;
-        }
-
-        const formattedBody = formatCallsignsInText(bodyPart);
-        return pref + ' ' + senderLink + ' &gt;' + formattedBody;
-      }
-    }
-
-    return formatCallsignsInText(safeLine);
-  }
-
-  function appendLine(line) {
-    _lines.push(line);
-    if (_lines.length > 200) _lines.shift();
-    const term = el('packet-terminal');
-    if (term) {
-      if (term.innerHTML.includes('Aguardando')) term.innerHTML = '';
-      const div = document.createElement('div');
-      div.innerHTML = formatPacketLine(line);
-      term.appendChild(div);
-      term.scrollTop = term.scrollHeight;
-    }
-  }
-
-  function tuneToPacket() {
-    const freq = 145570000;
-    const mode = 'NFM';
-    const bw = 12500;
-
-    if (typeof Backend !== 'undefined' && Backend.tune) {
-      Backend.tune(freq, mode, bw).catch(() => {});
-    }
-
-    if (typeof currentFreqHz !== 'undefined') {
-      currentFreqHz = freq;
-    }
-
-    if (typeof renderVfo === 'function') {
-      renderVfo(freq);
-    }
-
-    document.querySelectorAll('.mode-btn').forEach(b => {
-      b.classList.toggle('on', b.textContent.trim() === mode);
-    });
-
-    document.querySelectorAll('.bw-opt').forEach(b => {
-      b.classList.toggle('active', parseInt(b.dataset.bw, 10) === bw);
-    });
-    const bwBtn = document.getElementById('bwBtn');
-    if (bwBtn) bwBtn.innerHTML = '12.5 kHz<br><span style="font-size:8.5px;opacity:0.65;font-weight:normal;">BW</span>';
-
-    if (typeof currentBwHz !== 'undefined') currentBwHz = bw;
-
-    if (typeof updateMarkerPosition === 'function') {
-      updateMarkerPosition(freq);
-    }
-  }
-
-  return { buildPanelHTML, init, onClose, stopDecoding, clearTerminal, appendLine, tuneToPacket };
+  return { buildPanelHTML, init, onClose, stopDecoding, clearTerminal, appendLine, tuneToAprs,
+           enviarMensagem, salvarIndicativo };
 })();
 
 

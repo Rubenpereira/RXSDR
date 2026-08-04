@@ -3,7 +3,7 @@
 ; O instalador gerado ficará em: project\installer\output\RXSDR_Setup_1.0.0.exe
 
 #define MyAppName      "RXSDR"
-#define MyAppVersion   "1.0.27"
+#define MyAppVersion   "1.0.30"
 #define MyAppPublisher "PU1XTB — Ruben"
 #define MyAppURL       "https://github.com/ruben/RXSDR"
 #define MyAppExeName   "RXSDR.exe"

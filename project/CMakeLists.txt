@@ -53,7 +53,7 @@ set(SOURCES
     src/decoders/AcarsDecoManager.cpp
     src/decoders/DsdManager.cpp
     src/decoders/AprsManager.cpp
-    src/decoders/PacketManager.cpp
+    src/decoders/AprsIsClient.cpp
     src/decoders/SitorBManager.cpp
     src/decoders/PactorManager.cpp
     src/decoders/DscManager.cpp
@@ -88,7 +88,7 @@ set(HEADERS
     src/decoders/AcarsDecoManager.h
     src/decoders/DsdManager.h
     src/decoders/AprsManager.h
-    src/decoders/PacketManager.h
+    src/decoders/AprsIsClient.h
     src/decoders/SitorBManager.h
     src/decoders/PactorManager.h
     src/decoders/DscManager.h

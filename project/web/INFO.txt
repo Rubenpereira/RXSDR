@@ -41,15 +41,43 @@ AM, FM, NFM, WFM, USB, LSB e CW.
 -------------------------------------------------------------------------------
 
 * Versão Windows (7/8/10/11):
-  - DMR, P25, NXDN, D-Star, TETRA, ACARS, APRS e PACKET.
+  - DMR, P25, NXDN, D-Star, TETRA, ACARS, APRS e AIS.
 
 * Versão TV Box (Docker - RK3229 e Allwinner H3/H313):
   Arquitetura otimizada para processadores ARMv7 com os decodificadores
   principais:
-  - DMR, TETRA (incluído nativamente), ACARS, APRS e PACKET.
+  - DMR, TETRA (incluído nativamente), ACARS e APRS.
 
 -------------------------------------------------------------------------------
-5. ESPECTRO E CACHOEIRA
+5. AIS - EMBARCAÇÕES
+-------------------------------------------------------------------------------
+Decodifica os dois canais AIS ao mesmo tempo, 161.975 e 162.025 MHz (87B e 88B).
+Abrir a janela já liga o decodificador e sintoniza o rádio em 162.000 MHz, o
+ponto médio entre os dois canais; fechar devolve a frequência anterior. Enquanto
+a janela está aberta o dongle fica dedicado ao AIS.
+
+Cada sentença recebida mostra o MMSI da embarcação. Clicando nele abre o
+VesselFinder com o navio selecionado; o botão VF ao lado abre o MarineTraffic.
+O botão Mapa abre o mapa próprio do decodificador, com todos os navios ouvidos.
+
+-------------------------------------------------------------------------------
+6. APRS - ENVIO DE MENSAGENS
+-------------------------------------------------------------------------------
+Além de receber, a janela do APRS permite enviar mensagens. Como o RTL-SDR só
+recebe, o envio vai pela internet (rede APRS-IS) e não pelo ar. Preencha o seu
+indicativo, o destinatário e o texto.
+
+Para falar com todas as estações, use BLN1 no destino: é um boletim, e de BLN0
+a BLN9 (ou BLNA a BLNZ, para avisos) todas as estações da área recebem.
+
+A mensagem entra na rede APRS-IS sempre. Ela chega ao RÁDIO do destinatário
+apenas se existir um IGate transmissor perto dele; caso contrário fica só no
+lado da internet, visível por aplicativos e pelo APRS.fi.
+
+Use sempre o seu próprio indicativo.
+
+-------------------------------------------------------------------------------
+7. ESPECTRO E CACHOEIRA
 -------------------------------------------------------------------------------
 A cachoeira usa a paleta Eclipse e o mesmo tratamento do OpenWebRX+: a potência
 de todos os blocos recebidos é somada e a média é enviada a cada linha, o que

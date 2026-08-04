@@ -23,7 +23,7 @@ class AisCatcherManager;
 class AcarsDecoManager;
 class DsdManager;
 class AprsManager;
-class PacketManager;
+class AprsIsClient;
 class SitorBManager;
 class PactorManager;
 class DscManager;
@@ -59,7 +59,7 @@ private:
     std::unique_ptr<AcarsDecoManager> acarsDeco_;
     std::unique_ptr<DsdManager> dsdDeco_;
     std::unique_ptr<AprsManager> aprsDeco_;
-    std::unique_ptr<PacketManager> packetDeco_;
+    std::unique_ptr<AprsIsClient> aprsIs_;
     std::unique_ptr<SitorBManager> sitorBDeco_;
     std::unique_ptr<PactorManager> pactorDeco_;
     std::unique_ptr<DscManager> dscDeco_;

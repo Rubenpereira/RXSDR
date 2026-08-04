@@ -54,10 +54,8 @@ public:
     std::function<QJsonObject(const QJsonObject&)>           onAprsStart;
     std::function<QJsonObject()>                             onAprsStop;
 
-    // Packet Decoder (Direwolf Packet)
-    std::function<QJsonObject()>                             onPacketStatus;
-    std::function<QJsonObject(const QJsonObject&)>           onPacketStart;
-    std::function<QJsonObject()>                             onPacketStop;
+    // Envio de mensagem APRS pela internet (APRS-IS)
+    std::function<QJsonObject(const QJsonObject&)>           onAprsSend;
 
 
     // SITOR-B Decoder (Transmissões Marinhas)

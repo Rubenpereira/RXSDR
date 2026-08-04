@@ -15,7 +15,9 @@ Feito por **PU1XTB — Ruben**, radioamador e radioescuta, em Araruama/RJ.
   tratamento usado pelo OpenWebRX+ (o piso de ruído fica liso em vez de tremer)
 - **S-meter analógico**, controle de ganho de RF, squelch, AGC e filtro de tom
 - **Decodificadores digitais**: DMR, P25, NXDN, D-Star, TETRA, ACARS, APRS
-  e PACKET
+  e **AIS** (embarcações, com MMSI clicável para VesselFinder/MarineTraffic)
+- **Envio de mensagens APRS** pela internet (APRS-IS), incluindo boletins
+  para todas as estações
 - Marcadores de banda, memórias e ajuste de sintonia de 1 Hz a 1 MHz
 - Interface responsiva — funciona no navegador do PC, do celular e do tablet
 

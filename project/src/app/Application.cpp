@@ -21,7 +21,7 @@
 #include "../decoders/AcarsDecoManager.h"
 #include "../decoders/DsdManager.h"
 #include "../decoders/AprsManager.h"
-#include "../decoders/PacketManager.h"
+#include "../decoders/AprsIsClient.h"
 #include "../decoders/SitorBManager.h"
 #include "../decoders/PactorManager.h"
 #include "../decoders/DscManager.h"
@@ -590,6 +590,10 @@ bool Application::start()
     aprsDeco_ = std::make_unique<AprsManager>(this);
 
     connect(aprsDeco_.get(), &AprsManager::logLine, [this](const QString& line) {
+        // Grava tambem no run.log. Sem isto, quando o APRS parava de decodificar
+        // nao havia rastro nenhum: nem o "[Direwolf] iniciado" aparecia, e era
+        // impossivel saber se o processo tinha subido ou nem chegou a tentar.
+        Logger::info(line);
         ws_->broadcastJson(QJsonObject{
             {"t",       "dec_line"},
             {"decoder", "APRS"},
@@ -613,43 +617,32 @@ bool Application::start()
         return r;
     };
 
+    // ── Envio de mensagem APRS pela internet (APRS-IS) ────────────────────
+    // O RTL-SDR nao transmite; o caminho e injetar na rede APRS-IS. Se houver
+    // um IGate transmissor perto do destinatario, chega no radio dele.
+    aprsIs_ = std::make_unique<AprsIsClient>(this);
+    connect(aprsIs_.get(), &AprsIsClient::logLine, [this](const QString& line) {
+        Logger::info(line);
+        ws_->broadcastJson(QJsonObject{
+            {"t", "dec_line"}, {"decoder", "APRS"}, {"text", line}
+        });
+    });
+
+    rest_->onAprsSend = [this](const QJsonObject& j) -> QJsonObject {
+        const QString de    = j.value("from").toString();
+        const QString para  = j.value("to").toString();
+        const QString texto = j.value("text").toString();
+        if (aprsIs_->ocupado()) {
+            return QJsonObject{{"ok", false}, {"error", "Envio anterior ainda em andamento."}};
+        }
+        aprsIs_->enviar(de, para, texto);
+        // O envio e assincrono: o resultado aparece no terminal do painel.
+        return QJsonObject{{"ok", true}, {"info", "Enviando..."}};
+    };
+
     rest_->onAprsStop = [this]() -> QJsonObject {
         aprsDeco_->stop();
         QJsonObject r = aprsDeco_->statusJson();
-        r["ok"] = true;
-        return r;
-    };
-
-    // ── Packet Decoder (Direwolf Packet) ───────────────────────────────────────
-    packetDeco_ = std::make_unique<PacketManager>(this);
-
-    connect(packetDeco_.get(), &PacketManager::logLine, [this](const QString& line) {
-        ws_->broadcastJsonThreadSafe(QJsonObject{
-            {"t",       "dec_line"},
-            {"decoder", "PACKET"},
-            {"text",    line}
-        });
-    });
-    connect(packetDeco_.get(), &PacketManager::error, [](const QString& msg) {
-        Logger::error(msg);
-    });
-
-    rest_->onPacketStatus = [this]() {
-        QJsonObject o = packetDeco_->statusJson();
-        return o;
-    };
-
-    rest_->onPacketStart = [this](const QJsonObject& j) -> QJsonObject {
-        Q_UNUSED(j)
-        packetDeco_->start();
-        QJsonObject r = packetDeco_->statusJson();
-        r["ok"] = (packetDeco_->state() == PacketManager::State::Running);
-        return r;
-    };
-
-    rest_->onPacketStop = [this]() -> QJsonObject {
-        packetDeco_->stop();
-        QJsonObject r = packetDeco_->statusJson();
         r["ok"] = true;
         return r;
     };
@@ -914,7 +907,6 @@ void Application::stop()
     if (acarsDeco_) acarsDeco_->stop();
     if (dsdDeco_) dsdDeco_->stop();
     if (aprsDeco_) aprsDeco_->stop();
-    if (packetDeco_) packetDeco_->stop();
     if (sitorBDeco_) sitorBDeco_->stop();
     if (pactorDeco_) pactorDeco_->stop();
     if (dscDeco_) dscDeco_->stop();
@@ -1250,6 +1242,11 @@ void Application::wireDeviceCallback()
             tetraDeco_->feedIQ(demodSrc, n, dev->sampleRate());
         }
 
+        // AIS-catcher tambem quer IQ, nao audio (ver feedIQ no manager).
+        if (aisCatcher_ && aisCatcher_->state() == AisCatcherManager::State::Running) {
+            aisCatcher_->feedIQ(demodSrc, n, dev->sampleRate());
+        }
+
         // CRITICO: lock obrigatorio - onTune (thread HTTP) pode trocar demod_
         {
             std::lock_guard<std::mutex> lk(demodMutex_);
@@ -1296,9 +1293,6 @@ void Application::handleAudioCallback(const std::vector<int16_t>& pcm, uint32_t 
         if (aprsDeco_ && aprsDeco_->state() == AprsManager::State::Running) {
             aprsDeco_->feedAudio(chunk.data(), static_cast<int>(chunk.size()), sps);
         }
-        if (packetDeco_ && packetDeco_->state() == PacketManager::State::Running) {
-            packetDeco_->feedAudio(chunk.data(), static_cast<int>(chunk.size()), sps);
-        }
         if (sitorBDeco_ && sitorBDeco_->state() == SitorBManager::State::Running) {
             sitorBDeco_->feedAudio(chunk.data(), static_cast<int>(chunk.size()), sps);
         }
@@ -1308,10 +1302,6 @@ void Application::handleAudioCallback(const std::vector<int16_t>& pcm, uint32_t 
         if (dscDeco_ && dscDeco_->state() == DscManager::State::Running) {
             dscDeco_->feedAudio(chunk.data(), static_cast<int>(chunk.size()), sps);
         }
-        if (aisCatcher_ && aisCatcher_->state() == AisCatcherManager::State::Running) {
-            aisCatcher_->feedAudio(chunk.data(), static_cast<int>(chunk.size()), sps);
-        }
-
         if (selcalDeco_ && selcalDeco_->state() == SelcalManager::State::Running) {
             selcalDeco_->feedAudio(chunk.data(), static_cast<int>(chunk.size()), sps);
         }

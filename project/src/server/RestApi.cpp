@@ -225,29 +225,15 @@ void RestApi::install(QHttpServer* server)
         return QHttpServerResponse("application/json", QJsonDocument(r).toJson());
     });
 
-    // ── Packet Decoder (Direwolf Packet) ───────────────────────────────────────
-
-    // GET /api/packet/status
-    server->route("/api/packet/status", QHttpServerRequest::Method::Get, [this]() {
-        QJsonObject o = onPacketStatus ? onPacketStatus() : QJsonObject{{"state","unavailable"}};
-        return QHttpServerResponse("application/json", QJsonDocument(o).toJson());
-    });
-
-    // POST /api/packet/start
-    server->route("/api/packet/start", QHttpServerRequest::Method::Post,
+    // POST /api/aprs/send  — envia mensagem pela internet (APRS-IS)
+    server->route("/api/aprs/send", QHttpServerRequest::Method::Post,
         [this](const QHttpServerRequest& req) {
             auto j = QJsonDocument::fromJson(req.body()).object();
-            QJsonObject r = onPacketStart ? onPacketStart(j) : QJsonObject{{"ok",false},{"error","indisponível"}};
+            QJsonObject r = onAprsSend ? onAprsSend(j)
+                                       : QJsonObject{{"ok",false},{"error","indisponível"}};
             if (!r.contains("ok")) r.insert("ok", true);
             return QHttpServerResponse("application/json", QJsonDocument(r).toJson());
         });
-
-    // POST /api/packet/stop
-    server->route("/api/packet/stop", QHttpServerRequest::Method::Post, [this]() {
-        QJsonObject r = onPacketStop ? onPacketStop() : QJsonObject{{"ok",false},{"error","indisponível"}};
-        if (!r.contains("ok")) r.insert("ok", true);
-        return QHttpServerResponse("application/json", QJsonDocument(r).toJson());
-    });
 
 
     // ── SITOR-B Decoder (Transmissões Marinhas) ───────────────────────────
