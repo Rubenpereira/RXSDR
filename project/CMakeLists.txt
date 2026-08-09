@@ -55,8 +55,12 @@ set(SOURCES
     src/decoders/AprsManager.cpp
     src/decoders/AprsIsClient.cpp
     src/decoders/SitorBManager.cpp
+    src/decoders/SitorBCore.cpp
     src/decoders/PactorManager.cpp
     src/decoders/DscManager.cpp
+    src/decoders/DscCore.cpp
+    src/decoders/AnaliseCore.cpp
+    src/decoders/AnaliseManager.cpp
     src/decoders/SelcalManager.cpp
     src/decoders/TetraManager.cpp
     src/util/Logger.cpp
@@ -90,7 +94,11 @@ set(HEADERS
     src/decoders/AprsManager.h
     src/decoders/AprsIsClient.h
     src/decoders/SitorBManager.h
+    src/decoders/SitorBCore.h
     src/decoders/PactorManager.h
+    src/decoders/DscCore.h
+    src/decoders/AnaliseCore.h
+    src/decoders/AnaliseManager.h
     src/decoders/DscManager.h
     src/decoders/SelcalManager.h
     src/decoders/TetraManager.h
@@ -98,7 +106,14 @@ set(HEADERS
     src/util/Timing.h
 )
 
-add_executable(RXSDR WIN32 ${SOURCES} ${HEADERS})
+# Recurso do Windows: embute o icone no proprio .exe (Explorer, barra de
+# tarefas, Gerenciador de Tarefas). Fora do Windows o .rc e ignorado.
+set(RXSDR_RC "")
+if(WIN32)
+    set(RXSDR_RC "${CMAKE_CURRENT_SOURCE_DIR}/src/rxsdr.rc")
+endif()
+
+add_executable(RXSDR WIN32 ${SOURCES} ${HEADERS} ${RXSDR_RC})
 
 target_include_directories(RXSDR PRIVATE
     src

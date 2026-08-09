@@ -2,7 +2,9 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<title>RXSDR — Protótipo UI</title>
+<title>RXSDR</title>
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="alternate icon" href="favicon.ico">
 <meta name="viewport" content="width=1280">
 <!-- Forca modo Edge no IE — evita modo de compatibilidade -->
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
@@ -91,11 +93,13 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
   padding:8px;background:var(--bg-panel);border-bottom:1px solid var(--border);height:132px}
 
 .power-block{display:flex;flex-direction:column;gap:4px}
-.power-btn{background:#1a1a1a;border:1px solid var(--border-light);color:var(--accent-rx);
+.power-btn{background:linear-gradient(180deg,#2a0606,#1a0303);
+  border:1px solid var(--border-light);color:var(--accent-tx);
+  text-shadow:0 0 8px var(--accent-tx);
   padding:6px;text-align:center;font-weight:700;font-size:13px;cursor:pointer;
   letter-spacing:2px;border-radius:2px;box-shadow:inset 0 0 8px #000}
-.power-btn.on{color:var(--accent-tx);text-shadow:0 0 8px var(--accent-tx);
-  background:linear-gradient(180deg,#2a0606,#1a0303)}
+.power-btn.on{color:var(--accent-rx);text-shadow:0 0 8px var(--accent-rx);
+  background:linear-gradient(180deg,#052a10,#031a08)}
 .power-btn:hover{border-color:var(--accent-rx)}
 .minibtns{display:grid;grid-template-columns:1fr 1fr;gap:3px;flex:1}
 .minibtns button{background:#1a1a1a;border:1px solid var(--border-light);
@@ -651,7 +655,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
   pointer-events:none}
 .decoder-panel{
   position:fixed;
-  width:350px;height:300px;
+  width:420px;height:360px;
   min-width:250px;min-height:180px;
   resize:both;overflow:hidden;
   background:#0c080c;border:1px solid #c070c0;
@@ -1022,6 +1026,9 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
         <a onclick="openDecoderPanel('acars')" href="javascript:void(0)">ACARS</a>
         <a onclick="openDecoderPanel('packet')"href="javascript:void(0)">APRS</a>
         <a onclick="openDecoderPanel('ais')" href="javascript:void(0)">AIS</a>
+        <a onclick="openDecoderPanel('sitorb')" href="javascript:void(0)">SITOR-B / NAVTEX</a>
+        <a onclick="openDecoderPanel('dsc')" href="javascript:void(0)">DSC (chamada seletiva)</a>
+        <a onclick="openDecoderPanel('analise')" href="javascript:void(0)">Analisar sinal desconhecido</a>
       </div>
     </div>
     <div class="item" id="menuGravar" onclick="openGravarModal()" style="cursor:pointer; color:#ff5252; font-weight:bold;" title="Gravar áudio da frequência atual em MP3">
@@ -1043,7 +1050,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
 
     <!-- POWER + BW/TUN/MOX/MUT + AF -->
     <div class="power-block">
-      <div class="power-btn" id="powerBtn">POWER</div>
+      <div class="power-btn" id="powerBtn" title="Liga e desliga o receptor">OFF</div>
       <div class="minibtns">
         <div class="bw-wrap">
           <button id="bwBtn" title="Largura de banda do filtro">12.5 kHz<br><span style="font-size:8.5px;opacity:0.65;font-weight:normal;">BW</span></button>
@@ -1352,7 +1359,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
               </select>
             </div>
             <div class="config-row" id="rowCfgQuadrature"><label>Quadrature</label>
-              <select id="cfgQuadrature"><option value="0">OFF</option><option value="1">ON (HF)</option></select>
+              <select id="cfgQuadrature"><option value="off">Q-OFF (so tuner)</option><option value="auto">AUTO (troca em 24 MHz)</option><option value="on">Q-ON (sempre direta)</option></select>
             </div>
             <div style="color: #ff6b6b; font-family: 'Segoe UI', Tahoma, sans-serif; font-size: 11.5px; font-weight: 600; text-align: center; margin: 8px 0; line-height: 1.45;">
               Ao trocar de Off para ON ou vice-versa = Aguarde 10 Segundos antes de clicar em Fechar.
@@ -2313,6 +2320,18 @@ let currentFreqHz = 145570000;
 let tuningStepHz = 5000;         // padrão inicial
 let centerFreqHz = currentFreqHz;
 let powerOn = false;
+
+// O botao dizia sempre "POWER" e trocava so de cor - e a cor estava ao
+// contrario do costume: verde com o radio DESLIGADO e vermelho com ele
+// LIGADO. Agora a propria palavra diz o estado: ON em verde, OFF em vermelho.
+function atualizarBotaoPower() {
+  const btn = document.getElementById('powerBtn');
+  if (!btn) return;
+  btn.classList.toggle('on', powerOn);
+  btn.textContent = powerOn ? 'ON' : 'OFF';
+  document.getElementById('vfoSide')?.classList.toggle('powered', powerOn);
+  document.getElementById('smeterPanel')?.classList.toggle('powered', powerOn);
+}
 let currentBwHz = 12500;
 
 let wakeLock = null;
@@ -2418,7 +2437,26 @@ function getWaterfallAutoDefaults() {
 }
 let waterfallAutoEnabled = true;
 let applyingWaterfallAuto = false;
-let qModeActive = false;  // true = modo Q on (HF/SSB), false = modo Q off (VHF/NFM)
+// ---- Amostragem direta (ramo Q) -------------------------------------------
+// Tres modos, como no OpenSDR+: "off" nunca, "on" sempre, "auto" liga abaixo
+// de 24 MHz e desliga acima. O limite e 24 MHz porque acima disso o ramo Q do
+// RTL-SDR passa de metade da taxa do ADC e so devolve imagem dobrada.
+const Q_LIMITE_HF_HZ = 24000000;
+
+function qModoSelecionado() {
+  const v = document.getElementById('cfgQuadrature')?.value;
+  return (v === 'on' || v === 'auto') ? v : 'off';
+}
+
+// O que esta valendo AGORA, ja considerando a frequencia sintonizada.
+function qEfetivoAgora() {
+  const m = qModoSelecionado();
+  if (m === 'on')  return true;
+  if (m === 'off') return false;
+  return (Number(currentFreqHz) || 0) < Q_LIMITE_HF_HZ;
+}
+
+let qModeActive = false;  // true = amostragem direta valendo agora
 // Estado dinâmico da cachoeira — Eclipse / OpenWebRX+
 let wfRefLevel = (86 - 100) * 0.5;  // = -7.0  (brilho padrão AUTO = 86)
 let wfRange    = 58.0;               // range padrão AUTO = 58 dB
@@ -2635,8 +2673,7 @@ function updateVfoLabels() {
   // Band (Q on = HF, Q off = V/U)
   const bandEl = document.getElementById('vfoLblBand');
   if (bandEl) {
-    const qOn = document.getElementById('cfgQuadrature')?.value === '1';
-    bandEl.textContent = qOn ? 'HF' : 'V/U';
+    bandEl.textContent = qEfetivoAgora() ? 'HF' : 'V/U';
   }
 
   // Device type
@@ -2673,8 +2710,19 @@ function updateWfFooter(){
   if (s) s.textContent = `${(Number(document.getElementById('cfgSampleRate')?.value || 2048000)/1e6).toFixed(3)} MSPS`;
   const q = document.getElementById('wfInfoRfq');
   if (q) {
-    const on = document.getElementById('cfgQuadrature')?.value === '1';
-    q.textContent = on ? 'RFQ-ON' : 'RFQ-OFF';
+    const modo = qModoSelecionado();
+    const val  = qEfetivoAgora();
+    // Em automatico mostra os dois: o modo e o que ele escolheu agora.
+    q.textContent = (modo === 'auto')
+      ? ('RFQ-AUTO:' + (val ? 'ON' : 'OFF'))
+      : (val ? 'RFQ-ON' : 'RFQ-OFF');
+    q.style.color = (modo === 'auto') ? '#7fd0ff' : '';
+    q.title = (modo === 'auto')
+      ? 'Automatico: amostragem direta abaixo de 24 MHz, tuner acima'
+      : (val ? 'Amostragem direta forcada em qualquer frequencia'
+             : 'Amostragem direta desligada');
+    // A flag global acompanha o que esta valendo de verdade
+    qModeActive = val;
   }
 }
 
@@ -3072,6 +3120,9 @@ const Backend = {
             else if (msg.decoder === 'TETRA') TetraDecoder.appendLine(msg.text);
             if (msg.decoder === 'APRS') AprsDecoder.appendLine(msg.text);
             if (msg.decoder === 'AIS') AisDecoder.appendLine(msg.text);
+            if (msg.decoder === 'SITOR-B') SitorBDecoder.appendLine(msg.text);
+            if (msg.decoder === 'DSC') DscDecoder.appendLine(msg.text);
+            if (msg.decoder === 'ANALISE') AnaliseDecoder.appendLine(msg.text);
           }
         } catch (_) {}
         return;
@@ -4224,9 +4275,7 @@ document.getElementById('powerBtn').addEventListener('click', async e=>{
   
   // Atualiza estado visual imediatamente para resposta rápida
   powerOn = targetPower;
-  btn.classList.toggle('on', powerOn);
-  document.getElementById('vfoSide')?.classList.toggle('powered', powerOn);
-  document.getElementById('smeterPanel')?.classList.toggle('powered', powerOn);
+  atualizarBotaoPower();
   
   if (powerOn) {
     requestWakeLock();
@@ -4252,9 +4301,7 @@ document.getElementById('powerBtn').addEventListener('click', async e=>{
     // Se falhar ao ligar, reverte o estado na UI
     if (targetPower) {
       powerOn = false;
-      btn.classList.remove('on');
-      document.getElementById('vfoSide')?.classList.remove('powered');
-      document.getElementById('smeterPanel')?.classList.remove('powered');
+      atualizarBotaoPower();
       releaseWakeLock();
       
       // Abre a janela de aviso de conexão
@@ -4967,7 +5014,10 @@ const DECODERS = [
   {id:'acars', name:'ACARS',    freq:'131.55 MHz',   mod:'AM-MSK 2400 bps'},
 {id:'dsd',   name:'DMR / P25 / NXDN', freq:'VHF/UHF',  mod:'DSD+ decodificação'},
   {id:'tetra', name:'TETRA',    freq:'380-470 MHz',  mod:'π/4-DQPSK 36 kbps'},    {id:'packet',name:'APRS',   freq:'VHF/HF',       mod:'AFSK/FSK AX.25'},
-  {id:'ais',   name:'AIS',    freq:'161.975 / 162.025 MHz', mod:'GMSK 9600 bps'}
+  {id:'ais',   name:'AIS',    freq:'161.975 / 162.025 MHz', mod:'GMSK 9600 bps'},
+  {id:'sitorb',name:'SITOR-B', freq:'8415 kHz e outras',    mod:'FSK 100 bd, shift 170 Hz'},
+  {id:'dsc',   name:'DSC',      freq:'8414.5 kHz e outras', mod:'FSK 100 bd, shift 170 Hz'},
+  {id:'analise',name:'Analisador', freq:'onde voce estiver', mod:'mede tons, shift e velocidade'}
 ];
 
 function buildDecoderContent(d){
@@ -4981,6 +5031,12 @@ function buildDecoderContent(d){
     return AprsDecoder.buildPanelHTML();
   } else if(d.id==='ais'){
     return AisDecoder.buildPanelHTML();
+  } else if(d.id==='sitorb'){
+    return SitorBDecoder.buildPanelHTML();
+  } else if(d.id==='dsc'){
+    return DscDecoder.buildPanelHTML();
+  } else if(d.id==='analise'){
+    return AnaliseDecoder.buildPanelHTML();
   }
   let body = `<div class="dec-info" style="margin-bottom:6px">
     <b>Freq:</b> ${d.freq} &nbsp; <b>Mod:</b> ${d.mod} &nbsp;
@@ -5028,13 +5084,26 @@ function openDecoderPanel(id){
   const existingPanels = document.querySelectorAll('.decoder-panel');
   const offset = existingPanels.length * 25;
   panel.style.left = (20 + offset) + 'px';
-  panel.style.bottom = (40 + offset) + 'px';
+  // 78 px sobe a janela acima da barra de rodape (linha de estado + linha do
+  // dispositivo). Com 40 px ela encostava e escondia o rodape.
+  panel.style.bottom = (78 + offset) + 'px';
   panel.style.top = 'auto';
-  
+
   if (id === 'packet' || id === 'packetradio') {
     panel.style.width = '650px';
-    panel.style.height = '420px';
+    panel.style.height = '460px';
   }
+  // Painies com barra de controles, terminal e nota de rodape precisam de
+  // altura; com o padrao antigo o texto explicativo ficava cortado.
+  if (id === 'sitorb' || id === 'dsc' || id === 'ais' || id === 'acars' || id === 'analise') {
+    panel.style.width = '660px';
+    panel.style.height = '500px';
+  }
+
+  // Nao deixa a janela nascer fora da tela quando ja ha varias abertas
+  const alturaJanela = parseInt(panel.style.height || '360', 10);
+  const sobra = window.innerHeight - alturaJanela - (78 + offset);
+  if (sobra < 40) panel.style.bottom = Math.max(78, window.innerHeight - alturaJanela - 40) + 'px';
   
   const titleText = isDigital 
     ? (id === 'rtty' ? '📡 RTTY Decoder' : id === 'dsd' ? '📻 DMR / P25 / NXDN' : id === 'tetra' ? '📶 TETRA Demodulador' : id === 'adsb' ? '✈️ ADS-B Decoder' : id === 'cw' ? '🔑 CW Morse Decoder' : id === 'bpsk' ? '📡 BPSK Decoder' : 'Digital Decoder')
@@ -5066,6 +5135,9 @@ function openDecoderPanel(id){
 
   if (id === 'acars') AcarsDecoder.init();
   if (id === 'ais')   AisDecoder.init();
+  if (id === 'sitorb') SitorBDecoder.init();
+  if (id === 'dsc') DscDecoder.init();
+  if (id === 'analise') AnaliseDecoder.init();
   if (id === 'dsd')  DsdDecoder.init();
   if (id === 'tetra') TetraDecoder.init();
   if (id === 'packet') AprsDecoder.init();
@@ -5079,6 +5151,9 @@ function closeDecoderPanel(id){
   if (id === 'tetra') TetraDecoder.onClose();
   if (id === 'packet') AprsDecoder.onClose();
   if (id === 'ais') AisDecoder.onClose();
+  if (id === 'sitorb') SitorBDecoder.onClose();
+  if (id === 'dsc') DscDecoder.onClose();
+  if (id === 'analise') AnaliseDecoder.onClose();
 }
 
 function makeDecoderPanelDraggable(panel) {
@@ -5233,6 +5308,8 @@ function buildRtltcpSerial(host, port){
 const ConfigUI = {
   devices: [],
   quadratureStatusText(isOn){
+    const m = (typeof qModoSelecionado === 'function') ? qModoSelecionado() : (isOn ? 'on' : 'off');
+    if (m === 'auto') return 'Conectado em modo Q automatico (troca em 24 MHz)';
     return isOn ? 'Conectado como Quadrature ON' : 'Conectado como Quadrature OFF';
   },
   updateSourceRows(autoRate = false){
@@ -5341,7 +5418,8 @@ const ConfigUI = {
       gainTenths: Number(document.getElementById('cfgGain').value) || 0,
       agc: document.getElementById('cfgAgc').checked,
       biasT: document.getElementById('cfgBiasT').checked,
-      quadrature: document.getElementById('cfgQuadrature').value === '1',
+      qmode: qModoSelecionado(),
+      quadrature: qModoSelecionado() !== 'off',
       ppm: Number(document.getElementById('cfgPpm').value),
       iqCorrection: document.getElementById('cfgIqCorr').checked,
       sdrplayIfMode: Number(document.getElementById('cfgSdrplayIfMode').value),
@@ -5425,8 +5503,11 @@ const ConfigUI = {
       }
     }
     document.getElementById('cfgBiasT').checked = !!cfg.biasT;
-    document.getElementById('cfgQuadrature').value = cfg.quadrature ? '1' : '0';
-    qModeActive = !!cfg.quadrature;
+    // Compatibilidade: configuracao antiga so tinha o bool, e o "ligado" de
+    // antes ja desligava acima de 24 MHz - era o automatico de hoje.
+    document.getElementById('cfgQuadrature').value =
+      cfg.qmode || (cfg.quadrature ? 'auto' : 'off');
+    qModeActive = qEfetivoAgora();
     if (cfg.ppm != null) {
       document.getElementById('cfgPpm').value = cfg.ppm;
       document.getElementById('cfgPpmVal').textContent = cfg.ppm + ' ppm';
@@ -5890,7 +5971,7 @@ function applyQDefaults(qOn) {
     document.querySelectorAll('.step-opt').forEach(x=>x.classList.remove('active'));
     document.querySelector('.step-opt[data-hz="1000"]')?.classList.add('active');
 
-    document.getElementById('cfgQuadrature').value = '1';
+    document.getElementById('cfgQuadrature').value = 'auto';
     document.getElementById('cfgSampleRate').value = '1024000';
     Backend.setConfig({
       sampleRate: 1024000,
@@ -5975,7 +6056,7 @@ function applyQDefaults(qOn) {
     document.querySelectorAll('.step-opt').forEach(x=>x.classList.remove('active'));
     document.querySelector('.step-opt[data-hz="5000"]')?.classList.add('active');
 
-    document.getElementById('cfgQuadrature').value = '0';
+    document.getElementById('cfgQuadrature').value = 'off';
     document.getElementById('cfgSampleRate').value = '1024000';
     Backend.setConfig({
       sampleRate: 1024000,
@@ -6027,7 +6108,9 @@ function applyQDefaults(qOn) {
 }
 
 document.getElementById('cfgQuadrature').addEventListener('change', (e)=>{
-  qModeActive = (e.target.value === '1');
+  qModeActive = qEfetivoAgora();
+  if (typeof updateWfFooter === 'function') updateWfFooter();
+  if (typeof updateVfoLabels === 'function') updateVfoLabels();
   updateWfFooter();
 });
 document.getElementById('cfgGain').addEventListener('input', (e)=>{
@@ -7482,6 +7565,528 @@ function restoreReceiverState(state) {
   // 6. Force VFO and spectrum repaint
   if (typeof updateWfFooter === 'function') updateWfFooter();
 }
+
+/* =========================================================
+   SITOR-B / NAVTEX - decodificador nativo
+   O nucleo esta no C++ (SitorBCore). Aqui e so a janela.
+   ========================================================= */
+const SitorBDecoder = (() => {
+  let _pollTimer = null;
+  let _linhas    = [];
+  let _estadoAnterior = null;
+  let _sqlAnterior = null;
+  let _sintonizou = false;   // so devolve a frequencia se a janela mudou ela
+  const MAX_LINHAS = 400;
+  const el = id => document.getElementById(id);
+
+  // O primeiro da lista e o que a janela sintoniza ao abrir.
+  // 8415 kHz e onde a Marinha argentina e outras estacoes costeiras saem;
+  // 518 e 490 kHz sao o NAVTEX classico, que no Brasil nao tem trafego.
+  // Estacao Radio da Marinha no Rio de Janeiro (NAVAREA V) - servico RD,
+  // radiodados em USB. Horarios em UTC:
+  //   Avisos-Radio Nauticos e SAR .. 0400-0445 e 2130-2215
+  //   Meteoromarinha ............... 0230-0330, 0600-0730 e 1845-1930
+  // 4266 kHz so sai a pedido do navegante.
+  const CANAIS = [
+    { hz: 8580000,  nome: '8580 kHz - Marinha do Brasil (Rio) - principal' },
+    { hz: 6448000,  nome: '6448 kHz - Marinha do Brasil (Rio)' },
+    { hz: 12709000, nome: '12709 kHz - Marinha do Brasil (Rio)' },
+    { hz: 16974000, nome: '16974 kHz - Marinha do Brasil (Rio)' },
+    { hz: 4266000,  nome: '4266 kHz - Marinha do Brasil (Rio) - so a pedido' },
+    { hz: 8415000,  nome: '8415 kHz - costeiras / Marinha argentina' },
+    { hz: 8414500,  nome: '8414.5 kHz - NAVTEX HF (padrao ITU)' },
+    { hz: 12579000, nome: '12579 kHz - costeiras HF' },
+    { hz: 16806500, nome: '16806.5 kHz - costeiras HF' },
+    { hz: 518000,   nome: '518 kHz - NAVTEX internacional' },
+    { hz: 490000,   nome: '490 kHz - NAVTEX local' }
+  ];
+
+  function buildPanelHTML() {
+    const ops = CANAIS.map(c => '<option value="' + c.hz + '">' + c.nome + '</option>').join('');
+    return `
+      <div class="dec-status-banner" style="background:#020603;padding:6px 10px;border-bottom:1px solid #10301a">
+        <div style="color:#ffaa00;font-family:'Segoe UI',sans-serif;font-size:12px;font-weight:bold;margin-bottom:2px">
+          Modo: SITOR-B / NAVTEX | <span id="sitorb-status" style="color:#ffaa00">Parado</span>
+        </div>
+        <div style="color:#b0f020;font-family:Consolas,monospace;font-size:12px;font-weight:bold">
+          FSK 100 baud, shift 170 Hz - recepcao em USB
+        </div>
+      </div>
+
+      <div class="dig-ctrl-bar" style="gap:4px 6px;flex-wrap:wrap">
+        <label style="font-size:10px">Canal</label>
+        <select id="sitorb-canal" style="font-size:10px" onchange="SitorBDecoder.irParaCanal()">${ops}</select>
+        <label style="font-size:10px">Tom central</label>
+        <input type="number" id="sitorb-tom" value="1700" step="10" style="width:56px;font-size:10px"
+               onchange="SitorBDecoder.reiniciar()">
+        <label style="font-size:10px" title="Inverte mark e space se o texto sair como lixo">
+          <input type="checkbox" id="sitorb-inv" onchange="SitorBDecoder.reiniciar()"> Inverter
+        </label>
+        <span id="sitorb-stats" style="font-size:10px;color:#7fb0ff;margin-left:auto"></span>
+      </div>
+
+      <div style="height:calc(100% - 100px);width:100%;background:#020804;display:flex;flex-direction:column;padding:8px;box-sizing:border-box;flex:1">
+        <div id="sitorb-terminal" class="dec-terminal" style="flex:1;overflow-y:auto;background:#010402;border:1px solid #20aa40;padding:8px;color:#30dd70;font-family:Consolas,monospace;font-size:11px;margin-bottom:6px;min-height:0;white-space:pre-wrap;word-break:break-word;box-shadow:inset 0 0 10px rgba(0,255,80,0.1)">Aguardando mensagem NAVTEX...</div>
+        <button onclick="SitorBDecoder.clearTerminal()" class="gt-btn" style="width:100%;padding:5px;background:#051a0b;border-color:#1e6c33;color:#40dd70;font-size:11px;font-weight:bold;cursor:pointer;border-radius:4px">Limpar</button>
+        <div style="color:#6a8a70;font-size:10px;margin-top:5px;line-height:1.4">
+          Marinha do Brasil (Rio de Janeiro), horarios em UTC:
+          Avisos-Radio Nauticos e SAR as 0400-0445 e 2130-2215;
+          Meteoromarinha as 0230-0330, 0600-0730 e 1845-1930.
+          <span id="sitorb-utc" style="color:#b0f020"></span>
+        </div>
+      </div>
+    `;
+  }
+
+  function irParaCanal() {
+    const sel = el('sitorb-canal');
+    if (!sel) return;
+    const hz = Number(sel.value) || 518000;
+    _sintonizou = true;
+    if (typeof renderVfo === 'function') renderVfo(hz);
+    if (typeof Backend !== 'undefined' && Backend.tune) {
+      Backend.tune(hz, 'USB', 3000).catch(() => {});
+    }
+  }
+
+  function paramsAtuais() {
+    return {
+      baudRate:   100,
+      shift:      170,
+      centerFreq: Number((el('sitorb-tom') || {}).value) || 1700,
+      invert:     !!(el('sitorb-inv') || {}).checked
+    };
+  }
+
+  function iniciar() {
+    fetch('/api/sitorb/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(paramsAtuais())
+    }).then(r => r.json()).then(mostrar).catch(() => {});
+  }
+
+  function parar() {
+    fetch('/api/sitorb/stop', { method: 'POST' })
+      .then(r => r.json()).then(mostrar).catch(() => {});
+  }
+
+  function reiniciar() { parar(); setTimeout(iniciar, 250); }
+
+  function mostrar(d) {
+    const t = el('sitorb-status'), st = el('sitorb-stats');
+    if (!t) return;
+    if (!d) { t.textContent = 'Sem resposta'; t.style.color = '#ff8080'; return; }
+    const rodando = (d.state === 'running');
+    t.textContent = rodando ? 'Rodando' : 'Parado';
+    t.style.color = rodando ? '#7CFC00' : '#ffaa00';
+    if (st) {
+      // "sync" indica que achou o alinhamento do FEC; "FEC" conta os
+      // caracteres que so foram recuperados gracas a copia repetida.
+      st.textContent = rodando
+        ? (d.sync ? 'sincronizado' : 'procurando sinal') +
+          ' | ' + (d.valid || 0) + '/' + (d.chars || 0) + ' chars' +
+          ' | FEC salvou ' + (d.fecFixes || 0)
+        : '';
+    }
+  }
+
+  // Faixas de transmissao em UTC, em minutos desde a meia-noite.
+  const JANELAS = [[240,285],[1290,1335],[150,210],[360,450],[1125,1170]];
+
+  function pollStatus() {
+    fetch('/api/sitorb/status').then(r => r.json()).then(mostrar).catch(() => mostrar(null));
+    const u = el('sitorb-utc');
+    if (u) {
+      const d = new Date();
+      const m = d.getUTCHours() * 60 + d.getUTCMinutes();
+      const dentro = JANELAS.some(j => m >= j[0] && m <= j[1]);
+      const hh = String(d.getUTCHours()).padStart(2, '0');
+      const mm = String(d.getUTCMinutes()).padStart(2, '0');
+      u.textContent = ' | agora ' + hh + mm + 'Z' +
+                      (dentro ? ' - EM HORARIO DE TRANSMISSAO' : ' - fora de horario');
+      u.style.color = dentro ? '#7CFC00' : '#c08040';
+    }
+  }
+
+  function appendLine(line) {
+    if (!line) return;
+    _linhas.push(line);
+    if (_linhas.length > MAX_LINHAS) _linhas.shift();
+    const term = el('sitorb-terminal');
+    if (!term) return;
+    if (term.textContent.indexOf('Aguardando') === 0) term.textContent = '';
+    const grudado = (term.scrollTop + term.clientHeight >= term.scrollHeight - 20);
+    const div = document.createElement('div');
+    div.textContent = line;
+    term.appendChild(div);
+    if (grudado) term.scrollTop = term.scrollHeight;
+  }
+
+  function clearTerminal() {
+    _linhas = [];
+    const term = el('sitorb-terminal');
+    if (term) term.textContent = 'Aguardando mensagem NAVTEX...';
+  }
+
+  // Abrir a janela sintoniza o canal e liga; fechar devolve tudo.
+  function init() {
+    try {
+      _estadoAnterior = {
+        freq: currentFreqHz,
+        mode: (document.querySelector('.mode-btn.on')?.textContent || 'USB').trim(),
+        bw:   currentBwHz,
+        step: tuningStepHz
+      };
+    } catch (e) { _estadoAnterior = null; }
+
+    // Squelch escancarado enquanto a janela estiver aberta: SITOR-B chega
+    // fraco e intermitente, e squelch fechado cortaria o audio no meio da
+    // mensagem. O valor anterior volta ao fechar.
+    const sql = el('sqlSlider');
+    if (sql) {
+      _sqlAnterior = sql.value;
+      sql.value = sql.min;
+      sql.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    // Abrir a janela NAO mexe mais na sintonia: as vezes o usuario quer
+    // testar o decodificador numa frequencia que ele mesmo escolheu, e o
+    // salto automatico atrapalhava. Para ir a um canal da lista, basta
+    // escolher no seletor - ai sim ele sintoniza.
+    iniciar();
+    if (_pollTimer) clearInterval(_pollTimer);
+    _pollTimer = setInterval(pollStatus, 2000);
+  }
+
+  function onClose() {
+    if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+    parar();
+    const sql = el('sqlSlider');
+    if (sql && _sqlAnterior !== null) {
+      sql.value = _sqlAnterior;
+      sql.dispatchEvent(new Event('input', { bubbles: true }));
+      _sqlAnterior = null;
+    }
+    if (_sintonizou && _estadoAnterior && typeof restoreReceiverState === 'function') {
+      restoreReceiverState(_estadoAnterior);
+    }
+    _estadoAnterior = null;
+    _sintonizou = false;
+  }
+
+  return { buildPanelHTML, init, onClose, appendLine, clearTerminal,
+           irParaCanal, reiniciar };
+})();
+
+/* =========================================================
+   ANALISADOR DE SINAL - identifica sinal desconhecido
+   Nao decodifica: mede tons, deslocamento e velocidade, e
+   diz se o conteudo tem cara de texto ou de cifra.
+   O nucleo esta no C++ (AnaliseCore).
+   ========================================================= */
+const AnaliseDecoder = (() => {
+  let _pollTimer = null;
+  const el = id => document.getElementById(id);
+
+  function buildPanelHTML() {
+    return `
+      <div class="dec-status-banner" style="background:#020603;padding:6px 10px;border-bottom:1px solid #10301a">
+        <div style="color:#ffaa00;font-family:'Segoe UI',sans-serif;font-size:12px;font-weight:bold;margin-bottom:2px">
+          Analisador de sinal | <span id="analise-status" style="color:#ffaa00">Parado</span>
+        </div>
+        <div style="color:#b0f020;font-family:Consolas,monospace;font-size:12px;font-weight:bold">
+          Sintonize o sinal em USB e clique em Analisar
+        </div>
+      </div>
+
+      <div class="dig-ctrl-bar" style="gap:4px 6px;flex-wrap:wrap">
+        <button onclick="AnaliseDecoder.analisar()" class="gt-btn" style="padding:4px 14px;background:#0d3a16;border-color:#2e7d32;color:#7CFC00;font-size:11px;font-weight:bold;cursor:pointer;border-radius:4px">Analisar</button>
+        <span id="analise-progresso" style="font-size:10px;color:#7fb0ff;margin-left:auto"></span>
+      </div>
+
+      <div style="height:calc(100% - 100px);width:100%;background:#020804;display:flex;flex-direction:column;padding:8px;box-sizing:border-box;flex:1">
+        <div id="analise-terminal" class="dec-terminal" style="flex:1;overflow-y:auto;background:#010402;border:1px solid #20aa40;padding:8px;color:#30dd70;font-family:Consolas,monospace;font-size:11px;margin-bottom:6px;min-height:0;white-space:pre-wrap;word-break:break-word;box-shadow:inset 0 0 10px rgba(0,255,80,0.1)">Sintonize o sinal e clique em Analisar.</div>
+        <button onclick="AnaliseDecoder.clearTerminal()" class="gt-btn" style="width:100%;padding:5px;background:#051a0b;border-color:#1e6c33;color:#40dd70;font-size:11px;font-weight:bold;cursor:pointer;border-radius:4px">Limpar</button>
+        <div style="color:#6a8a70;font-size:10px;margin-top:5px;line-height:1.4">
+          Ele junta 12 segundos de audio e mede. Mantenha o sinal presente e o
+          squelch aberto durante a medida. Funciona bem com FSK de dois tons;
+          sinais de fase (PSK) aparecem como "nenhum pico se destaca". Em
+          deslocamento estreito o valor do shift tem erro de ~20 Hz - serve
+          para identificar, nao para ajuste fino.
+        </div>
+      </div>
+    `;
+  }
+
+  function analisar() {
+    const t = el('analise-terminal');
+    if (t) t.textContent = '';
+
+    // O redutor de ruido trabalha em BLOCOS (ganho de Wiener). Isso imprime no
+    // audio uma periodicidade que nao vem da estacao, e o analisador a mede
+    // como se fosse a velocidade do sinal - num teste ele anunciou 480 baud,
+    // que e 4 x os 120 Hz do zumbido da rede. Pior: como o redutor trata os
+    // dois tons de forma diferente, essa raia falsa ainda passa no teste da
+    // soma. Nao ha como separar depois; tem de estar desligado na medida.
+    const nr = Number(el('audioNrSlider')?.value || 0);
+    if (nr > 0) {
+      appendLine('[ANALISE] Redutor de Ruido esta em ' + nr + '%.');
+      appendLine('[ANALISE] Zere o Redutor de Ruido (e o Noise Blanker) antes de medir.');
+      appendLine('[ANALISE] Eles processam o audio em blocos e criam uma velocidade falsa.');
+      return;
+    }
+    fetch('/api/analise/start', { method: 'POST' })
+      .then(r => r.json()).then(mostrar).catch(() => {});
+    if (_pollTimer) clearInterval(_pollTimer);
+    _pollTimer = setInterval(pollStatus, 700);
+  }
+
+  function parar() {
+    fetch('/api/analise/stop', { method: 'POST' }).then(r => r.json()).then(mostrar).catch(() => {});
+  }
+
+  function mostrar(d) {
+    const t = el('analise-status'), pr = el('analise-progresso');
+    if (!t) return;
+    if (!d) { t.textContent = 'Sem resposta'; t.style.color = '#ff8080'; return; }
+    const rodando = (d.state === 'running');
+    t.textContent = d.done ? 'Concluido' : (rodando ? 'Medindo...' : 'Parado');
+    t.style.color = d.done ? '#7CFC00' : (rodando ? '#ffdd40' : '#ffaa00');
+    if (pr) {
+      if (rodando && !d.done) {
+        const pc = Math.min(100, Math.round(100 * (d.seconds || 0) / (d.needed || 12)));
+        pr.textContent = 'juntando audio: ' + pc + '%';
+      } else pr.textContent = '';
+    }
+    if (d.done && _pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+  }
+
+  function pollStatus() {
+    fetch('/api/analise/status').then(r => r.json()).then(mostrar).catch(() => mostrar(null));
+  }
+
+  function appendLine(line) {
+    if (!line) return;
+    const term = el('analise-terminal');
+    if (!term) return;
+    if (term.textContent.indexOf('Sintonize') === 0) term.textContent = '';
+    const div = document.createElement('div');
+    div.textContent = line;
+    if (/CIFRAD|aleatorios/i.test(line)) div.style.color = '#ff9040';
+    if (/TEXTO|tem estrutura/i.test(line)) div.style.color = '#80ff80';
+    term.appendChild(div);
+    term.scrollTop = term.scrollHeight;
+  }
+
+  function clearTerminal() {
+    const term = el('analise-terminal');
+    if (term) term.textContent = 'Sintonize o sinal e clique em Analisar.';
+  }
+
+  // Nao mexe na sintonia: a ideia e justamente medir onde voce ja esta.
+  function init() { clearTerminal(); }
+
+  function onClose() {
+    if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+    parar();
+  }
+
+  return { buildPanelHTML, init, onClose, appendLine, clearTerminal, analisar };
+})();
+
+
+/* =========================================================
+   DSC - chamada seletiva digital (ITU-R M.493 / M.541)
+   O nucleo esta no C++ (DscCore). Aqui e so a janela.
+   ========================================================= */
+const DscDecoder = (() => {
+  let _pollTimer = null;
+  let _linhas    = [];
+  let _estadoAnterior = null;
+  let _sqlAnterior = null;
+  let _sintonizou = false;   // so devolve a frequencia se a janela mudou ela
+  const MAX_LINHAS = 400;
+  const el = id => document.getElementById(id);
+
+  // Frequencias internacionais de DSC em HF (ITU). A primeira e a que a
+  // janela sintoniza ao abrir: 8414.5 kHz e a mais movimentada das faixas
+  // altas e fica colada nos 8415 das costeiras.
+  const CANAIS = [
+    { hz: 8414500,  nome: '8414.5 kHz - DSC HF (a mais movimentada)' },
+    { hz: 2187500,  nome: '2187.5 kHz - DSC costeiro' },
+    { hz: 4207500,  nome: '4207.5 kHz - DSC HF' },
+    { hz: 6312000,  nome: '6312 kHz - DSC HF' },
+    { hz: 12577000, nome: '12577 kHz - DSC HF' },
+    { hz: 16804500, nome: '16804.5 kHz - DSC HF' }
+  ];
+
+  function buildPanelHTML() {
+    const ops = CANAIS.map(c => '<option value="' + c.hz + '">' + c.nome + '</option>').join('');
+    return `
+      <div class="dec-status-banner" style="background:#020603;padding:6px 10px;border-bottom:1px solid #10301a">
+        <div style="color:#ffaa00;font-family:'Segoe UI',sans-serif;font-size:12px;font-weight:bold;margin-bottom:2px">
+          Modo: DSC | <span id="dsc-status" style="color:#ffaa00">Parado</span>
+        </div>
+        <div style="color:#b0f020;font-family:Consolas,monospace;font-size:12px;font-weight:bold">
+          FSK 100 baud, shift 170 Hz - recepcao em USB - sintonia tolera +/- 50 Hz
+        </div>
+      </div>
+
+      <div class="dig-ctrl-bar" style="gap:4px 6px;flex-wrap:wrap">
+        <label style="font-size:10px">Canal</label>
+        <select id="dsc-canal" style="font-size:10px" onchange="DscDecoder.irParaCanal()">${ops}</select>
+        <label style="font-size:10px">Tom central</label>
+        <input type="number" id="dsc-tom" value="1700" step="10" style="width:56px;font-size:10px"
+               onchange="DscDecoder.reiniciar()">
+        <label style="font-size:10px" title="Inverte mark e space se nada fechar">
+          <input type="checkbox" id="dsc-inv" onchange="DscDecoder.reiniciar()"> Inverter
+        </label>
+        <span id="dsc-stats" style="font-size:10px;color:#7fb0ff;margin-left:auto"></span>
+      </div>
+
+      <div style="height:calc(100% - 100px);width:100%;background:#020804;display:flex;flex-direction:column;padding:8px;box-sizing:border-box;flex:1">
+        <div id="dsc-terminal" class="dec-terminal" style="flex:1;overflow-y:auto;background:#010402;border:1px solid #20aa40;padding:8px;color:#30dd70;font-family:Consolas,monospace;font-size:11px;margin-bottom:6px;min-height:0;white-space:pre-wrap;word-break:break-word;box-shadow:inset 0 0 10px rgba(0,255,80,0.1)">Aguardando chamada DSC...</div>
+        <div style="display:flex;gap:6px">
+          <button onclick="DscDecoder.clearTerminal()" class="gt-btn" style="flex:1;padding:5px;background:#051a0b;border-color:#1e6c33;color:#40dd70;font-size:11px;font-weight:bold;cursor:pointer;border-radius:4px">Limpar</button>
+        </div>
+        <div style="color:#6a8a70;font-size:10px;margin-top:5px;line-height:1.4">
+          O DSC nao carrega conversa: e o aviso curto que os navios trocam antes
+          de mudar para voz. Cada chamada traz o MMSI de quem chamou e de quem
+          foi chamado. Os numeros entre colchetes sao os simbolos crus, uteis
+          quando o formato nao e um dos conhecidos. Transmissoes sao raras -
+          deixe a janela aberta.
+        </div>
+      </div>
+    `;
+  }
+
+  function irParaCanal() {
+    const sel = el('dsc-canal');
+    if (!sel) return;
+    const hz = Number(sel.value) || 8414500;
+    _sintonizou = true;
+    if (typeof renderVfo === 'function') renderVfo(hz);
+    if (typeof Backend !== 'undefined' && Backend.tune) {
+      Backend.tune(hz, 'USB', 3000).catch(() => {});
+    }
+  }
+
+  function paramsAtuais() {
+    return {
+      baudRate:   100,
+      shift:      170,
+      centerFreq: Number((el('dsc-tom') || {}).value) || 1700,
+      invert:     !!(el('dsc-inv') || {}).checked
+    };
+  }
+
+  function iniciar() {
+    fetch('/api/dsc/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(paramsAtuais())
+    }).then(r => r.json()).then(mostrar).catch(() => {});
+  }
+
+  function parar() {
+    fetch('/api/dsc/stop', { method: 'POST' })
+      .then(r => r.json()).then(mostrar).catch(() => {});
+  }
+
+  function reiniciar() { parar(); setTimeout(iniciar, 250); }
+
+  function mostrar(d) {
+    const t = el('dsc-status'), st = el('dsc-stats');
+    if (!t) return;
+    if (!d) { t.textContent = 'Sem resposta'; t.style.color = '#ff8080'; return; }
+    const rodando = (d.state === 'running');
+    t.textContent = rodando ? 'Rodando' : 'Parado';
+    t.style.color = rodando ? '#7CFC00' : '#ffaa00';
+    if (st) {
+      st.textContent = rodando
+        ? (d.sync ? 'sincronizado' : 'procurando sinal') +
+          ' | ' + (d.valid || 0) + '/' + (d.symbols || 0) + ' simbolos' +
+          ' | ' + (d.messages || 0) + ' chamadas'
+        : '';
+    }
+  }
+
+  function pollStatus() {
+    fetch('/api/dsc/status').then(r => r.json()).then(mostrar).catch(() => mostrar(null));
+  }
+
+  function appendLine(line) {
+    if (!line) return;
+    _linhas.push(line);
+    if (_linhas.length > MAX_LINHAS) _linhas.shift();
+    const term = el('dsc-terminal');
+    if (!term) return;
+    if (term.textContent.indexOf('Aguardando') === 0) term.textContent = '';
+    const grudado = (term.scrollTop + term.clientHeight >= term.scrollHeight - 20);
+    const div = document.createElement('div');
+    div.textContent = line;
+    // Socorro e urgencia merecem destaque - e o motivo de existir o DSC.
+    if (/socorro|urgencia/i.test(line)) div.style.color = '#ff6060';
+    term.appendChild(div);
+    if (grudado) term.scrollTop = term.scrollHeight;
+  }
+
+  function clearTerminal() {
+    _linhas = [];
+    const term = el('dsc-terminal');
+    if (term) term.textContent = 'Aguardando chamada DSC...';
+  }
+
+  function init() {
+    try {
+      _estadoAnterior = {
+        freq: currentFreqHz,
+        mode: (document.querySelector('.mode-btn.on')?.textContent || 'USB').trim(),
+        bw:   currentBwHz,
+        step: tuningStepHz
+      };
+    } catch (e) { _estadoAnterior = null; }
+
+    // Squelch aberto: as chamadas DSC sao rajadas curtas e isoladas; squelch
+    // fechado cortaria o inicio da mensagem, que e justamente onde esta o
+    // especificador de formato que abre a decodificacao.
+    const sql = el('sqlSlider');
+    if (sql) {
+      _sqlAnterior = sql.value;
+      sql.value = sql.min;
+      sql.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    // Abrir a janela NAO mexe mais na sintonia: as vezes o usuario quer
+    // testar o decodificador numa frequencia que ele mesmo escolheu, e o
+    // salto automatico atrapalhava. Para ir a um canal da lista, basta
+    // escolher no seletor - ai sim ele sintoniza.
+    iniciar();
+    if (_pollTimer) clearInterval(_pollTimer);
+    _pollTimer = setInterval(pollStatus, 2000);
+  }
+
+  function onClose() {
+    if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+    parar();
+    const sql = el('sqlSlider');
+    if (sql && _sqlAnterior !== null) {
+      sql.value = _sqlAnterior;
+      sql.dispatchEvent(new Event('input', { bubbles: true }));
+      _sqlAnterior = null;
+    }
+    if (_sintonizou && _estadoAnterior && typeof restoreReceiverState === 'function') {
+      restoreReceiverState(_estadoAnterior);
+    }
+    _estadoAnterior = null;
+    _sintonizou = false;
+  }
+
+  return { buildPanelHTML, init, onClose, appendLine, clearTerminal,
+           irParaCanal, reiniciar };
+})();
+
 
 /* =========================================================
    AIS DECODER - integracao com o AIS-catcher

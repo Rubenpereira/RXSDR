@@ -83,8 +83,13 @@ README_DECODERS_CARTAO.md
 # ---- 5) binarios de terceiros ---------------------------------------------
 # DSDPlus, FMP24, FMPA, FMPP, AIS-catcher e afins nao sao nossos e nao podem
 # ser redistribuidos aqui. Quem compilar baixa direto dos autores.
-decoders/
+# ATENCAO: aqui havia a linha solta "decoders/". Sem a barra inicial, o git
+# aplica o padrao a QUALQUER pasta com esse nome em qualquer nivel - e isso
+# incluia project/src/decoders/, ou seja, o codigo-fonte C++ dos decoders
+# (AIS, APRS, SITOR-B, DSD...) nunca subia. Quem clonasse o repositorio nao
+# conseguia compilar. Os caminhos agora sao ancorados com barra inicial.
 /project/decoders/
+/project-win7/decoders/
 /project-win7/build-win7/decoders/
 
 # codigo de terceiros trazido para dentro da pasta

@@ -65,7 +65,12 @@ set(SOURCES
     src/util/Logger.cpp
 )
 
-add_executable(RXSDR WIN32 ${SOURCES})
+set(RXSDR_RC "")
+if(WIN32)
+    set(RXSDR_RC "${CMAKE_CURRENT_SOURCE_DIR}/src/rxsdr.rc")
+endif()
+
+add_executable(RXSDR WIN32 ${SOURCES} ${RXSDR_RC})
 
 # ── Includes ───────────────────────────────────────────────────────────────
 target_include_directories(RXSDR PRIVATE

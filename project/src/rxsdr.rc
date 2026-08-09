@@ -1,0 +1,6 @@
+// Icone embutido no proprio RXSDR.exe.
+// Sem isto o executavel usa o icone padrao do Windows no Explorer, no
+// Gerenciador de Tarefas e na barra de tarefas - o instalador so cuidava
+// do atalho. IDI_ICON1 e o primeiro icone do arquivo, que e o que o
+// Windows usa como icone da aplicacao.
+IDI_ICON1 ICON "../installer/assets/app.ico"

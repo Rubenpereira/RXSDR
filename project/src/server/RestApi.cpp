@@ -303,6 +303,20 @@ void RestApi::install(QHttpServer* server)
             return QHttpServerResponse("application/json", QJsonDocument(r).toJson());
         });
 
+    // ── Analisador de sinal ───────────────────────────────────────────────
+    server->route("/api/analise/status", QHttpServerRequest::Method::Get, [this]() {
+        QJsonObject o = onAnaliseStatus ? onAnaliseStatus() : QJsonObject{{"state","unavailable"}};
+        return QHttpServerResponse(o);
+    });
+    server->route("/api/analise/start", QHttpServerRequest::Method::Post, [this]() {
+        QJsonObject r = onAnaliseStart ? onAnaliseStart() : QJsonObject{{"ok",false},{"error","indisponível"}};
+        return QHttpServerResponse(r);
+    });
+    server->route("/api/analise/stop", QHttpServerRequest::Method::Post, [this]() {
+        QJsonObject r = onAnaliseStop ? onAnaliseStop() : QJsonObject{{"ok",false},{"error","indisponível"}};
+        return QHttpServerResponse(r);
+    });
+
     // POST /api/dsc/stop
     server->route("/api/dsc/stop", QHttpServerRequest::Method::Post, [this]() {
         QJsonObject r = onDscStop ? onDscStop() : QJsonObject{{"ok",false},{"error","indisponível"}};

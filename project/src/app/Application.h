@@ -27,6 +27,7 @@ class AprsIsClient;
 class SitorBManager;
 class PactorManager;
 class DscManager;
+class AnaliseManager;
 class SelcalManager;
 class TetraManager;
 
@@ -63,6 +64,7 @@ private:
     std::unique_ptr<SitorBManager> sitorBDeco_;
     std::unique_ptr<PactorManager> pactorDeco_;
     std::unique_ptr<DscManager> dscDeco_;
+    std::unique_ptr<AnaliseManager> analiseDeco_;
     std::unique_ptr<SelcalManager> selcalDeco_;
     std::unique_ptr<TetraManager> tetraDeco_;
     IirDcBlock dcBlock_;

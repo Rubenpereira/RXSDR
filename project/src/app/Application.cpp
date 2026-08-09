@@ -25,6 +25,7 @@
 #include "../decoders/SitorBManager.h"
 #include "../decoders/PactorManager.h"
 #include "../decoders/DscManager.h"
+#include "../decoders/AnaliseManager.h"
 #include "../decoders/SelcalManager.h"
 #include "../decoders/TetraManager.h"
 
@@ -69,6 +70,7 @@ QJsonObject buildConfigJson()
     o["agc"] = c.agc();
     o["biasT"] = c.biasT();
     o["quadrature"] = c.quadrature();
+    o["qmode"] = c.qMode();
     o["ppm"] = c.ppm();
     o["iqCorrection"] = c.iqCorrection();
     o["sdrplayIfMode"] = c.sdrplayIfMode();
@@ -210,12 +212,8 @@ bool Application::start()
             auto& cfg = Config::instance();
             dev->setSampleRate(cfg.sampleRate());
             
-            bool quadratureOn = cfg.quadrature();
             const uint64_t currentFreq = freqA_.load();
-            if (quadratureOn && currentFreq >= 24000000ULL) {
-                quadratureOn = false;
-            }
-            dev->setQuadrature(quadratureOn);
+            dev->setQuadrature(cfg.quadratureEm(currentFreq));
             dev->setPpm(cfg.ppm());
             dev->setBias(cfg.biasT());
             dev->setCenterFreq(currentFreq);
@@ -283,9 +281,7 @@ bool Application::start()
             if (diff > static_cast<int64_t>(sr * 0.48)) {
                 // Atualiza o modo direct sampling conforme a frequência ANTES de sintonizar.
                 // Isso evita que o sintonizador (tuner) tente sintonizar em HF e trave o dongle.
-                const bool qSaved = Config::instance().quadrature();
-                const bool qApply = qSaved && (freq < 24000000ULL);
-                device_->setQuadrature(qApply);
+                device_->setQuadrature(Config::instance().quadratureEm(freq));
 
                 device_->setCenterFreq(freq);
                 // Re-aplica o ganho: o driver RTL-SDR reseta o ganho de hardware
@@ -333,9 +329,7 @@ bool Application::start()
         if (device_) {
             // Atualiza o modo direct sampling conforme a frequência ANTES de sintonizar.
             // Isso evita que o sintonizador (tuner) tente sintonizar em HF e trave o dongle.
-            const bool qSaved = Config::instance().quadrature();
-            const bool qApply = qSaved && (freq < 24000000ULL);
-            device_->setQuadrature(qApply);
+            device_->setQuadrature(Config::instance().quadratureEm(freq));
 
             device_->setCenterFreq(freq);
             if (deviceType_ == QStringLiteral("sdrplay")) {
@@ -651,6 +645,7 @@ bool Application::start()
     sitorBDeco_ = std::make_unique<SitorBManager>(this);
 
     connect(sitorBDeco_.get(), &SitorBManager::logLine, [this](const QString& line) {
+        Logger::info(line);
         ws_->broadcastJson(QJsonObject{
             {"t",       "dec_line"},
             {"decoder", "SITOR-B"},
@@ -670,6 +665,7 @@ bool Application::start()
         SitorBManager::Params p;
         p.baudRate   = static_cast<float>(j.value("baudRate").toDouble(100.0));
         p.shift      = static_cast<float>(j.value("shift").toDouble(170.0));
+        p.centerFreq = static_cast<float>(j.value("centerFreq").toDouble(1700.0));
         p.invert     = j.value("invert").toBool(false);
         sitorBDeco_->setParams(p);
         sitorBDeco_->start();
@@ -748,12 +744,37 @@ bool Application::start()
         DscManager::Params p;
         p.baudRate   = static_cast<float>(j.value("baudRate").toDouble(100.0));
         p.shift      = static_cast<float>(j.value("shift").toDouble(170.0));
-        p.center     = static_cast<float>(j.value("center").toDouble(1700.0));
-        p.autoDetect = j.value("autoDetect").toBool(true);
+        p.centerFreq = static_cast<float>(j.value("centerFreq").toDouble(
+                           j.value("center").toDouble(1700.0)));
+        p.invert     = j.value("invert").toBool(false);
         dscDeco_->setParams(p);
         dscDeco_->start();
         QJsonObject r = dscDeco_->statusJson();
         r["ok"] = (dscDeco_->state() == DscManager::State::Running);
+        return r;
+    };
+
+    // ── Analisador de sinal desconhecido ───────────────────────────────────
+    analiseDeco_ = std::make_unique<AnaliseManager>(this);
+    connect(analiseDeco_.get(), &AnaliseManager::logLine, [this](const QString& line) {
+        ws_->broadcastJson(QJsonObject{
+            {"t",       "dec_line"},
+            {"decoder", "ANALISE"},
+            {"text",    line}
+        });
+        Logger::info(line);
+    });
+    rest_->onAnaliseStatus = [this]() { return analiseDeco_->statusJson(); };
+    rest_->onAnaliseStart  = [this]() -> QJsonObject {
+        analiseDeco_->start();
+        QJsonObject r = analiseDeco_->statusJson();
+        r["ok"] = true;
+        return r;
+    };
+    rest_->onAnaliseStop = [this]() -> QJsonObject {
+        analiseDeco_->stop();
+        QJsonObject r = analiseDeco_->statusJson();
+        r["ok"] = true;
         return r;
     };
 
@@ -863,6 +884,7 @@ bool Application::start()
         o["agc"] = cfg.agc();
         o["biasT"] = cfg.biasT();
         o["quadrature"] = cfg.quadrature();
+        o["qmode"] = cfg.qMode();
         o["sampleRate"] = static_cast<int>(cfg.sampleRate());
         return o;
     };
@@ -910,6 +932,7 @@ void Application::stop()
     if (sitorBDeco_) sitorBDeco_->stop();
     if (pactorDeco_) pactorDeco_->stop();
     if (dscDeco_) dscDeco_->stop();
+    if (analiseDeco_) analiseDeco_->stop();
     if (selcalDeco_) selcalDeco_->stop();
     if (tetraDeco_) tetraDeco_->stop();
     if (device_) {
@@ -934,14 +957,14 @@ void Application::applyConfigToDevice()
 {
     if (!device_) return;
     auto& cfg = Config::instance();
-    bool quadratureOn = cfg.quadrature();
-    // Direct sampling Q-branch (0x09=2) só funciona em HF (< 24 MHz).
-    // Em VHF/UHF desabilita para o dispositivo MAS preserva a config salva do usuário.
+    // O modo escolhido pelo usuario decide: "off" nunca, "on" sempre, "auto"
+    // liga abaixo de 24 MHz e desliga acima. A escolha nunca e sobrescrita no
+    // arquivo de configuracao - so o que vai para o dispositivo muda.
     const uint64_t currentFreq = freqA_.load();
-    if (quadratureOn && currentFreq >= 24000000ULL) {
-        quadratureOn = false;
-        // NÃO salva false no config — preserva a escolha do usuário para quando voltar ao HF.
-        Logger::info(QString("Quadrature ON ignorado em %1 Hz (VHF/UHF): direct sampling ativo só em HF < 24 MHz. Config preservada.")
+    const bool quadratureOn = cfg.quadratureEm(currentFreq);
+    if (cfg.qMode() == QLatin1String("auto")) {
+        Logger::info(QString("Modo Q automatico: %1 em %2 Hz")
+                         .arg(quadratureOn ? "amostragem direta ON" : "tuner normal (Q OFF)")
                          .arg(currentFreq));
     }
     device_->setSampleRate(cfg.sampleRate());
@@ -977,7 +1000,9 @@ bool Application::applyConfigJson(const QJsonObject& j)
     // Captura os valores de dispositivo atuais antes de atualizar o Config
     const QString oldType = deviceType_;
     const QString oldSerial = deviceSerial_;
-    const bool oldQuadrature = cfg.quadrature();
+    // Estado EFETIVO antes da mudanca, e nao a chave crua: e o que decide se
+    // o dispositivo precisa mesmo ser reaberto.
+    const bool oldQuadrature = cfg.quadratureEm(freqA_.load());
     const int oldSampleRate = cfg.sampleRate();
     const bool oldBiasT = cfg.biasT();
     const int oldFftSize = cfg.fftSize();
@@ -1008,7 +1033,8 @@ bool Application::applyConfigJson(const QJsonObject& j)
     if (j.contains("gainTenths")) cfg.setGain(j.value("gainTenths").toInt(280));
     if (j.contains("agc")) cfg.setAgc(j.value("agc").toBool());
     if (j.contains("biasT")) cfg.setBiasT(j.value("biasT").toBool());
-    if (j.contains("quadrature")) cfg.setQuadrature(j.value("quadrature").toBool());
+    if (j.contains("qmode")) cfg.setQMode(j.value("qmode").toString());
+    else if (j.contains("quadrature")) cfg.setQuadrature(j.value("quadrature").toBool());
     if (j.contains("ppm")) cfg.setPpm(j.value("ppm").toInt());
     if (j.contains("iqCorrection")) cfg.setIqCorrection(j.value("iqCorrection").toBool());
     if (j.contains("sdrplayIfMode")) cfg.setSdrplayIfMode(j.value("sdrplayIfMode").toInt(0));
@@ -1045,7 +1071,10 @@ bool Application::applyConfigJson(const QJsonObject& j)
     // Se o dispositivo físico (tipo ou serial) mudou, ou se parâmetros estruturais críticos mudaram,
     // ou se não há dispositivo aberto, força o fechamento e a reabertura completa do hardware
     // com delay de segurança para garantir estabilidade USB e reconfiguração correta de endpoints do driver.
-    const bool qChanged = j.contains("quadrature") && (j.value("quadrature").toBool() != oldQuadrature);
+    // Trocar de modo so exige reabrir o hardware se o que vai para o
+    // dispositivo AGORA mudou. Passar de "on" para "auto" estando em HF, por
+    // exemplo, nao muda nada na pratica e nao precisa derrubar o USB.
+    const bool qChanged = (Config::instance().quadratureEm(freqA_.load()) != oldQuadrature);
     const bool srChanged = j.contains("sampleRate") && (j.value("sampleRate").toInt() != oldSampleRate);
     const bool biasChanged = j.contains("biasT") && (j.value("biasT").toBool() != oldBiasT);
 
@@ -1101,7 +1130,7 @@ void Application::wireDeviceCallback()
         const int gainTenths = cfgNow.gainTenths();
         const float relDb = std::clamp((static_cast<float>(gainTenths) - 280.0f) / 10.0f, -24.0f, 36.0f);
         float uiGain = std::pow(10.0f, relDb / 20.0f);
-        const bool isDirectSampling = cfgNow.quadrature() && (vfoHz < 24000000ULL);
+        const bool isDirectSampling = cfgNow.quadratureEm(vfoHz);
         const bool isRtlsdrFamily = (deviceType_ == QStringLiteral("rtlsdr")
                                      || deviceType_ == QStringLiteral("rtltcp"));
         const bool noUiGain = (deviceType_ == QStringLiteral("sdrplay"));
@@ -1119,7 +1148,7 @@ void Application::wireDeviceCallback()
         // Boost fixo de +1 dB SOMENTE no modo Q Off (quadrature desligado = VHF/UHF).
         // Vale em manual e em AGC (aplicado por cima do uiGain, apos o reset de AGC).
         // O modo Q On (quadrature ligado / HF / direct sampling) NAO e alterado.
-        if (!cfgNow.quadrature() && isRtlsdrFamily) {
+        if (!isDirectSampling && isRtlsdrFamily) {
             uiGain *= 1.259f; // +2 dB (1 dB inicial + 1 dB extra), somente no modo Q Off
         }
 
@@ -1301,6 +1330,9 @@ void Application::handleAudioCallback(const std::vector<int16_t>& pcm, uint32_t 
         }
         if (dscDeco_ && dscDeco_->state() == DscManager::State::Running) {
             dscDeco_->feedAudio(chunk.data(), static_cast<int>(chunk.size()), sps);
+        }
+        if (analiseDeco_ && analiseDeco_->state() == AnaliseManager::State::Running) {
+            analiseDeco_->feedAudio(chunk.data(), static_cast<int>(chunk.size()), sps);
         }
         if (selcalDeco_ && selcalDeco_->state() == SelcalManager::State::Running) {
             selcalDeco_->feedAudio(chunk.data(), static_cast<int>(chunk.size()), sps);

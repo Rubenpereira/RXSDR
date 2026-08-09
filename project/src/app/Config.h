@@ -33,6 +33,33 @@ public:
     bool    agc()           const { return s_.value("rx/agc", true).toBool(); }
     bool    biasT()         const { return s_.value("rx/bias", false).toBool(); }
     bool    quadrature()    const { return s_.value("rx/quadrature", false).toBool(); }
+
+    // ---- Amostragem direta (ramo Q) -------------------------------------
+    // Tres modos, como no OpenSDR+:
+    //   "off"  - nunca usa amostragem direta (so VHF/UHF pelo tuner)
+    //   "on"   - forca amostragem direta sempre, em qualquer frequencia
+    //   "auto" - liga abaixo de 24 MHz e desliga acima, sozinho
+    // O limite e 24 MHz porque acima disso o ramo Q do RTL-SDR ja passou de
+    // metade da taxa de amostragem do ADC e so devolve imagem dobrada.
+    static constexpr quint64 kLimiteHfHz = 24000000ULL;
+
+    QString qMode() const {
+        const QString m = s_.value("rx/qmode").toString();
+        if (m == QLatin1String("off") || m == QLatin1String("on")
+            || m == QLatin1String("auto")) return m;
+        // Compatibilidade com as versoes antigas, em que isto era so um bool:
+        // o "ligado" de antes ja desligava acima de 24 MHz, ou seja, era o
+        // que hoje chamamos de automatico.
+        return quadrature() ? QStringLiteral("auto") : QStringLiteral("off");
+    }
+
+    // Amostragem direta que vale para esta frequencia, dado o modo escolhido.
+    bool quadratureEm(quint64 hz) const {
+        const QString m = qMode();
+        if (m == QLatin1String("on"))  return true;
+        if (m == QLatin1String("off")) return false;
+        return hz < kLimiteHfHz;
+    }
     int     ppm()           const { return s_.value("rx/ppm", 0).toInt(); }
     bool    iqCorrection()  const { return s_.value("rx/iqCorrection", true).toBool(); }
 
@@ -63,6 +90,13 @@ public:
     void setSdrplayBw(int v)        { s_.setValue("device/sdrplayBw", v); }
     void setBiasT(bool v)      { s_.setValue("rx/bias", v); }
     void setQuadrature(bool v) { s_.setValue("rx/quadrature", v); }
+    void setQMode(const QString& m) {
+        const QString v = (m == QLatin1String("on") || m == QLatin1String("auto"))
+                          ? m : QStringLiteral("off");
+        s_.setValue("rx/qmode", v);
+        // Mantem o campo antigo coerente para quem ainda o le.
+        s_.setValue("rx/quadrature", v != QLatin1String("off"));
+    }
     void setPpm(int v)         { s_.setValue("rx/ppm", v); }
     void setIqCorrection(bool v) { s_.setValue("rx/iqCorrection", v); }
     void setSmeterHfOffset(double v)   { s_.setValue("smeter/hfOffset", v); }

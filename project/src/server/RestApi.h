@@ -73,6 +73,11 @@ public:
     std::function<QJsonObject(const QJsonObject&)>           onDscStart;
     std::function<QJsonObject()>                             onDscStop;
 
+    // Analisador de sinal desconhecido (nao decodifica, so mede e identifica)
+    std::function<QJsonObject()>                             onAnaliseStatus;
+    std::function<QJsonObject()>                             onAnaliseStart;
+    std::function<QJsonObject()>                             onAnaliseStop;
+
 
 
 
