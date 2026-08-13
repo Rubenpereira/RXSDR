@@ -1,0 +1,7666 @@
+[
+    {
+        "name": "Meteo Fax GYA - Northwood GB",
+        "frequency": 11086,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Meteo Fax GYA - Northwood GB",
+        "frequency": 2618500,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "BR2 BN Brasilia",
+        "frequency": 3785000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Meteo Fax DDH3 - Hamburg",
+        "frequency": 3853000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "DSC",
+        "frequency": 4207500,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "FAX Valparaiso",
+        "frequency": 4228000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Pactor 2  B=200Bd S=200Hz Brasilia",
+        "frequency": 4252000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "PPR Rio Radio",
+        "frequency": 4366000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "PPR Rio Radio",
+        "frequency": 4369000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "PPR  Rio Radio",
+        "frequency": 4381000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Marítimo",
+        "frequency": 4425600,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Marítimo",
+        "frequency": 4431800,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Meteo Fax GYA - Northwood GB",
+        "frequency": 4610000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Club do Para",
+        "frequency": 4885000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Relogio Federal",
+        "frequency": 4905000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Voz da Coreia",
+        "frequency": 5570000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Voz Missionaria",
+        "frequency": 5940000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Inconfidencia",
+        "frequency": 6010000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio KBS Hanminjok",
+        "frequency": 6015000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CHINA RADIO INTERNATIONAL",
+        "frequency": 6100000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CHINA RADIO INTERNATIONAL",
+        "frequency": 6155000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Nacional da Amazonia",
+        "frequency": 6180000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "DSC",
+        "frequency": 6312000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Meteo Fax NMF- Boston",
+        "frequency": 6338600,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Meteo Fax CFH - Halifax Canada",
+        "frequency": 6494500,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Aereo",
+        "frequency": 6535000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Gander Radio- Aereo",
+        "frequency": 6604000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Santa Maria Radio-Aereo",
+        "frequency": 6628000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Recife Radio-Aereo",
+        "frequency": 6649000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Volmet",
+        "frequency": 6676000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CCO Webjet",
+        "frequency": 6715000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Volmet Canada Air Force",
+        "frequency": 6754000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "ISM",
+        "frequency": 6780000,
+        "modulation": "ism",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Meteo Fax GYA - Northwood UK (G.Persico)",
+        "frequency": 6834000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio SOH Xi Wang Zhi Sheng",
+        "frequency": 6865000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio China Internacional",
+        "frequency": 7205000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio China Internacional",
+        "frequency": 7215000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Romania Internacional",
+        "frequency": 7235000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio China Internacional",
+        "frequency": 7245000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio China Internacional",
+        "frequency": 7255000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio China Internacional",
+        "frequency": 7265000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio China Internacional",
+        "frequency": 7295000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio China Internacional",
+        "frequency": 7305000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio China Internacional",
+        "frequency": 7325000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio China Internacional",
+        "frequency": 7335000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio China Internacional",
+        "frequency": 7350000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio China Internacional",
+        "frequency": 7440000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Voz da America",
+        "frequency": 7500000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio BBC",
+        "frequency": 7520000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "SSTV RX",
+        "frequency": 7540000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radiofarol",
+        "frequency": 7635000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Meteo Fax - DDK3 Pinneberg - Germany",
+        "frequency": 7878100,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Ypy Numbers Iran",
+        "frequency": 7910000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Meteo Fax GYA - Northwood GB",
+        "frequency": 8039999,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Barcos",
+        "frequency": 8340000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "DSC",
+        "frequency": 8414500,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Barcos",
+        "frequency": 8420000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Meteo Fax JJC Kyodo",
+        "frequency": 8465600,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "NATO - Navio",
+        "frequency": 8553600,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Hidrografia Naval",
+        "frequency": 8580000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Navio",
+        "frequency": 8600000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "FAX Valparaiso",
+        "frequency": 8675100,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Salvaero",
+        "frequency": 8834000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Aviacao",
+        "frequency": 8843000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "MWVARA AF1-1/SAT-1",
+        "frequency": 8861000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Santa Maria Airport",
+        "frequency": 8906000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "New York-Aereo",
+        "frequency": 8918000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "HFDL07 Shannon - Urlanmore",
+        "frequency": 8942000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "HFDL17 Telde-Las Palmas",
+        "frequency": 8948000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Estaçao de Numeros",
+        "frequency": 8992000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Gol -Coordenação",
+        "frequency": 9004000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CCO Webjet",
+        "frequency": 9007000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Echo Of Hope-Voh",
+        "frequency": 9100000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Meteo Fax NMF - Boston",
+        "frequency": 9108100,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Argentina Militar Ale141A",
+        "frequency": 9183000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio SOH Xi Wang Zhi Sheng",
+        "frequency": 9255000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Worlds Last Chance Radio",
+        "frequency": 9330000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "WWCR NASHVILLE",
+        "frequency": 9350000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Voz da America",
+        "frequency": 9380000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Free Asia",
+        "frequency": 9410000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Navio Militar Russo - MPSK12",
+        "frequency": 9412000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio WRMI The Overcomer Minis",
+        "frequency": 9455000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Defesa Aerea Chinesa",
+        "frequency": 9457000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CNR1 Voz da China",
+        "frequency": 9470000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CNR11",
+        "frequency": 9480000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Romenia Internacional",
+        "frequency": 9510000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CHINA RADIO INTERNATIONA",
+        "frequency": 9550000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "NHK World - Japão",
+        "frequency": 9560000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Marti",
+        "frequency": 9565000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Voz da America",
+        "frequency": 9575000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio China Internacional",
+        "frequency": 9590000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CHINA RADIO INTERNATIONA",
+        "frequency": 9610000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "ALL India Radio",
+        "frequency": 9620000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "China Radio Internacional",
+        "frequency": 9645000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R Voz Missionaria",
+        "frequency": 9665000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Chinese Jammer - DRM Mandarim",
+        "frequency": 9670000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Exterior de Espanha",
+        "frequency": 9690000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CHINA RADIO INTERNATIONA",
+        "frequency": 9695000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio BBC",
+        "frequency": 9705000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio China Internacional",
+        "frequency": 9710000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CNR 2-CHINA BUSINESS RADIO",
+        "frequency": 9720000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "China Radio Internacional",
+        "frequency": 9730000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CNR 7 RADIO THE GREAT BAY",
+        "frequency": 9745000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CNR 2-CHINA BUSINESS RADIO",
+        "frequency": 9755000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "World Christian Broad.Knls",
+        "frequency": 9765000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "China Radio Internacional",
+        "frequency": 9770000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CNR 2-CHINA BUSINESS RADIO",
+        "frequency": 9775000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "\tPBS Qinghai",
+        "frequency": 9780000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio França Internacional",
+        "frequency": 9790000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "FEBC RADIO",
+        "frequency": 9795000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "China Radio Internacional",
+        "frequency": 9800000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R 9 de Julho",
+        "frequency": 9818800,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CNR 2-CHINA BUSINESS RADIO",
+        "frequency": 9820000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CNR 1 Voice of China",
+        "frequency": 9845000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CHINA RADIO INTERNATIONAL",
+        "frequency": 9860000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Voz da Coreia",
+        "frequency": 9875000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "China Radio Internacional",
+        "frequency": 9880000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CNR Beijing",
+        "frequency": 9890000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Taiwan Internacional",
+        "frequency": 9900000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Pilipinas",
+        "frequency": 9925000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Free Asia",
+        "frequency": 9930000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "\tKVOH Voice of Hope",
+        "frequency": 9975000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Relogio",
+        "frequency": 10000000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Caminhoneiros",
+        "frequency": 10015000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Recife Radio-Aereo",
+        "frequency": 10096000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Brasil ALE MIL-STD 188-141A/110A",
+        "frequency": 10252000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Caminhoneiros",
+        "frequency": 10340000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Argentina Militar Ale141A",
+        "frequency": 10376000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Caminhoneiros",
+        "frequency": 10420000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CFH Halifax Canada",
+        "frequency": 10534100,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "DHFCS Stanag 4285",
+        "frequency": 10620200,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Caminhoneiros",
+        "frequency": 10660000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Forcas Armadas Voz/ALE141A",
+        "frequency": 10745000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Royal Air Force-Volmet",
+        "frequency": 11253000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Gol CCO",
+        "frequency": 11271000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Navio Mil BR ALE 141A",
+        "frequency": 11490500,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Brasil Militar Ale141A",
+        "frequency": 11587000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio NHK World - Japão",
+        "frequency": 11610000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CNR - Beijing",
+        "frequency": 11630000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Voz da Coreia",
+        "frequency": 11635000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio China Internacional",
+        "frequency": 11640000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Exterior de Espanha",
+        "frequency": 11685000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R Voz Missionaria",
+        "frequency": 11750000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R Nacional da Amazonia",
+        "frequency": 11780000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R Brasil Central",
+        "frequency": 11815000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Saudi",
+        "frequency": 11820000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Rep do Yemen",
+        "frequency": 11860000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Vo Islamic Rep Iran",
+        "frequency": 11880000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Voz do Vietna",
+        "frequency": 11885000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Super Radio Boa Vontade",
+        "frequency": 11895200,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Voz da America",
+        "frequency": 11900000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Voz da Coreia",
+        "frequency": 11910000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Exterior de Espanha",
+        "frequency": 11940000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio World Christian Broad Africana",
+        "frequency": 11965000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CNR - Beijing",
+        "frequency": 11970000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Voz da Coreia",
+        "frequency": 12015000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Exterior de Espanha",
+        "frequency": 12030000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio NHK World - Japão",
+        "frequency": 12040000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Ndarason Internacional",
+        "frequency": 12050000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio BBC",
+        "frequency": 12095000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Navio BR ALE 188-141A/110A",
+        "frequency": 12193000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Marinha BR",
+        "frequency": 12566700,
+        "modulation": "sitorb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Hidrografia Naval",
+        "frequency": 12578000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "FAX PWZ33 RJ",
+        "frequency": 12665000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Navio Marinha BR",
+        "frequency": 12681000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Meteo Fax JJC Kyodo Jap (60/576)",
+        "frequency": 12743000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Meteo Fax NMF - Boston",
+        "frequency": 12748100,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "FAX Pyogyang",
+        "frequency": 13000000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CCO Webjet",
+        "frequency": 13221000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Gander Radio",
+        "frequency": 13270000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "HFDL13 Santa Cruz-Bolivia",
+        "frequency": 13315000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "ARINC HF Air",
+        "frequency": 13348000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Meteo Fax CFH - Halifax Canada",
+        "frequency": 13510000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "ISM",
+        "frequency": 13560000,
+        "modulation": "ism",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "ALL INDIA RADIO",
+        "frequency": 13695000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Taiwan Internacional",
+        "frequency": 13735000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "\tRadioThailandia",
+        "frequency": 13750000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Algerienne",
+        "frequency": 13790000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Meteo Fax DDK6 - Hamburg",
+        "frequency": 13800000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Stanag - Defence HF Communications Sce.",
+        "frequency": 14390000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Stanag",
+        "frequency": 14407000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CCO Webjet",
+        "frequency": 15034000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "GOL CCO",
+        "frequency": 15082000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Adventist World",
+        "frequency": 15355000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "BBC World Service",
+        "frequency": 15400000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Teledifusion de Algerie",
+        "frequency": 15410000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "LRA36 Radio Nacional Arcangel",
+        "frequency": 15476000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio França Internacional",
+        "frequency": 15485000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio BBC",
+        "frequency": 15490000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Voz da America",
+        "frequency": 15580000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Nova Zelandia Internacional",
+        "frequency": 15720000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Ale-USB  B=125Bd Ch=8 ChS=250Hz BN Net",
+        "frequency": 15932000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Ale-USB  B=125Bd Ch=8 ChS=250Hz BN Net",
+        "frequency": 16332999,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Ale-USB  B=125Bd Ch=8 ChS=250Hz  BN Net",
+        "frequency": 16607000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "DSC",
+        "frequency": 16804500,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Ale-USB   B=125Bd Ch=8 ChS=250Hz",
+        "frequency": 16837500,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Pactor 1  B=200Bd S=170Hz PWZ33 RJ",
+        "frequency": 16842000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "PACTOR I FEC  B=100Bd S=200Hz RJ",
+        "frequency": 16976000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "FAX PWZ33 RJ",
+        "frequency": 16978000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "MIL 188-110A PWZ33",
+        "frequency": 16982000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Pactor 1 -RJ PWZ33",
+        "frequency": 16984000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "ALE-USB",
+        "frequency": 17010000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Meteo Fax JJC - Kyodo (60/576)",
+        "frequency": 17067700,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "FAX Valparaiso",
+        "frequency": 17146400,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "PPR Rio Radio",
+        "frequency": 17257000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Voz da America",
+        "frequency": 17655000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio NUG-Myamar",
+        "frequency": 17790000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "China Radio Internacional",
+        "frequency": 17880000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "GOL CCO",
+        "frequency": 17928000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Atlantico Air",
+        "frequency": 17955000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Sound of Hope Radio Network",
+        "frequency": 18900000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "GOL CCO",
+        "frequency": 21976000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "ISM",
+        "frequency": 27120000,
+        "modulation": "ism",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Chineses",
+        "frequency": 29225000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Repetidora",
+        "frequency": 29620000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Repetidora",
+        "frequency": 29640000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Belgica",
+        "frequency": 29650000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Repetidora",
+        "frequency": 29660000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Descobrir",
+        "frequency": 29827000,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "POCSAG",
+        "frequency": 29900000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CHINESES",
+        "frequency": 29988000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Militar USA",
+        "frequency": 30750000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "<>",
+        "frequency": 30760000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CHINESES",
+        "frequency": 30913000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Onibus Escolar Massachussetts USA",
+        "frequency": 31120000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "MIL CODIFICADO",
+        "frequency": 31530000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "MIL CODIFICADO",
+        "frequency": 31537500,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "MILITAR ISRAEL",
+        "frequency": 31700000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "PULSE OTH RADAR",
+        "frequency": 31900000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Franca",
+        "frequency": 31975000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Taxi Costa Rica",
+        "frequency": 32180000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "PMR Taxi Costa Rica",
+        "frequency": 32940000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Bombeiros USA",
+        "frequency": 33040000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "PMR bombeiro,onibus escolar,escola",
+        "frequency": 33060000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Onibus Escolar USA",
+        "frequency": 33100000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "OTHR Pluto II, Cyprus",
+        "frequency": 33110000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Fonia possivel Russia",
+        "frequency": 33125000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "OTHR",
+        "frequency": 33195000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Radar Meteor Antartica e Australia",
+        "frequency": 33200000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "OTHR",
+        "frequency": 33225000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "OTHR",
+        "frequency": 33285000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "OTHR",
+        "frequency": 33381000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "PMR Tolland Country, Connecticut USA KCD346",
+        "frequency": 33440000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Força Aerea Israel",
+        "frequency": 33450000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Bombeiros Athol",
+        "frequency": 33480000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "PMR Pennsylvania USA",
+        "frequency": 33560000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "PMR Yarmouth,Massachussetts USA KNCS289",
+        "frequency": 33580000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Voz Criptografada-Militar Russia",
+        "frequency": 33620000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "PMR Massashussets USA NAW393",
+        "frequency": 33640000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "PMR Norwich,Conecticut USA KCB979",
+        "frequency": 33660000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "PMR Northbridge, Massachussetts USA KBQ744",
+        "frequency": 33680000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "PMR Devens, Massachussetts USA WPKE687",
+        "frequency": 33700000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Bombeiros Los Angeles",
+        "frequency": 33740000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Unidade Militar Russia",
+        "frequency": 33750000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Bombeiros New Hamsphire USA",
+        "frequency": 33780000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "PMR Colchester,Conectcut USA KGC263",
+        "frequency": 33800000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Bombeiros Broome",
+        "frequency": 33820000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Descobrir",
+        "frequency": 33840000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Bombeiros Washington USA",
+        "frequency": 33860000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Bombeiros USA",
+        "frequency": 33880000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "PMR Radnor,Delaware USA KGB393",
+        "frequency": 33900000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "PMR Waterford, Connecticut - USA KLJ703",
+        "frequency": 33920000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Bombeiros USA",
+        "frequency": 33960000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Bombeiros USA",
+        "frequency": 33975000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "PMR França",
+        "frequency": 34012500,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Guarda Nacional Aerea-Illinois",
+        "frequency": 34200000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "DESCOBRIR",
+        "frequency": 34525000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Pescadores",
+        "frequency": 34625000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Aluguel Canoas Windy",
+        "frequency": 35060000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Pescadores",
+        "frequency": 35360000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "COM MILITAR",
+        "frequency": 35500000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Pescadores",
+        "frequency": 35600000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "descobrir",
+        "frequency": 35760000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "dados",
+        "frequency": 36100000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Bombeiros Milford",
+        "frequency": 37020000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Descobrir",
+        "frequency": 37580000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "RADIO TAXI MOSCOW",
+        "frequency": 38525000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "RADIOTAXI LATINO AMER",
+        "frequency": 38660000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Exercito USA",
+        "frequency": 38900000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "RADIOTAXI AMAPA",
+        "frequency": 39010000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Patrol South Los Angeles",
+        "frequency": 39220000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Patrol Sao Petersburgo",
+        "frequency": 39260000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Patrol Base Temecula",
+        "frequency": 39340000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "PATROL-BASE CAPISTRANO",
+        "frequency": 39360000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Patrol Base San Diego",
+        "frequency": 39400000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "PATROL-BASE SANTA ANA CALIF.",
+        "frequency": 39440000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Patrol",
+        "frequency": 39460000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "DESCOBRIR",
+        "frequency": 39520000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "DESCOBRIR",
+        "frequency": 39640000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "PATROL-BASE WESTMINSTER",
+        "frequency": 39720000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Patrol Base Rancho Cucamonga",
+        "frequency": 39880000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Onibus Escolar USA",
+        "frequency": 39960000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "MIL SAR USA",
+        "frequency": 40500000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "ISM",
+        "frequency": 40680000,
+        "modulation": "ism",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Patrol Base Fresno",
+        "frequency": 42080000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Patrol Movel Ventura/Moorpark",
+        "frequency": 42160000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Patrol Base Monterey/King City",
+        "frequency": 42460000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Patrol Base  Buttonwillow",
+        "frequency": 42600000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "BNSF LOCOMOTIVAS USA",
+        "frequency": 44580000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "OMNR USA",
+        "frequency": 46330000,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "PRF",
+        "frequency": 47200000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "REPEATER VIRGINIA HIGHWAY",
+        "frequency": 47220000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "PRF",
+        "frequency": 47500000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "PRF",
+        "frequency": 48020000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "PRF",
+        "frequency": 48160000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "PRF",
+        "frequency": 48320000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "PRF",
+        "frequency": 48420000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "PRF",
+        "frequency": 48600000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "PRF",
+        "frequency": 48740000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Rep.Serra Mantiqueira",
+        "frequency": 51640000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.Nacional RJ",
+        "frequency": 87100000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Onda Itaguai RJ",
+        "frequency": 87500000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.Translagos Iguaba Grande",
+        "frequency": 87900000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R. Tribuna Petropolis",
+        "frequency": 88500000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.RC Cabo Frio RJ",
+        "frequency": 88700000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R. Mix FM RJ",
+        "frequency": 88900000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Rede Aleluia Campos RJ",
+        "frequency": 89100000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Rede Aleluia-Cabo Frio",
+        "frequency": 89300000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.Nova Paradiso RJ",
+        "frequency": 89500000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.Maravilha 3 Rios",
+        "frequency": 89700000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.Mania-Buzios",
+        "frequency": 89900000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Band News RJ",
+        "frequency": 90300000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.Cultura-Campos",
+        "frequency": 90700000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Radio Mood RJ",
+        "frequency": 91100000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Transamerica Juiz de Fora",
+        "frequency": 91300000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.Mania-R.Bonito",
+        "frequency": 91500000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.Serramar-Saquarema",
+        "frequency": 92100000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Sao Gabriel da Palha-ES",
+        "frequency": 92300000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.CBN-RJ",
+        "frequency": 92500000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.Carangola MG",
+        "frequency": 92700000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.93FM-RJ",
+        "frequency": 93300000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Cordeiro RJ",
+        "frequency": 94300000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.Litoral-Arraial do Cabo",
+        "frequency": 94500000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R. Feliz RJ",
+        "frequency": 94900000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.95FM-Macae",
+        "frequency": 95300000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.Paradiso FM-RJ",
+        "frequency": 95700000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.96.1FM-Campos",
+        "frequency": 96100000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.96FM Muriae-RJ",
+        "frequency": 96300000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.Tupi-RJ",
+        "frequency": 96500000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.AloFM-Juiz de Fora",
+        "frequency": 96700000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.Sudoeste-S.P.Aldeia",
+        "frequency": 96900000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R. Litoral Cabo Frio",
+        "frequency": 97300000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.Melodia-Barra-RJ",
+        "frequency": 97500000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.Ondas FM-Cabo Frio",
+        "frequency": 97700000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.Globo RJ",
+        "frequency": 98100000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R. Folha-Campos RJ",
+        "frequency": 98300000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.Novo Hor.-Araruama",
+        "frequency": 98700000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R. Hits S.Joao Barra",
+        "frequency": 98900000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.Marinha-SPAldeia",
+        "frequency": 99100000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.MEC-RJ",
+        "frequency": 99300000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.FM O Dia-Macae",
+        "frequency": 99700000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.JB FM-RJ",
+        "frequency": 99900000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.Costa do Sol-Araruama",
+        "frequency": 101700000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "FM O dia Cabo F",
+        "frequency": 102500000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.Estaçao-S.P.Aldeia",
+        "frequency": 104100000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.Baixo Guandu Vitoria ES",
+        "frequency": 104300000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.Positividade-RJ",
+        "frequency": 104500000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.Energia-Rio D.Ostras",
+        "frequency": 104900000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.Rede Aleluia-RJ",
+        "frequency": 105100000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.Itatiaia-Juiz de Fora",
+        "frequency": 105300000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.Boas Novas-Cabo Frio",
+        "frequency": 105900000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.Mania-Campos",
+        "frequency": 106500000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.Catedral-RJ",
+        "frequency": 106700000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.Hits-Macae-RJ",
+        "frequency": 106900000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.107FM-Petropolis",
+        "frequency": 107100000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R.Nova Friburgo-RJ",
+        "frequency": 107500000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "R. Gospel RJ",
+        "frequency": 107900000,
+        "modulation": "wfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Galeao",
+        "frequency": 118000000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Torre Rio",
+        "frequency": 118200000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Torre Aldeia",
+        "frequency": 118300000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Jacarepagua",
+        "frequency": 118400000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Torre Macae",
+        "frequency": 118450000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Torre SDU",
+        "frequency": 118700000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Santa Cruz",
+        "frequency": 118800000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Afonsos",
+        "frequency": 118900000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Controle Rio",
+        "frequency": 119000000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Controle Mace",
+        "frequency": 119200000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Controle Aldeia",
+        "frequency": 119450000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Contr Rio",
+        "frequency": 119525000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Contr Vitoria",
+        "frequency": 119850000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Descobrir",
+        "frequency": 120100000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Aldeia",
+        "frequency": 120300000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Controle Rio",
+        "frequency": 120550000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Controle Rio",
+        "frequency": 120750000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Corredor SP",
+        "frequency": 121350000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Jacarepagua",
+        "frequency": 121600000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Galeao",
+        "frequency": 121650000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "SDU",
+        "frequency": 121700000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Santa Cruz",
+        "frequency": 121800000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Solo Aldeia",
+        "frequency": 121900000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Aer.Tirante SNAO",
+        "frequency": 122150000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "FCA Litoral SP-RJ",
+        "frequency": 122925000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Freq Livre",
+        "frequency": 123450000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Controle Rio",
+        "frequency": 124000000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Descobrir",
+        "frequency": 124550000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Controle",
+        "frequency": 124700000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Controle Rio",
+        "frequency": 124950000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Ctr Rio",
+        "frequency": 125150000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Angra",
+        "frequency": 125275000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "FIR CURITIBA",
+        "frequency": 125350000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Curitiba",
+        "frequency": 125575000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CONTROLE SPAULO",
+        "frequency": 125600000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Mangaratiba",
+        "frequency": 126025000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Controle Rio",
+        "frequency": 126203500,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Contr Curitiba",
+        "frequency": 127050000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Galeao ATIS",
+        "frequency": 127600000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "ATIS Macae",
+        "frequency": 127775000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Coord Cabo Frio",
+        "frequency": 128100000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Controle Rio",
+        "frequency": 128400000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Macae",
+        "frequency": 128950000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Contr Macae",
+        "frequency": 129295000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Contr Macae",
+        "frequency": 129550000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Controle Rio",
+        "frequency": 129800000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Passaredo Transp Aereo",
+        "frequency": 130000000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "OOGTK Libra Prod Petroleo",
+        "frequency": 130075000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Trident Energy do Brasil",
+        "frequency": 130125000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Coord. Cabo Frio",
+        "frequency": 130150000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "ISS VOICE",
+        "frequency": 130167000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Aerolineas Argentinas",
+        "frequency": 130200000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Bristow Taxi Aereo",
+        "frequency": 130225000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Ocyan S.A.",
+        "frequency": 130275000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Descobrir",
+        "frequency": 130325000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CHC Taxi Aereo",
+        "frequency": 130350000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Lider Taxi Aereo",
+        "frequency": 130400000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CHC",
+        "frequency": 130475000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "TAM",
+        "frequency": 130500000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "FSO Pargo Campos",
+        "frequency": 130525000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Recreio",
+        "frequency": 130550000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Omni Taxi Aereo",
+        "frequency": 130600000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Omni Taxi Aereo",
+        "frequency": 130775000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Macae",
+        "frequency": 130850000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Bacia Campos",
+        "frequency": 130950000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Descobrir",
+        "frequency": 130975000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Panamena de Aviacion",
+        "frequency": 131075000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CHC do Brasil Taxi Aer",
+        "frequency": 131175000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Gol",
+        "frequency": 131225000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Plataformas Campos",
+        "frequency": 131275000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Helibarra Taxi Aereo",
+        "frequency": 131325000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "American Aerlines",
+        "frequency": 131600000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Costa do Sol Taxi Aereo",
+        "frequency": 131625000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Bristow Taxi Aereo",
+        "frequency": 131650000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Contr Macae",
+        "frequency": 131675000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "British Airways",
+        "frequency": 131700000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Marica",
+        "frequency": 131800000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Acars BR",
+        "frequency": 131825000,
+        "modulation": "acars",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Azul Cabo Frio e Campos",
+        "frequency": 131875000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Omni Taxi Aereo",
+        "frequency": 131925000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Passaredo",
+        "frequency": 132000000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Costa do Sol Cabo Frio",
+        "frequency": 132150000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "METAR RJ",
+        "frequency": 132460000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "SDU ATIS",
+        "frequency": 132650000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Controle Rio",
+        "frequency": 133300000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Centro Curitiba",
+        "frequency": 133400000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Centro Curitiba",
+        "frequency": 133600000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Empresa",
+        "frequency": 133925000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Recreio",
+        "frequency": 134450000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "SBCW Area Pre-Sal",
+        "frequency": 134525000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Controle Rio",
+        "frequency": 134950000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Controle",
+        "frequency": 135625000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "TIROS-10 (1430)",
+        "frequency": 136232000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "ERS 20 (OV5-3) (2768) USB",
+        "frequency": 136260000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Gol",
+        "frequency": 136275000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Oceanair",
+        "frequency": 136425000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "TAM",
+        "frequency": 136625000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Transit 5B-5",
+        "frequency": 136650000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "VHF SAT",
+        "frequency": 136675000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "TIROS-10 (1430)",
+        "frequency": 136920000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "VHF SAT",
+        "frequency": 136925000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "NOAA19 E METEOR M2-3",
+        "frequency": 137100000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Orbcomm109",
+        "frequency": 137250000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Orbcomm FM117 (41188)",
+        "frequency": 137460000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "NOAA 15",
+        "frequency": 137620000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Orbcomm FM117 (41188)",
+        "frequency": 137713000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "SVOM (60089)",
+        "frequency": 137750000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "SVOM (60089)",
+        "frequency": 137770000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "METEOR M N2-3",
+        "frequency": 137900000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "MeteorM2-4",
+        "frequency": 137901000,
+        "modulation": "meteor-lrpt",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "NOAA18 E METEOR M2-3",
+        "frequency": 137910000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "PRF",
+        "frequency": 143240000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "ISS VOICE",
+        "frequency": 143625000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Ariane 6 - Upper Stage (60239)",
+        "frequency": 144175000,
+        "modulation": "ft8",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "HOD-HOD (98771)",
+        "frequency": 144225000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Ariane 6 - Upper Stage (60239)",
+        "frequency": 144550000,
+        "modulation": "sstv",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "PARS 1 (59065)",
+        "frequency": 145000000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "ISS (25544)",
+        "frequency": 145480000,
+        "modulation": "sstv",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "APRS",
+        "frequency": 145570000,
+        "modulation": "packet",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "ISS VOICE E SSTV",
+        "frequency": 145800000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Phase 3-B (14129)",
+        "frequency": 145810000,
+        "modulation": "cw",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Phase 3-B (14129)",
+        "frequency": 145825000,
+        "modulation": "lsb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "DIWATA-2 (43678)",
+        "frequency": 145900000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CAS-6 (TO-108) (44881)",
+        "frequency": 145915000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CAS-6 (TO-108) (44881)",
+        "frequency": 145935000,
+        "modulation": "lsb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "ICUBE-1 (39432) Aeron.",
+        "frequency": 145947000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "FOX-1B (43017)",
+        "frequency": 145960000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CSS (Tianhe) (48274) SSTV",
+        "frequency": 145985000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Phase 3-B (14129)",
+        "frequency": 145987000,
+        "modulation": "cw",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Barcos",
+        "frequency": 148670000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Energia Cach.Macacu",
+        "frequency": 152690000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Enel Itab ou Seltec Frib",
+        "frequency": 152950000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Pref Araruama",
+        "frequency": 153950000,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Descobrir",
+        "frequency": 154030000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "DEFESA CIVIL",
+        "frequency": 154110000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Brasilnet Telc.",
+        "frequency": 154390000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Escuderia",
+        "frequency": 155340000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CH67 Mar",
+        "frequency": 156375000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH08 Mar",
+        "frequency": 156400000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH68 Mar",
+        "frequency": 156425000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH09 Mar",
+        "frequency": 156450000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH69 Mar",
+        "frequency": 156475000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH10 Mar",
+        "frequency": 156500000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH70 Mar",
+        "frequency": 156525000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH011 Mar",
+        "frequency": 156550000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH71 Mar",
+        "frequency": 156575000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH012 Mar",
+        "frequency": 156600000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH72 Mar",
+        "frequency": 156625000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH013 Mar",
+        "frequency": 156650000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH73 Mar",
+        "frequency": 156675000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH014 Mar",
+        "frequency": 156700000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH74 Mar",
+        "frequency": 156725000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH015 Mar",
+        "frequency": 156750000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH75 Mar",
+        "frequency": 156775000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH016 Mar",
+        "frequency": 156800000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH76 Mar",
+        "frequency": 156825000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH017 Mar",
+        "frequency": 156850000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH77 Mar",
+        "frequency": 156875000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH06 Mar",
+        "frequency": 160300000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH01 Mar",
+        "frequency": 160650000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH61 Mar",
+        "frequency": 160675000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH02 Mar",
+        "frequency": 160700000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH62 Mar",
+        "frequency": 160725000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH03 Mar",
+        "frequency": 160750000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH63 Mar",
+        "frequency": 160775000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH04 Mar",
+        "frequency": 160800000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH64 Mar",
+        "frequency": 160825000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH05 Mar",
+        "frequency": 160850000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH65 Mar",
+        "frequency": 160875000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Friburgo",
+        "frequency": 160925000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CH07 Mar",
+        "frequency": 160950000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH018 Mar",
+        "frequency": 161500000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH78 Mar",
+        "frequency": 161525000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH019 Mar",
+        "frequency": 161550000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH79 Mar",
+        "frequency": 161575000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Barcos",
+        "frequency": 161600000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CH80 Mar",
+        "frequency": 161625000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH021 Mar",
+        "frequency": 161650000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH81 Mar",
+        "frequency": 161675000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH022 Mar",
+        "frequency": 161700000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH82 Mar",
+        "frequency": 161725000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH023 Mar",
+        "frequency": 161750000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH83 Mar",
+        "frequency": 161775000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Rio Radio",
+        "frequency": 161800000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CH84 Mar",
+        "frequency": 161825000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH025 Mar",
+        "frequency": 161850000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH85 Mar",
+        "frequency": 161875000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH026 Mar",
+        "frequency": 161900000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH86 Mar",
+        "frequency": 161925000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "CH027 Mar",
+        "frequency": 161950000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Tianxiang-1 (44315)",
+        "frequency": 161975000,
+        "modulation": "ais",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CH28 Mar",
+        "frequency": 162000000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Tianxiang-1 (44315)",
+        "frequency": 162025000,
+        "modulation": "ais",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Energisa Frib",
+        "frequency": 162106250,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "GM Arraial do Cabo",
+        "frequency": 162310000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Energisa Frib.",
+        "frequency": 162343700,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "MRS",
+        "frequency": 162356250,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "ROTA 116",
+        "frequency": 162390000,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Viacao Vera Cruz",
+        "frequency": 163918750,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Ecoriominas",
+        "frequency": 165768750,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Bruno Henri Greg",
+        "frequency": 170231500,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Protege",
+        "frequency": 170343750,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Ecoriominas",
+        "frequency": 170368750,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Auto Pista F",
+        "frequency": 170856250,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Auto Pista F",
+        "frequency": 170893750,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Auto Pista F",
+        "frequency": 171143750,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Agrisa Cabo Frio",
+        "frequency": 171231250,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Rod.Juiz de Fora",
+        "frequency": 173656250,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Rap.Macaense",
+        "frequency": 173668750,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Sat Resurs F1",
+        "frequency": 231500000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Sat Resurs F1",
+        "frequency": 232000000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "TIROS-10 (1430) SSTV",
+        "frequency": 235000000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Sat Strela 3M/Rodnik",
+        "frequency": 241290000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "ComSatBW-2",
+        "frequency": 243625000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "MILSTAR1-F1/INTELSAT 22",
+        "frequency": 243800000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "MILSAT",
+        "frequency": 243816000,
+        "modulation": "usb",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "MILSTAR 1-F1",
+        "frequency": 243850000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "UFO11",
+        "frequency": 243915000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F11/UFO-2/FLT-8/UFO F10/UFO F7/LEASAT",
+        "frequency": 243935000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "ComsatBW1",
+        "frequency": 244275000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO10",
+        "frequency": 245200000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Skynet 5B",
+        "frequency": 245800000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Skynet 5A",
+        "frequency": 245850000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Sat Skynet 5B",
+        "frequency": 245900000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Skynet 5D",
+        "frequency": 246525000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Sat China",
+        "frequency": 247208000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "TORRE FRITZLAR ALEMANHA",
+        "frequency": 247950000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "ComsatBW2",
+        "frequency": 248750000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F11",
+        "frequency": 248825000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F11",
+        "frequency": 248845000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO7",
+        "frequency": 248975000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F10/UFO F11",
+        "frequency": 249375000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "ComSatBW 1",
+        "frequency": 249400000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Skynet 5C",
+        "frequency": 249450000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "SKYNET 5A",
+        "frequency": 249530000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "SKYNET 5A",
+        "frequency": 249850000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "SKYNET 5B",
+        "frequency": 249880000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "SKYNET 5B",
+        "frequency": 249930000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "SKYNET 5B",
+        "frequency": 250140000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "SKYNET 5B",
+        "frequency": 250190000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Skynet 5A/SDS3 DIGI",
+        "frequency": 250200000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "COMSATBW 2",
+        "frequency": 250900000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "USA198",
+        "frequency": 251275000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "SDS",
+        "frequency": 251325000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "INTELSAT 22",
+        "frequency": 251600000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO11",
+        "frequency": 251850000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F10/UFO F11",
+        "frequency": 251900000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO10",
+        "frequency": 251950000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F11",
+        "frequency": 252000000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO10",
+        "frequency": 252050000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "FLT-8/FLT-7",
+        "frequency": 252150000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "INTELSAT 22/SICRAL-1/SICRAL-2",
+        "frequency": 252300000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "SICRAL 1B",
+        "frequency": 252450000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "SICRAL 1B",
+        "frequency": 252500000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "SKYNET 4F",
+        "frequency": 253500000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "UFO F10",
+        "frequency": 253550000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "USA207",
+        "frequency": 253600000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F2",
+        "frequency": 253650000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "UFO F11/SKYNET 5A",
+        "frequency": 253700000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO10",
+        "frequency": 253750000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Skynet 4F",
+        "frequency": 253800000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "253.815",
+        "frequency": 253815000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Skynet 5C",
+        "frequency": 253825000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "FLT F-8/FLT F-7",
+        "frequency": 253850000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "SKYNET 4F",
+        "frequency": 253900000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "INTELSAT 22",
+        "frequency": 253975000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "INTELSAT 22",
+        "frequency": 254025000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "SKYNET 4F",
+        "frequency": 254075000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "INTELSAT 22",
+        "frequency": 254500000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "INTELSAT 22",
+        "frequency": 254575000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "INTELSAT 22",
+        "frequency": 254625000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "INTELSAT 22",
+        "frequency": 254650000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Voz Invertida",
+        "frequency": 254766000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "COMSATBW 2",
+        "frequency": 254775000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "SKYNET 5B",
+        "frequency": 254830000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "UFO11",
+        "frequency": 255250000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO10",
+        "frequency": 255260000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "FLT8/LEASAT",
+        "frequency": 255350000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "UFO F11",
+        "frequency": 255400000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F7/ComSatBW 1/LEA F5",
+        "frequency": 255450000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "FLT8/UFO F3/UFO F10/UFO F11",
+        "frequency": 255550000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "INTELSAT 22",
+        "frequency": 255650000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "INTELSAT 22",
+        "frequency": 255675000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F10",
+        "frequency": 256850000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F2",
+        "frequency": 256950000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F11",
+        "frequency": 257000000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO10",
+        "frequency": 257040000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F11/SICRAL 2",
+        "frequency": 257100000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "FLT-8/FLT-7",
+        "frequency": 257150000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Russo",
+        "frequency": 257200000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "SICRAL 2",
+        "frequency": 257225000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "SICRAL 2",
+        "frequency": 257275000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "SICRAL 2",
+        "frequency": 257375000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "SKYNET 4F",
+        "frequency": 257425000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Skynet 5C",
+        "frequency": 257450000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Skynet 4F",
+        "frequency": 257500000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "SKYNET 4C",
+        "frequency": 257550000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Skynet 5A",
+        "frequency": 257600000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "INTELSAT 22",
+        "frequency": 257775000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "SDS3",
+        "frequency": 257825000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "SKYNET 5B",
+        "frequency": 257900000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "UFO2",
+        "frequency": 258215000,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO2",
+        "frequency": 258225000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F10",
+        "frequency": 258350000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F2",
+        "frequency": 258450000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F11",
+        "frequency": 258500000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO10",
+        "frequency": 258540000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "SDS",
+        "frequency": 258775000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "SKYNET 5",
+        "frequency": 258950000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "ARTCC-BOISE",
+        "frequency": 259050000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "COMSATBW 2",
+        "frequency": 259150000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "SICRAL 1B",
+        "frequency": 259975000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "SICRAL 1B",
+        "frequency": 260025000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "SICRAL 1B",
+        "frequency": 260075000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "SICRAL 1B",
+        "frequency": 260125000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "SICRAL 1B",
+        "frequency": 260175000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F11",
+        "frequency": 260375000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F7/UFO F11",
+        "frequency": 260425000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F11",
+        "frequency": 260475000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO10",
+        "frequency": 260525000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "INTELSAT 22",
+        "frequency": 260550000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO10",
+        "frequency": 260575000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F10",
+        "frequency": 260625000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO10",
+        "frequency": 260675000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F10",
+        "frequency": 260725000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO7",
+        "frequency": 260950000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "SKYNET 5B",
+        "frequency": 261100000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "SKYNET 5B",
+        "frequency": 261150000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "SKYNET 5B",
+        "frequency": 261200000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "UFO10",
+        "frequency": 261620000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "USAF",
+        "frequency": 261635000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO10",
+        "frequency": 261730000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO10",
+        "frequency": 261820000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Intelsat22",
+        "frequency": 261850000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO10",
+        "frequency": 261925000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO10",
+        "frequency": 262075000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "MUOS 3/LEA F5",
+        "frequency": 262100000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F10/LEA F5",
+        "frequency": 262125000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "MUOS 3/LEA F5",
+        "frequency": 262150000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F2/LEA F5",
+        "frequency": 262175000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F10/LEA F5",
+        "frequency": 262225000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "MUOS 2/MUOS 3",
+        "frequency": 262250000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO7",
+        "frequency": 262280000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "MUOS 2/LEA F5",
+        "frequency": 262300000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F10/UFO F11/LEA F5",
+        "frequency": 262325000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "MUOS 2/LEA F5",
+        "frequency": 262350000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO10",
+        "frequency": 262375000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F10/UFO F11/LEA F5",
+        "frequency": 262425000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "USA227/SDS3-F6",
+        "frequency": 262675000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "GONETS-M 24 (54151)",
+        "frequency": 262910000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F11",
+        "frequency": 263575000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO 7/UFO F10/UFO F11",
+        "frequency": 263625000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO10",
+        "frequency": 263650000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F11",
+        "frequency": 263675000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO10",
+        "frequency": 263700000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO 7/UFO F10/UFO F11",
+        "frequency": 263725000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F2",
+        "frequency": 263775000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F10",
+        "frequency": 263825000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F2",
+        "frequency": 263875000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F10",
+        "frequency": 263925000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "GONETS M 20 (47227)",
+        "frequency": 264492000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F10",
+        "frequency": 265250000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO10",
+        "frequency": 265350000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F11",
+        "frequency": 265400000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO10",
+        "frequency": 265440000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F11",
+        "frequency": 265500000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "LT-8/UFO F10",
+        "frequency": 265550000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "INTELSAT 22",
+        "frequency": 265675000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "INTELSAT 22",
+        "frequency": 265850000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "COSMOS 2488 (39483)",
+        "frequency": 265950000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "DESCOBRIR",
+        "frequency": 266008000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "UFO F11",
+        "frequency": 266750000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F2",
+        "frequency": 266900000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F7/UFO F10/UFO F11",
+        "frequency": 266950000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "FLT-8",
+        "frequency": 267050000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO11",
+        "frequency": 267200000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO11",
+        "frequency": 267400000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "INTELSAT 22",
+        "frequency": 268025000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "DESCOBRIR",
+        "frequency": 268056000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "SICRAL 1B",
+        "frequency": 268100000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "SICRAL 1B",
+        "frequency": 268150000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO10",
+        "frequency": 268250000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F11",
+        "frequency": 268300000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F7",
+        "frequency": 268350000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F11",
+        "frequency": 268400000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "FLT-8",
+        "frequency": 268450000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "SDS",
+        "frequency": 268675000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "SDS3 DIGI",
+        "frequency": 268950000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Rodovia",
+        "frequency": 269150000,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F10",
+        "frequency": 269650000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO F11",
+        "frequency": 269700000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "FLT8/LEASAT",
+        "frequency": 269750000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "UFO F11",
+        "frequency": 269800000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UFO10",
+        "frequency": 269860000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Xingyun-2 01 (45602)",
+        "frequency": 272500000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Meridian-M 10 (52145)",
+        "frequency": 279550000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "USAF",
+        "frequency": 300650000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "USAF",
+        "frequency": 303000000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "USAF",
+        "frequency": 303050000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Descobrir",
+        "frequency": 309950000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "USAF",
+        "frequency": 311000000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Strike Fighter Squadron 37 (VFA-37",
+        "frequency": 311400000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "ComsatBW2",
+        "frequency": 311975000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "USAF",
+        "frequency": 319400000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "NXDN Descobrir",
+        "frequency": 319995000,
+        "modulation": "nxdn",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "USAF",
+        "frequency": 321000000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "USAF",
+        "frequency": 323800000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "GM Araruama",
+        "frequency": 326750000,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "ILS Galeão",
+        "frequency": 332000000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "USAF",
+        "frequency": 333000000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "USAF",
+        "frequency": 333300000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "USAF",
+        "frequency": 333550000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "USAF",
+        "frequency": 335550000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "USAF",
+        "frequency": 341750000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Esq.Fumaca",
+        "frequency": 345150000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "USAF",
+        "frequency": 345600000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "USAF",
+        "frequency": 349400000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "USAF",
+        "frequency": 351000000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "USAF",
+        "frequency": 357000000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "USAF",
+        "frequency": 364200000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Ponte Rio Nit",
+        "frequency": 373112500,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Via Lagos",
+        "frequency": 373162500,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Ponte Rio Nit",
+        "frequency": 373187500,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Ponte Rio Nit",
+        "frequency": 373212500,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Ponte Rio Nit",
+        "frequency": 373237500,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "USAF",
+        "frequency": 383550000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "USAF",
+        "frequency": 384500000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "USAF",
+        "frequency": 384550000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Via Lagos Entr Rep",
+        "frequency": 385700000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Via Lagos",
+        "frequency": 385775000,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Ponte Rio Nit",
+        "frequency": 386225000,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Ponte Rio Nit",
+        "frequency": 386275000,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "GONETS M 12 (40553)",
+        "frequency": 387062000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "COSMOS 2488 (39483)",
+        "frequency": 387175000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Sat Gonets",
+        "frequency": 387775000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "GONETS-M 24 (54151)",
+        "frequency": 388500000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Descobrir",
+        "frequency": 388682000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Strela-3M 15 (40922)",
+        "frequency": 388687000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "GONETS-M 22 (47229)",
+        "frequency": 388787000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Tetra",
+        "frequency": 390975000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Rod. Via Lagos",
+        "frequency": 395700000,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Via Lagos",
+        "frequency": 395775000,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Ponte Rio Nit",
+        "frequency": 396275000,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Rodovia",
+        "frequency": 397824000,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "LACUNASAT-3 (46492) BPSK",
+        "frequency": 399000000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Cosmos 2407 (28380)",
+        "frequency": 399920000,
+        "modulation": "cw",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "24153A (60745)",
+        "frequency": 400055000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Jumang (53346) LoRA",
+        "frequency": 400130000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "24153A (60745)",
+        "frequency": 400455000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Aurora (99676)",
+        "frequency": 400500000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Tianxiang-1 (44315)",
+        "frequency": 400575000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Sedna-1 (60580)",
+        "frequency": 400625000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "AII-DELTA",
+        "frequency": 401050000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "LACUNASAT-3 (46492)",
+        "frequency": 401051000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "YAM-3 (48915)",
+        "frequency": 401085000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "EG 1 (46267)",
+        "frequency": 401200000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "OBJECT B (59918)",
+        "frequency": 401250000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "GEISAT PRECURSOR (56934)",
+        "frequency": 401400000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "GRUS-1B (47934)",
+        "frequency": 401416000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "LACUNASAT-3 (46492)",
+        "frequency": 401500000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CAS-6 (TO-108) (44881)",
+        "frequency": 401550000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "HOD-HOD (98771)",
+        "frequency": 401650000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "ELO ALPHA (48271)",
+        "frequency": 401760000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Tianxiang-1 (44315)",
+        "frequency": 401800000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Tianyi-26",
+        "frequency": 401900000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Object F (51951)",
+        "frequency": 402792000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "ProtoMéthée-1 (99004)",
+        "frequency": 402925000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "comando aer",
+        "frequency": 418375000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "NOAA",
+        "frequency": 431058000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Descobrir",
+        "frequency": 431990000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "MONITOR-3 57180",
+        "frequency": 435290000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "GREENCUBE",
+        "frequency": 435310000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "RESHUCUBE 53382",
+        "frequency": 435380000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "ASRTU-1 (61781)",
+        "frequency": 435400000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Skif-D (54153)",
+        "frequency": 435466000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "D-Star ONE iSat (43879)",
+        "frequency": 435525000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Skif-D (54153)",
+        "frequency": 435566000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "IRIS-A (51044) LoRA",
+        "frequency": 435575000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CAS-2T & KS-1Q (41847)",
+        "frequency": 435615000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "RS-44 +/- 30 kHz",
+        "frequency": 435640000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "FO-118 Tel 54684",
+        "frequency": 435650000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "XIWANG-1 (36122)",
+        "frequency": 435675000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Unknown Sat (99719)",
+        "frequency": 435805000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Stratosat TK1 57167",
+        "frequency": 435870000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "LAPAN-A2 (40931)",
+        "frequency": 435880000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "GAGARINEC",
+        "frequency": 436000000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "MONITOR-4 57182",
+        "frequency": 436080000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "AMICAL-SAT",
+        "frequency": 436100000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UTMN-2 57203",
+        "frequency": 436125000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "GEOSCAN",
+        "frequency": 436200000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "ROM-2 (99187)",
+        "frequency": 436235000,
+        "modulation": "cw",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "StratoSat TK-1-E (57323) LoRA",
+        "frequency": 436260000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "TEVEL(All)",
+        "frequency": 436400000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CSS (Tianhe) (48274) SSTV",
+        "frequency": 436510000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "HyperView-1G (61772) GMSK USP",
+        "frequency": 436540000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "HADES-D (58567)",
+        "frequency": 436666000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "VERONIOKA",
+        "frequency": 436680000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "NORBI",
+        "frequency": 436700000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "SO-50 27607",
+        "frequency": 436795000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Strela-3M 15 (40922)",
+        "frequency": 436900000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "NANOZOND 1 57190",
+        "frequency": 437000000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UVSQ-SAT (47438)",
+        "frequency": 437020000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "ZIMSAT-2 (61783) Robot36",
+        "frequency": 437050000,
+        "modulation": "sstv",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "MORDOVIA-IOT (61765) Robot36",
+        "frequency": 437090000,
+        "modulation": "sstv",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "LILACSAT 2 (40908)",
+        "frequency": 437200000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CUTE-1.7+APD II (CO-65)",
+        "frequency": 437275000,
+        "modulation": "cw",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "HOD-HOD (98771)",
+        "frequency": 437350000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Bisonsat",
+        "frequency": 437375000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "PLEIADES-ORPHEUS LoRA",
+        "frequency": 437400000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "SEEDS II (32791) SSTV",
+        "frequency": 437485000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "BLUEWALKER-3 (53807) GFSK",
+        "frequency": 437500000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CZ-4C R/B (43012)",
+        "frequency": 437529000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "LUCKY-7  44406",
+        "frequency": 437530000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "CZ-4C R/B (43012)",
+        "frequency": 437549000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "MONITOR-1 53374",
+        "frequency": 437550000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "UMKA RS40S 57172",
+        "frequency": 437625000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "SIREN 53384",
+        "frequency": 437750000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "ISS (25544)",
+        "frequency": 437800000,
+        "modulation": "sstv",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "VIZARD-METEO 57189",
+        "frequency": 437825000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "RS28S 53377",
+        "frequency": 437900000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "DMR RJ",
+        "frequency": 439275000,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Campos RJ",
+        "frequency": 439475000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Friburgo",
+        "frequency": 439500000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "comando aer",
+        "frequency": 445375000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "PICO-1B-9 (98826) LoRA",
+        "frequency": 450188000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Empresa Arar",
+        "frequency": 450225000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "PICO-1A-7 (99018) LoRA",
+        "frequency": 454100000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "PRF",
+        "frequency": 454237500,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "PRF",
+        "frequency": 454287500,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "PICO-1A-7 (99018) LoRA",
+        "frequency": 454300000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "PRF",
+        "frequency": 454462500,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "GM R.d.Ostras",
+        "frequency": 456530000,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Plataforma",
+        "frequency": 457200000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Barcos",
+        "frequency": 457225000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Bombeiros",
+        "frequency": 458700000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "GM Macae",
+        "frequency": 459025400,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Defesa Civil Frib",
+        "frequency": 459112500,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "PRF",
+        "frequency": 459237500,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Rap.Macaense",
+        "frequency": 459450000,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "GM Araruama",
+        "frequency": 459637500,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Descobrir",
+        "frequency": 460000000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Descobrir",
+        "frequency": 461020000,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Atalaia",
+        "frequency": 461125000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Descobrir",
+        "frequency": 461850000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Descobrir",
+        "frequency": 462823500,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Costa do Sol Aer",
+        "frequency": 462908000,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Descobrir",
+        "frequency": 462925000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Descobrir",
+        "frequency": 463025000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Barcos",
+        "frequency": 464500800,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Rept. Maritimo",
+        "frequency": 464700000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "LACUNASAT-3 (46492)",
+        "frequency": 465000000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Descobrir",
+        "frequency": 465253500,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "PM Friburgo",
+        "frequency": 465700000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "BM Sao Fidelia",
+        "frequency": 466675000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "HODOYOSHI-1 (40299)",
+        "frequency": 467674000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Plataf Petr DMR",
+        "frequency": 469100000,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Defesa Civil Frib",
+        "frequency": 469112500,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Pref Rio Ostras",
+        "frequency": 469350000,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Plataf Petr",
+        "frequency": 469775000,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Bombeiros P25",
+        "frequency": 471825000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Meridian-M 10 (52145)",
+        "frequency": 483750000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Meridian-M 10 (52145)",
+        "frequency": 484250000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Meridian Sat Russo",
+        "frequency": 484265000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Meridian-M 10 (52145)",
+        "frequency": 486250000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Sat China",
+        "frequency": 632000000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "ISS (25544) Rassvet",
+        "frequency": 637500000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "BLUEWALKER-3 (53807) QPSK",
+        "frequency": 759700000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "BLUEWALKER-3 (53807)",
+        "frequency": 763000000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "ISS (25544)",
+        "frequency": 768975000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "LACUNASAT-3 (46492) LoRA",
+        "frequency": 868000000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Ministerio Def Corcovado",
+        "frequency": 868775000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "BLUEWALKER-3 (53807)",
+        "frequency": 892000000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "LACUNASAT-3 (46492) LoRA",
+        "frequency": 915000000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "PY4-4 (98957) LoRA",
+        "frequency": 915600000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "QPS-SAR-6 (56951)",
+        "frequency": 924300000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Car System",
+        "frequency": 931912500,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "GTO Araruama RJ",
+        "frequency": 989150000,
+        "modulation": "dmr",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "Meridian-M 10 (52145)",
+        "frequency": 992450000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "COSPAS",
+        "frequency": 1544500000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "AERO-C",
+        "frequency": 1546157500,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "AERO-C",
+        "frequency": 1546167500,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "GOES13",
+        "frequency": 1685700000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "FengYun 2H",
+        "frequency": 1687500000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "ELECTRO L3 LRIT",
+        "frequency": 1691000000,
+        "modulation": "meteor-lrpt",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "NOAA_19_HRPT",
+        "frequency": 1698000000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "METEOR_HRTP",
+        "frequency": 1700000000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "NOAA_15_HRPT",
+        "frequency": 1702500000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "NOAA_18_HRPT",
+        "frequency": 1707000000,
+        "modulation": "nfm",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "SDS",
+        "frequency": 2587725000,
+        "modulation": "fm",
+        "underlying": "",
+        "description": "",
+        "scannable": false
+    },
+    {
+        "name": "Radio Free Asia",
+        "frequency": 7520000000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    },
+    {
+        "name": "IRRS Oromia Nat Media",
+        "frequency": 15385000000,
+        "modulation": "am",
+        "underlying": "",
+        "description": "",
+        "scannable": true
+    }
+]

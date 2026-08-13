@@ -754,6 +754,32 @@ bool Application::start()
         return r;
     };
 
+    // ── Audio de arquivo ───────────────────────────────────────────────────
+    // O navegador ja sabe abrir mp3, wav e ogg, entao ele decodifica e manda
+    // as amostras prontas. Evita trazer uma biblioteca de audio so para isso,
+    // e de quebra aceita qualquer formato que o navegador aceite.
+    rest_->onAudioArquivo = [this](const QJsonObject& j) -> QJsonObject {
+        const QString alvo = j.value("decoder").toString().toUpper();
+        const uint32_t sps = uint32_t(j.value("sampleRate").toInt(8000));
+        const QByteArray bruto = QByteArray::fromBase64(
+            j.value("pcm").toString().toLatin1());
+
+        const int n = int(bruto.size() / 2);
+        if (n <= 0) return QJsonObject{{"ok",false},{"error","sem amostras"}};
+        const int16_t* pcm = reinterpret_cast<const int16_t*>(bruto.constData());
+
+        if (alvo == QLatin1String("SITORB") && sitorBDeco_)
+            sitorBDeco_->feedAudio(pcm, n, sps);
+        else if (alvo == QLatin1String("DSC") && dscDeco_)
+            dscDeco_->feedAudio(pcm, n, sps);
+        else if (alvo == QLatin1String("ANALISE") && analiseDeco_)
+            analiseDeco_->feedAudio(pcm, n, sps);
+        else
+            return QJsonObject{{"ok",false},{"error","decoder desconhecido: " + alvo}};
+
+        return QJsonObject{{"ok",true},{"samples",n}};
+    };
+
     // ── Analisador de sinal desconhecido ───────────────────────────────────
     analiseDeco_ = std::make_unique<AnaliseManager>(this);
     connect(analiseDeco_.get(), &AnaliseManager::logLine, [this](const QString& line) {

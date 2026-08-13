@@ -12,6 +12,7 @@
 #include <QUrlQuery>
 #include <QDateTime>
 #include <QRegularExpression>
+#include <QCoreApplication>
 
 namespace masdr {
 
@@ -300,6 +301,65 @@ void RestApi::install(QHttpServer* server)
             auto j = QJsonDocument::fromJson(req.body()).object();
             QJsonObject r = onDscStart ? onDscStart(j) : QJsonObject{{"ok",false},{"error","indisponível"}};
             if (!r.contains("ok")) r.insert("ok", true);
+            return QHttpServerResponse("application/json", QJsonDocument(r).toJson());
+        });
+
+    // POST /api/decoder/audio - alimenta um decoder com audio de arquivo
+    server->route("/api/decoder/audio", QHttpServerRequest::Method::Post,
+        [this](const QHttpServerRequest& req) {
+            auto j = QJsonDocument::fromJson(req.body()).object();
+            QJsonObject r = onAudioArquivo ? onAudioArquivo(j)
+                                           : QJsonObject{{"ok",false},{"error","indisponível"}};
+            return QHttpServerResponse(r);
+        });
+
+    // ── Memorias (bookmarks) ──────────────────────────────────────────────
+    // Formato IGUAL ao do OpenWebRX: lista de objetos com name, frequency,
+    // modulation, underlying, description e scannable. Manter compativel
+    // permite trocar o arquivo entre os dois programas sem converter nada -
+    // o Ruben ja tinha 1097 memorias montadas la.
+    //
+    // O arquivo mora ao lado do executavel, e nao no projeto: assim o
+    // instalador leva um bookmarks.json inicial e cada usuario edita o seu.
+    server->route("/api/bookmarks", QHttpServerRequest::Method::Get, []() {
+        QFile f(QCoreApplication::applicationDirPath() + "/bookmarks.json");
+        if (!f.open(QIODevice::ReadOnly))
+            return QHttpServerResponse("application/json", "[]");
+        const QByteArray dados = f.readAll();
+        f.close();
+        // Devolve cru: se estiver corrompido, quem avisa e o navegador, com a
+        // mensagem de erro real, em vez de eu silenciar o problema aqui.
+        return QHttpServerResponse("application/json", dados);
+    });
+
+    server->route("/api/bookmarks", QHttpServerRequest::Method::Post,
+        [](const QHttpServerRequest& req) {
+            const QJsonDocument doc = QJsonDocument::fromJson(req.body());
+            if (!doc.isArray()) {
+                QJsonObject r{{"ok", false}, {"error", "esperava uma lista"}};
+                return QHttpServerResponse("application/json", QJsonDocument(r).toJson());
+            }
+            const QString caminho = QCoreApplication::applicationDirPath() + "/bookmarks.json";
+
+            // Grava em arquivo temporario e so entao substitui. Queda de energia
+            // no meio da gravacao deixaria o arquivo pela metade - e sao 1097
+            // memorias que o usuario montou a mao ao longo de anos.
+            const QString tmp = caminho + ".tmp";
+            QFile f(tmp);
+            if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+                QJsonObject r{{"ok", false}, {"error", "nao consegui gravar"}};
+                return QHttpServerResponse("application/json", QJsonDocument(r).toJson());
+            }
+            f.write(doc.toJson(QJsonDocument::Indented));
+            f.close();
+            QFile::remove(caminho + ".bak");
+            QFile::rename(caminho, caminho + ".bak");   // guarda a versao anterior
+            if (!QFile::rename(tmp, caminho)) {
+                QFile::rename(caminho + ".bak", caminho);
+                QJsonObject r{{"ok", false}, {"error", "nao consegui substituir"}};
+                return QHttpServerResponse("application/json", QJsonDocument(r).toJson());
+            }
+            QJsonObject r{{"ok", true}, {"total", doc.array().size()}};
             return QHttpServerResponse("application/json", QJsonDocument(r).toJson());
         });
 

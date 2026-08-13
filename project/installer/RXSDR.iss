@@ -3,7 +3,7 @@
 ; O instalador gerado ficará em: project\installer\output\RXSDR_Setup_1.0.0.exe
 
 #define MyAppName      "RXSDR"
-#define MyAppVersion   "1.0.34"
+#define MyAppVersion   "1.0.38"
 #define MyAppPublisher "PU1XTB — Ruben"
 #define MyAppURL       "https://github.com/ruben/RXSDR"
 #define MyAppExeName   "RXSDR.exe"
@@ -52,6 +52,8 @@ Name: "autostart";   Description: "Iniciar o {#MyAppName} automaticamente com o 
 ; ── Executável principal ──────────────────────────────────────────────────────
 Source: "{#BuildDir}\RXSDR.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\LICENSE-DSD.txt"; DestDir: "{app}"; Flags: ignoreversion
+; Memorias: onlyifdoesntexist para NAO apagar as do usuario ao atualizar.
+Source: "..\..\bookmarks.json"; DestDir: "{app}"; Flags: ignoreversion onlyifdoesntexist
 
 ; ── DLLs Qt6 ─────────────────────────────────────────────────────────────────
 Source: "{#BuildDir}\Qt6Core.dll";        DestDir: "{app}"; Flags: ignoreversion
@@ -155,7 +157,7 @@ Filename: "{app}\{#MyAppExeName}"; Description: "Iniciar o {#MyAppName} agora"; 
 
 ; Abrir página de download da API SDRplay (para usuários com hardware SDRplay)
 Filename: "https://www.sdrplay.com/api/"; \
-    Description: "Baixar API SDRplay (necessário para hardware RSP1/RSP1A/RSP2/RSPduo/RSPdx)"; \
+    Description: "Abrir a pagina da API SDRplay - so para quem tem RSP1/RSP1A/RSP1B/RSP2/RSPduo/RSPdx"; \
     Flags: shellexec postinstall skipifsilent unchecked
 
 [Code]
@@ -163,16 +165,17 @@ procedure CurPageChanged(CurPageID: Integer);
 begin
   if CurPageID = wpFinished then
   begin
+    { O texto era longo demais e o Windows cortava o final. Como as caixas de
+      marcar vem logo abaixo deste texto, a ultima linha visivel acabava sendo
+      "Para hardware SDRplay (...):" - e ai parecia que "Iniciar o RXSDR agora"
+      so servia para quem tem RSP. Agora o texto termina numa linha neutra que
+      apresenta as caixas, e o detalhe do SDRplay ficou na propria caixa. }
     WizardForm.FinishedLabel.Caption :=
       'O {#MyAppName} foi instalado com sucesso!' + #13#10 + #13#10 +
-      'Para RTL-SDR e RTL-TCP: pronto para usar.' + #13#10 + #13#10 +
-      'Para hardware SDRplay (RSP1/RSP1A/RSP1B/RSP2/RSPduo/RSPdx):' + #13#10 +
-      '  É necessário instalar a API SDRplay oficial.' + #13#10 +
-      '  Acesse: https://www.sdrplay.com/api/' + #13#10 +
-      '  Baixe e instale: "SDRplay RSP API Windows 3.15"' + #13#10 + #13#10 +
-      'Para decodificação Digital (DMR/P25/NXDN/TETRA/ACARS/APRS):' + #13#10 +
-      '  Os decodificadores e dependências correspondentes já estão inclusos' + #13#10 +
-      '  na pasta do programa (' + ExpandConstant('{app}') + '\decoders\).' + #13#10 + #13#10 +
-      'O {#MyAppName} detecta todas as dependências automaticamente.';
+      'Para RTL-SDR e RTL-TCP: pronto para usar. Os decodificadores digitais' + #13#10 +
+      '(DMR, P25, NXDN, TETRA, ACARS, APRS) ja vao junto, na pasta decoders.' + #13#10 + #13#10 +
+      'Quem usa SDRplay (RSP1/RSP1A/RSP1B/RSP2/RSPduo/RSPdx) precisa da API' + #13#10 +
+      'oficial da SDRplay - marque a opcao abaixo para abrir a pagina.' + #13#10 + #13#10 +
+      'Marque abaixo o que deseja fazer agora:';
   end;
 end;

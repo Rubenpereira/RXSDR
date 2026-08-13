@@ -14,6 +14,12 @@
 # ---- 2) libera os arquivos soltos da raiz --------------------------------
 !/.gitignore
 !/README.md
+!/CHANGELOG.md
+# As memorias que acompanham o instalador. Sao so frequencias publicas - nao
+# ha nada pessoal aqui - e o RXSDR.iss precisa deste arquivo para montar o
+# instalador. O bookmarks_com_interrogacoes.json (copia de trabalho) fica de
+# fora por nao estar liberado, que e o comportamento padrao.
+!/bookmarks.json
 !/LICENSE.txt
 !/LICENSE-DSD.txt
 !/RXSDR_Arquitetura.md
@@ -126,3 +132,4 @@ run.txt
 /index_backup/
 /skills/
 /tools/
+

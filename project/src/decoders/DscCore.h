@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <deque>
+#include <vector>
 #include <string>
 #include <vector>
 
@@ -45,6 +46,7 @@ public:
         double centerFreq = 1700.0;   // tom central tipico do audio USB
         double shift      = 170.0;    // separacao mark/space
         bool   invert     = false;
+        bool   autoTom    = true;     // mede o tom central sozinho
     };
 
     DscCore();
@@ -109,6 +111,14 @@ private:
     // caracteres ja combinados DX/RX, aguardando fechar mensagem
     std::vector<int> mensagem_;
     bool  coletando_ = false;
+
+    // medicao automatica do tom central
+    std::vector<float> tomBuf_;
+    bool   tomPronto_ = false;
+    double tomMedido_ = 0.0;
+    bool   estimarTom2(const std::vector<float>& buf, double& centro) const;
+    double refinarTom(const std::vector<float>& buf, double centroInicial) const;
+    void   aplicarTom(double centro);
 
     // saida e contadores
     std::string saida_;

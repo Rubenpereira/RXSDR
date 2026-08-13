@@ -78,6 +78,10 @@ public:
     std::function<QJsonObject()>                             onAnaliseStart;
     std::function<QJsonObject()>                             onAnaliseStop;
 
+    // Audio vindo de ARQUIVO em vez do radio. O navegador decodifica o mp3 e
+    // manda PCM; assim nao precisamos de nenhuma biblioteca de audio aqui.
+    std::function<QJsonObject(const QJsonObject&)>           onAudioArquivo;
+
 
 
 

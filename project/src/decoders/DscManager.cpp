@@ -31,6 +31,10 @@ void DscManager::aplicarParams()
     cp.shift      = params_.shift      > 0 ? double(params_.shift)      : 170.0;
     cp.centerFreq = params_.centerFreq > 0 ? double(params_.centerFreq) : 1700.0;
     cp.invert     = params_.invert;
+    // O tom central depende de onde o radio esta sintonizado, nao da norma: a
+    // mesma estacao apareceu em 1080 Hz numa gravacao e em 1470 Hz noutra. O
+    // valor da tela e so o ponto de partida - o nucleo mede o certo sozinho.
+    cp.autoTom    = true;
     core_.setParams(cp);
 }
 

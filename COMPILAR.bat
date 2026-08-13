@@ -21,6 +21,13 @@ copy /Y "%~dp0LICENSE.txt" "%~dp0project\web\LICENSE.txt" >nul
 copy /Y "%~dp0INFO.txt" "%~dp0project\web\INFO.txt" >nul
 xcopy /Y /S /I "%~dp0project\web" "%~dp0project\build\web" >nul
 
+REM As memorias ficam AO LADO do executavel, nao dentro de web: e o usuario
+REM quem edita esse arquivo, e ele nao pode ser sobrescrito a cada compilacao.
+REM Por isso so copiamos quando ainda nao existe no destino.
+if not exist "%~dp0project\build\bookmarks.json" (
+    if exist "%~dp0bookmarks.json" copy /Y "%~dp0bookmarks.json" "%~dp0project\build\bookmarks.json" >nul
+)
+
 echo Copiando decoders externos atualizados...
 xcopy /Y /S /I "%~dp0project\decoders" "%~dp0project\build\decoders" >nul
 
@@ -71,6 +78,12 @@ goto :fim
 
 :abrir
 echo Iniciando RXSDR...
+:: Fecha a instancia antiga ANTES de subir a nova. Sem isto, a versao que
+:: estava aberta durante a compilacao continua viva e as duas disputam a
+:: mesma conexao com o rtl-tcp: o radio liga e cai a cada 4 segundos, sem
+:: nenhuma mensagem de erro. O ABRIR.bat ja fazia isso; o COMPILAR.bat nao.
+taskkill /F /IM RXSDR.exe >nul 2>&1
+timeout /t 1 /nobreak >nul
 start "" "%EXE%"
 echo O navegador abrira em alguns segundos.
 echo Feche esta janela — o software roda em segundo plano (icone na bandeja).

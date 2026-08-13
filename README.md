@@ -16,9 +16,20 @@ Feito por **PU1XTB — Ruben**, radioamador e radioescuta, em Araruama/RJ.
 - **S-meter analógico**, controle de ganho de RF, squelch, AGC e filtro de tom
 - **Decodificadores digitais**: DMR, P25, NXDN, D-Star, TETRA, ACARS, APRS
   e **AIS** (embarcações, com MMSI clicável para VesselFinder/MarineTraffic)
+- **SITOR-B / NAVTEX** e **DSC** (chamada seletiva, ITU-R M.493) — escritos
+  do zero em C++, sem depender de programa externo. Medem o tom central
+  sozinhos e usam decisão suave, que rende cerca de 3 dB em sinal fraco
+- **Analisador de sinal desconhecido** — mede tons, deslocamento e velocidade
+  de um sinal digital que você não reconhece, e diz com que modos ele é
+  compatível
+- **Abrir arquivo de áudio** em qualquer decodificador (MP3, WAV, OGG): toca
+  acompanhando o texto, com pausa, continuação e reinício
 - **Envio de mensagens APRS** pela internet (APRS-IS), incluindo boletins
   para todas as estações
-- Marcadores de banda, memórias e ajuste de sintonia de 1 Hz a 1 MHz
+- **Memórias** com régua no topo do espectro, no formato do OpenWebRX
+  (`bookmarks.json`) — criar do VFO, editar, excluir, importar e exportar
+- Marcadores de banda e ajuste de sintonia de 1 Hz a 1 MHz, com áudio
+  contínuo enquanto você gira
 - Interface responsiva — funciona no navegador do PC, do celular e do tablet
 
 ## Hardware suportado
@@ -71,6 +82,24 @@ Os decodificadores externos (DSDPlus, FMP24, Direwolf e outros)
 **não estão neste repositório** — são programas de terceiros, com licenças
 próprias, e precisam ser obtidos direto com seus autores. Os instaladores da
 aba Releases já vêm com eles configurados.
+
+---
+
+## Memórias
+
+As memórias ficam em `bookmarks.json`, **ao lado do executável**, no mesmo
+formato do OpenWebRX — dá para trocar o arquivo entre os dois programas sem
+converter nada. O instalador traz um arquivo inicial com 958 frequências e
+**não sobrescreve** o seu ao atualizar.
+
+Elas aparecem como uma régua na faixa acima do espectro, fora da cachoeira,
+para não cobrir os sinais. Um clique sintoniza e já troca o modo gravado.
+
+---
+
+## Histórico de mudanças
+
+Veja [CHANGELOG.md](CHANGELOG.md).
 
 ---
 

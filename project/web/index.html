@@ -497,6 +497,19 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
 .spectrum-wrap{position:relative;flex:0 0 30%;border-bottom:1px solid var(--border);overflow:hidden}
 .waterfall-wrap{position:relative;flex:1;overflow:hidden}
 #spectrum,#waterfall{display:block;width:100%;height:100%}
+.regua-memorias{position:absolute;top:0;left:0;right:0;height:17px;
+  overflow:hidden;pointer-events:none;z-index:6;
+  border-bottom:1px solid rgba(90,150,220,.18)}
+.regua-memorias .mm{position:absolute;top:0;transform:translateX(-50%);
+  pointer-events:auto;cursor:pointer;white-space:nowrap;
+  font-family:'Consolas',monospace;font-size:10px;line-height:12px;
+  padding:1px 4px;border-radius:0 0 3px 3px;
+  background:rgba(4,18,34,.82);border:1px solid rgba(90,150,220,.35);
+  border-top:none;color:#8ac0ff}
+.regua-memorias .mm:hover{background:#12365e;color:#eaf4ff;border-color:#63b3ff}
+.regua-memorias .mm.perto{color:#7CFC00;border-color:#3a8a4a}
+.regua-memorias .tick{position:absolute;top:13px;width:1px;height:4px;
+  background:rgba(120,180,240,.5)}
 .canvas-overlay{position:absolute;top:0;left:0;right:0;pointer-events:none;
   font-size:10px;color:var(--text-dim);padding:4px 8px;font-family:'Consolas',monospace}
 .canvas-overlay-br{position:absolute;bottom:0;right:0;
@@ -1031,6 +1044,17 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
         <a onclick="openDecoderPanel('analise')" href="javascript:void(0)">Analisar sinal desconhecido</a>
       </div>
     </div>
+    <div class="item menubar-dropdown-container" id="menuMemorias" style="cursor:pointer">
+      Memórias ▾
+      <div class="menubar-dropdown-menu" id="memoriasDropdown">
+        <a onclick="Memorias.novaDoVfo()" href="javascript:void(0)">Criar a partir do VFO atual</a>
+        <a onclick="Memorias.abrirLista()" href="javascript:void(0)">Editar / excluir…</a>
+        <a onclick="Memorias.alternarRegua()" href="javascript:void(0)"><span id="mmReguaEstado">Ocultar</span> a régua</a>
+        <a onclick="Memorias.importar()" href="javascript:void(0)">Importar arquivo .json…</a>
+        <a onclick="Memorias.exportar()" href="javascript:void(0)">Exportar para arquivo…</a>
+        <a onclick="Memorias.recarregar()" href="javascript:void(0)">Recarregar as memórias</a>
+      </div>
+    </div>
     <div class="item" id="menuGravar" onclick="openGravarModal()" style="cursor:pointer; color:#ff5252; font-weight:bold;" title="Gravar áudio da frequência atual em MP3">
       Gravar
     </div>
@@ -1042,7 +1066,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       </div>
     </div>
     <div style="flex:1"></div>
-    <div class="item" style="color:var(--accent-lcd)">RXSDR v1.0</div>
+    <div class="item" style="color:var(--accent-lcd)">RXSDR v1.0.36</div>
   </div>
 
   <!-- =============================== TOPO =============================== -->
@@ -1057,10 +1081,11 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
           <div id="bwDropdown">
             <div class="bw-opt" data-bw="200">200 Hz (CW)</div>
             <div class="bw-opt" data-bw="500">500 Hz (CW)</div>
-            <div class="bw-opt" data-bw="3000">3.0 kHz (SSB)</div>
+            <div class="bw-opt" data-bw="1800">1.8 kHz (SSB estreito)</div>
             <div class="bw-opt" data-bw="2400">2.4 kHz (SSB)</div>
+            <div class="bw-opt" data-bw="3000">3.0 kHz (SSB largo)</div>
             <div class="bw-opt" data-bw="6000">6 kHz (AM)</div>
-            <div class="bw-opt" data-bw="10000">10 kHz (NFM)</div>
+            <div class="bw-opt" data-bw="10000">10 kHz (AM largo)</div>
             <div class="bw-opt active" data-bw="12500">12.5 kHz (NFM)</div>
             <div class="bw-opt" data-bw="25000">25 kHz (FM)</div>
             <div class="bw-opt" data-bw="50000">50 kHz (FM)</div>
@@ -1263,7 +1288,12 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
     <div class="spectrum-wrap">
       <canvas id="spectrum"></canvas>
       <div class="tune-marker" id="tuneMarkerSpec" style="left:50%;width:1.5%"></div>
-      <div class="canvas-overlay" id="wfCanvasOverlay">Span: 1.92 MHz | Ref: -30 dBm | Avg: 4 | FFT 8192</div>
+      <!-- A REGUA DE MEMORIAS ocupa a faixa que era da linha de informacao.
+           Aquele texto (Span / Ref / Avg / FFT) foi para o rodape: ele e
+           consulta ocasional, enquanto a regua se le o tempo todo enquanto
+           se varre a banda. E este e o unico lugar onde a regua nao cobre a
+           cachoeira - foi por cobrir os sinais que ela saiu da primeira vez. -->
+      <div class="regua-memorias" id="reguaMemorias"></div>
       <div class="canvas-overlay-br">Peak: <span id="peakVal">-72.3</span> dBm</div>
     </div>
     <div class="display-splitter" id="displaySplitter"></div>
@@ -1291,8 +1321,9 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       <span class="cell key" id="wfInfoMsps">2.048 MSPS</span>
       <span class="cell key" id="wfInfoRfq">RFQ-OFF</span>
       <span class="cell key">AUTO</span>
+      <span class="cell" id="wfCanvasOverlay" style="color:#7fb0ff">Span: — | Ref: — | Avg: 4 | FFT —</span>
       <span class="spacer"></span>
-      <span class="cell key">RXSDR V1.0</span>
+      <span class="cell key">RXSDR V1.0.36</span>
     </div>
   </div>
 
@@ -3043,6 +3074,11 @@ var AudioOut = {
 
 let muteUntil = 0;
 
+// Taxa de amostragem em uso, copiada dos quadros da cachoeira. Serve para
+// saber se uma sintonia cabe na janela ja aberta - se couber, o dongle nem
+// fica sabendo, e nao ha estalo nenhum para esconder.
+let wfSpsHz = 2048000;
+
 const Backend = {
   async get(path){
     const r = await fetch(path);
@@ -3062,11 +3098,28 @@ const Backend = {
     return this.post('/api/device/select', { type, serial: serial || '' });
   },
   async tune(freq, mode, bw){
-    muteUntil = performance.now() + 250;
+    // O silenciamento existe para esconder o estalo de quando o dongle troca
+    // de frequencia central. So que ele estava sendo aplicado em TODA sintonia,
+    // inclusive nos passos de 1 Hz - e quem varre banda girando a rodinha
+    // ouvia um buraco a cada clique, o que atrapalha justamente na hora de
+    // procurar sinal fraco.
+    //
+    // O backend so mexe no hardware quando a frequencia sai de 48% da janela
+    // visivel (veja onTune no Application.cpp); dentro disso a sintonia e toda
+    // por software e o audio nao tem emenda alguma. Aqui aplicamos o mesmo
+    // criterio: silencia so quando o dongle vai mesmo se mover, ou quando o
+    // modo muda (a troca de demodulador zera o buffer de audio).
+    const trocouModo = (mode || '').trim() !== (this._lastTunedMode || '');
+    const saiuDaJanela = Math.abs(freq - (centerFreqHz || freq)) > wfSpsHz * 0.48;
+    if (trocouModo || saiuDaJanela) muteUntil = performance.now() + 250;
     this._lastTunedFreq = freq;
+    this._lastTunedMode = (mode || '').trim();
     
     const trimmedMode = (mode || '').trim();
     const targetBw = bw !== undefined ? bw : (typeof currentBwHz !== 'undefined' ? currentBwHz : 3000);
+    // Marca que ESTA sintonia partiu da propria UI; o sincronizador de VFO
+    // usa isso para nao brigar com o usuario enquanto ele afina.
+    window._ultimoTuneLocalMs = (typeof performance !== 'undefined') ? performance.now() : Date.now();
     return this.post('/api/tune', { vfo:'A', freq, mode: trimmedMode, bw: targetBw });
   },
   async setCenter(freq){
@@ -3146,6 +3199,7 @@ const Backend = {
           }
         }
         const sps = view.getUint32(9, true);
+        if (sps > 0) wfSpsHz = sps;
         const n = view.getUint16(13, true);
         const bins = new Int8Array(ev.data, 15, n);
         if (bins.length > 0) {
@@ -3537,6 +3591,338 @@ function getFreqScaleSteps(span) {
   return { major: 1000, minor: 200 };
 }
 
+// ===================== MEMORIAS (regua + edicao) =====================
+// Formato do arquivo IGUAL ao do OpenWebRX - name, frequency, modulation,
+// underlying, description, scannable - para dar de trocar bookmarks.json
+// entre os dois programas sem converter nada.
+const Memorias = (() => {
+  let _lista = [];
+  let _visivel = true;
+  let _ultimoDesenho = 0;
+
+  const el = id => document.getElementById(id);
+
+  async function carregar() {
+    try {
+      const r = await fetch('/api/bookmarks');
+      const d = await r.json();
+      _lista = Array.isArray(d) ? d : [];
+    } catch (e) { _lista = []; }
+    desenhar(true);
+  }
+
+  async function gravar() {
+    try {
+      const r = await fetch('/api/bookmarks', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(_lista)
+      });
+      const j = await r.json();
+      if (!j.ok) alert('Nao consegui gravar as memorias: ' + (j.error || '?'));
+      return !!j.ok;
+    } catch (e) { alert('Erro de rede ao gravar as memorias.'); return false; }
+  }
+
+  // ---- regua -----------------------------------------------------------
+  function janela() {
+    // wfSpsHz vem dos quadros da cachoeira - a mesma taxa que a escala de
+    // frequencia usa, entao regua e escala nunca saem de registro.
+    const sr = (typeof wfSpsHz !== 'undefined' && wfSpsHz > 0) ? wfSpsHz : 2048000;
+    const zoomVal = Number(document.getElementById('zoomSlider')?.value || 0);
+    const zoomedSpan = sr / (1.0 + zoomVal);
+    const base = (typeof centerFreqHz !== 'undefined' && centerFreqHz) ? centerFreqHz : currentFreqHz;
+    return { lo: base - zoomedSpan / 2, hi: base + zoomedSpan / 2, span: zoomedSpan };
+  }
+
+  let _assinatura = '';
+  let _ouvindo = false;
+
+  function ligarCliques(r) {
+    if (_ouvindo) return;
+    _ouvindo = true;
+    // pointerdown, e nao click: o clique so nasce se o apertar e o soltar
+    // cairem no MESMO elemento. Como a regua se redesenha, o rotulo podia ser
+    // trocado no meio do gesto e o clique nunca acontecia - era exatamente
+    // isso que fazia tocar numa memoria nao levar o radio a lugar nenhum.
+    r.addEventListener('pointerdown', (ev) => {
+      const alvo = ev.target.closest ? ev.target.closest('.mm') : null;
+      if (!alvo) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      sintonizar(Number(alvo.dataset.hz), alvo.dataset.mod || '');
+    });
+  }
+
+  function desenhar(forcar) {
+    const r = el('reguaMemorias');
+    if (!r) return;
+    ligarCliques(r);
+    if (!_visivel) { r.innerHTML = ''; _assinatura = ''; return; }
+
+    const agora = performance.now();
+    if (!forcar && agora - _ultimoDesenho < 150) return;
+    _ultimoDesenho = agora;
+
+    const j = janela();
+    if (!(j.span > 0)) return;
+    const larg = r.clientWidth || 1;
+
+    // So o que cabe na tela. Com 1097 memorias, desenhar todas seria travar.
+    const dentro = _lista.filter(m => m.frequency >= j.lo && m.frequency <= j.hi);
+
+    // Evita empilhar rotulos em cima uns dos outros quando ha muitas juntas:
+    // guarda a ultima posicao usada e pula o que ficaria colado.
+    dentro.sort((a, b) => a.frequency - b.frequency);
+    let ultimoX = -1e9;
+    const minPx = 8;
+
+    // Assinatura da janela: so remonta o HTML quando algo mudou de verdade.
+    // Remontar a cada 150 ms tambem gastava CPU a toa com a tela parada.
+    const ass = j.lo.toFixed(0) + '|' + j.hi.toFixed(0) + '|' + larg + '|' +
+                dentro.length + '|' + Math.round(currentFreqHz / 100);
+    if (!forcar && ass === _assinatura) return;
+    _assinatura = ass;
+
+    let html = '';
+    for (const m of dentro) {
+      const x = ((m.frequency - j.lo) / j.span) * larg;
+      html += '<div class="tick" style="left:' + x.toFixed(1) + 'px"></div>';
+      if (x - ultimoX < minPx) continue;      // rotulo omitido, tick fica
+      ultimoX = x;
+      const perto = Math.abs(m.frequency - currentFreqHz) < Math.max(500, j.span * 0.002);
+      const nome = (m.name || '').replace(/[<>&]/g, '');
+      html += '<div class="mm' + (perto ? ' perto' : '') + '" style="left:' + x.toFixed(1) + 'px" ' +
+              'data-hz="' + m.frequency + '" data-mod="' + (m.modulation || '') + '" ' +
+              'title="' + nome + ' — ' + (m.frequency / 1e6).toFixed(6) + ' MHz' +
+              (m.description ? ' — ' + String(m.description).replace(/[<>&"]/g, '') : '') + '">' +
+              nome + '</div>';
+    }
+    r.innerHTML = html;
+  }
+
+  function sintonizar(hz, mod) {
+    if (!isFinite(hz) || hz <= 0) return;
+    const modo = (mod || '').toUpperCase();
+    const valido = ['LSB','USB','CW','AM','FM','NFM','WFM'].includes(modo);
+
+    // Troca o modo ANTES de afinar, clicando no proprio botao da barra: assim
+    // todo o encadeamento do programa roda (largura de banda, demodulador,
+    // aparencia), em vez de eu reimplementar isso pela metade aqui.
+    if (valido) {
+      const btn = Array.from(document.querySelectorAll('.mode-btn'))
+        .find(b => b.textContent.trim().toUpperCase() === modo);
+      if (btn && !btn.classList.contains('on')) btn.click();
+    }
+    // tuneTo e o mesmo caminho do clique no espectro - ja acopla o marcador,
+    // recentra a cachoeira quando precisa e avisa o hardware.
+    if (typeof tuneTo === 'function') tuneTo(hz).catch(()=>{});
+    else { renderVfo(hz); Backend.tune(hz, activeMode()).catch(()=>{}); }
+    desenhar(true);
+  }
+
+  function alternarRegua() {
+    _visivel = !_visivel;
+    const e = el('mmReguaEstado');
+    if (e) e.textContent = _visivel ? 'Ocultar' : 'Mostrar';
+    desenhar(true);
+  }
+
+  // ---- criar / editar / excluir ----------------------------------------
+  function modoAtualCurto() {
+    const b = document.querySelector('.mode-btn.on');
+    return b ? b.textContent.trim().toLowerCase() : 'usb';
+  }
+
+  async function novaDoVfo() {
+    const sugestao = (currentFreqHz / 1e6).toFixed(6) + ' MHz';
+    const nome = prompt('Nome da memoria:', sugestao);
+    if (nome === null) return;
+    _lista.push({
+      name: nome.trim() || sugestao,
+      frequency: Math.round(currentFreqHz),
+      modulation: modoAtualCurto(),
+      underlying: '',
+      description: '',
+      scannable: false
+    });
+    _lista.sort((a, b) => a.frequency - b.frequency);
+    if (await gravar()) { desenhar(true); toastMem('Memoria criada.'); }
+  }
+
+  function toastMem(t) {
+    const e = el('reguaMemorias');
+    if (!e) return;
+    console.log('[memorias]', t);
+  }
+
+  // ---- janela de lista --------------------------------------------------
+  function abrirLista(filtro) {
+    let m = el('mmModal');
+    if (!m) {
+      m = document.createElement('div');
+      m.id = 'mmModal';
+      m.style.cssText = 'position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.6);' +
+                        'display:flex;align-items:center;justify-content:center';
+      m.innerHTML =
+        '<div style="width:min(760px,94vw);max-height:82vh;display:flex;flex-direction:column;' +
+             'background:#071018;border:1px solid #1e4c8c;border-radius:8px;overflow:hidden">' +
+          '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#0a1a2c;' +
+               'border-bottom:1px solid #1e4c8c">' +
+            '<b style="color:#8ac0ff;font-size:13px">MEMÓRIAS</b>' +
+            '<input id="mmBusca" placeholder="procurar por nome ou frequência" ' +
+                   'style="flex:1;background:#03101c;border:1px solid #1e4c8c;border-radius:5px;' +
+                   'color:#cfe6ff;padding:4px 8px;font-size:12px">' +
+            '<span id="mmTotal" style="color:#5f87b0;font-size:11px"></span>' +
+            '<button onclick="Memorias.fecharLista()" style="background:#2a1020;border:1px solid #8c2e5a;' +
+                    'color:#ff9ac0;border-radius:5px;padding:4px 10px;cursor:pointer">Fechar</button>' +
+          '</div>' +
+          '<div id="mmCorpo" style="overflow:auto;flex:1;font-family:Consolas,monospace;font-size:12px"></div>' +
+        '</div>';
+      document.body.appendChild(m);
+      el('mmBusca').addEventListener('input', function(){ renderLista(this.value); });
+    }
+    m.style.display = 'flex';
+    el('mmBusca').value = filtro || '';
+    renderLista(filtro || '');
+  }
+
+  function fecharLista() {
+    const m = el('mmModal');
+    if (m) m.style.display = 'none';
+  }
+
+  function renderLista(filtro) {
+    const corpo = el('mmCorpo');
+    if (!corpo) return;
+    const f = (filtro || '').trim().toLowerCase();
+    const idx = _lista.map((m, i) => ({ m, i }))
+      .filter(({m}) => !f || (m.name || '').toLowerCase().includes(f) ||
+                        String(m.frequency / 1e6).includes(f));
+    el('mmTotal').textContent = idx.length + ' de ' + _lista.length;
+
+    // Com 1097 memorias, montar tudo de uma vez trava o navegador por um
+    // instante. Mostramos os 300 primeiros do filtro - quem procura, filtra.
+    const mostra = idx.slice(0, 300);
+    let html = '';
+    for (const {m, i} of mostra) {
+      const nome = (m.name || '').replace(/[<>&]/g, '');
+      html += '<div style="display:flex;align-items:center;gap:8px;padding:4px 10px;' +
+                   'border-bottom:1px solid #0e2036">' +
+        '<span style="flex:0 0 110px;color:#7CFC00">' + (m.frequency / 1e6).toFixed(6) + '</span>' +
+        '<span style="flex:0 0 46px;color:#ffaa00">' + (m.modulation || '') + '</span>' +
+        '<span style="flex:1;color:#cfe6ff;overflow:hidden;text-overflow:ellipsis">' + nome + '</span>' +
+        '<button onclick="Memorias.sintonizar(' + m.frequency + ',\'' + (m.modulation||'') + '\')" ' +
+                'style="background:#0d2a1a;border:1px solid #2e8c5a;color:#8affc0;border-radius:4px;' +
+                'padding:2px 8px;cursor:pointer">Ir</button>' +
+        '<button onclick="Memorias.editar(' + i + ')" ' +
+                'style="background:#12203a;border:1px solid #2e5a8c;color:#8ac0ff;border-radius:4px;' +
+                'padding:2px 8px;cursor:pointer">Editar</button>' +
+        '<button onclick="Memorias.excluir(' + i + ')" ' +
+                'style="background:#2a1020;border:1px solid #8c2e5a;color:#ff9ac0;border-radius:4px;' +
+                'padding:2px 8px;cursor:pointer">Excluir</button>' +
+      '</div>';
+    }
+    if (idx.length > mostra.length)
+      html += '<div style="padding:8px 10px;color:#5f87b0">... e mais ' +
+              (idx.length - mostra.length) + '. Use a busca para estreitar.</div>';
+    corpo.innerHTML = html || '<div style="padding:12px;color:#5f87b0">Nada encontrado.</div>';
+  }
+
+  async function editar(i) {
+    const m = _lista[i];
+    if (!m) return;
+    const nome = prompt('Nome:', m.name || '');
+    if (nome === null) return;
+    const fq = prompt('Frequência em MHz:', (m.frequency / 1e6).toFixed(6));
+    if (fq === null) return;
+    const hz = Math.round(parseFloat(String(fq).replace(',', '.')) * 1e6);
+    if (!isFinite(hz) || hz <= 0) { alert('Frequência inválida.'); return; }
+    const mod = prompt('Modo (usb, lsb, am, fm, nfm, cw):', m.modulation || 'usb');
+    if (mod === null) return;
+    const desc = prompt('Descrição (opcional):', m.description || '');
+    if (desc === null) return;
+
+    m.name = nome.trim();
+    m.frequency = hz;
+    m.modulation = String(mod).trim().toLowerCase();
+    m.description = desc;
+    _lista.sort((a, b) => a.frequency - b.frequency);
+    if (await gravar()) { desenhar(true); renderLista(el('mmBusca').value); }
+  }
+
+  async function excluir(i) {
+    const m = _lista[i];
+    if (!m) return;
+    if (!confirm('Excluir "' + (m.name || '') + '" — ' +
+                 (m.frequency / 1e6).toFixed(6) + ' MHz?')) return;
+    _lista.splice(i, 1);
+    if (await gravar()) { desenhar(true); renderLista(el('mmBusca').value); }
+  }
+
+  function recarregar() { carregar(); }
+
+  // Importar: le um bookmarks.json do computador. Aceita tanto o formato do
+  // OpenWebRX quanto uma lista simples, e SEMPRE pergunta antes de substituir -
+  // sao anos de memorias em jogo.
+  function importar() {
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = '.json,application/json';
+    inp.onchange = async () => {
+      const f = inp.files && inp.files[0];
+      if (!f) return;
+      let novos;
+      try {
+        novos = JSON.parse(await f.text());
+      } catch (err) { alert('Arquivo não é JSON válido.'); return; }
+      if (!Array.isArray(novos)) { alert('O arquivo precisa conter uma lista de memórias.'); return; }
+
+      const validos = novos.filter(m => m && isFinite(Number(m.frequency)) && Number(m.frequency) > 0)
+        .map(m => ({
+          name: String(m.name || ''),
+          frequency: Math.round(Number(m.frequency)),
+          modulation: String(m.modulation || '').toLowerCase(),
+          underlying: String(m.underlying || ''),
+          description: String(m.description || ''),
+          scannable: !!m.scannable
+        }));
+      if (!validos.length) { alert('Nenhuma memória válida no arquivo.'); return; }
+
+      const juntar = confirm(validos.length + ' memórias no arquivo.\n\n' +
+        'OK = ACRESCENTAR às ' + _lista.length + ' que você já tem.\n' +
+        'Cancelar = SUBSTITUIR tudo pelas do arquivo.');
+
+      if (juntar) {
+        // Nao duplica: mesma frequencia e mesmo nome ja existente e ignorado.
+        const chave = m => m.frequency + '|' + (m.name || '').trim().toLowerCase();
+        const tem = new Set(_lista.map(chave));
+        let novas = 0;
+        for (const m of validos) if (!tem.has(chave(m))) { _lista.push(m); tem.add(chave(m)); novas++; }
+        alert(novas + ' memórias acrescentadas (' + (validos.length - novas) + ' já existiam).');
+      } else {
+        if (!confirm('Isso APAGA as ' + _lista.length + ' memórias atuais. Confirma?')) return;
+        _lista = validos;
+      }
+      _lista.sort((a, b) => a.frequency - b.frequency);
+      if (await gravar()) { desenhar(true); }
+    };
+    inp.click();
+  }
+
+  function exportar() {
+    const txt = JSON.stringify(_lista, null, 4);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([txt], { type: 'application/json' }));
+    a.download = 'bookmarks.json';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }
+
+  return { carregar, desenhar, sintonizar, alternarRegua, novaDoVfo,
+           abrirLista, fecharLista, editar, excluir, recarregar,
+           importar, exportar };
+})();
+
 function drawFreqScale() {
   const canvas = document.getElementById('freqScaleCanvas');
   if (!canvas) return;
@@ -3861,6 +4247,7 @@ function frame(t){
     }
     drawSpectrum();
     drawFreqScale();
+    if (typeof Memorias !== 'undefined') Memorias.desenhar(false);
     
     // Se a cachoeira não avançou de frame nesta iteração, redesenhamos os overlays dela em 30 fps
     if (!drewWf) {
@@ -4215,7 +4602,7 @@ document.querySelectorAll('.mode-btn').forEach(b=>{
 
     // Sincroniza BW com o modo de modulação selecionado imediatamente ANTES de sintonizar
     const modeDefaultBw = {
-      'LSB': 3000, 'USB': 3000, 'CW': 500, 'AM': 10000,
+      'LSB': 2400, 'USB': 2400, 'CW': 500, 'AM': 6000,
       'FM': 25000, 'NFM': 10000, 'WFM': 200000
     };
     const defaultBw = modeDefaultBw[mode];
@@ -4377,11 +4764,15 @@ document.getElementById('vfoA').addEventListener('wheel', (e)=>{
   specMarkerHz = null;
   renderVfo(currentFreqHz + dir * step);
 
-  // Debounce: cancela o timer anterior e agenda nova chamada ao hardware
+  // A espera de 80 ms existe para nao afogar o barramento USB do dongle com
+  // uma rajada de comandos. Mas isso so vale quando a sintonia chega ao
+  // hardware: dentro da janela ja aberta e tudo software, e ai a espera longa
+  // so serve para atrasar o audio. Entao ela encolhe para 15 ms nesse caso.
+  const _cabeNaJanela = Math.abs(currentFreqHz - (centerFreqHz || currentFreqHz)) <= wfSpsHz * 0.48;
   clearTimeout(_vfoWheelTimer);
   _vfoWheelTimer = setTimeout(() => {
     Backend.tune(currentFreqHz, activeMode()).catch(()=>{});
-  }, 80);
+  }, _cabeNaJanela ? 15 : 80);
 }, { passive: false });
 // ── Edição de frequência VFO — modal não-bloqueante (áudio continua) ─────────
 (function(){
@@ -5007,6 +5398,62 @@ function tickClock(){
 }
 setInterval(tickClock, 1000); tickClock();
 
+// ── Sincronismo do VFO com sintonia externa ────────────────────────────────
+// A pagina lia o VFO do backend so uma vez, ao carregar. Uma sintonia vinda de
+// fora (BuscaFreq, rigctl, outra aba) movia o hardware e a cachoeira, mas o
+// display do VFO ficava parado — e o comando seguinte da UI desfazia a sintonia.
+// Aqui perguntamos ao backend periodicamente e acompanhamos o que ele tem.
+// O centerFreqHz nao entra aqui: ja vem sozinho pelo WebSocket do espectro.
+(function(){
+  var INTERVALO_MS  = 1500;   // consulta leve, so /api/status
+  var TOLERANCIA_HZ = 1;      // abaixo disso e arredondamento
+  var CARENCIA_MS   = 2500;   // nao interfere enquanto o usuario afina
+
+  var ultimoAplicado = 0;
+
+  function uiMexendoAgora(){
+    var t = window._ultimoTuneLocalMs || 0;
+    var agora = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+    return (agora - t) < CARENCIA_MS;
+  }
+
+  function sincronizarVfo(){
+    if (document.hidden) return;
+    if (typeof isWfDragging !== 'undefined' && isWfDragging) return;
+    if (uiMexendoAgora()) return;
+
+    Backend.status().then(function(st){
+      if (!st || !st.ok) return;
+      var freqExterna = Number(st.freqA) || 0;
+      if (!freqExterna) return;
+      if (freqExterna === ultimoAplicado) return;
+      if (Math.abs(freqExterna - currentFreqHz) <= TOLERANCIA_HZ) return;
+
+      ultimoAplicado = freqExterna;
+      if (typeof specMarkerHz !== 'undefined') specMarkerHz = null;
+      renderVfo(freqExterna);
+      Backend._lastTunedFreq = freqExterna;
+
+      // Acompanha tambem o modo, se o backend estiver noutro
+      var modoExterno = String(st.mode || '').trim().toUpperCase();
+      var modoAtual   = String(activeMode() || '').trim().toUpperCase();
+      if (modoExterno && modoExterno !== modoAtual) {
+        var botoes = document.querySelectorAll('.mode-btn');
+        for (var i = 0; i < botoes.length; i++) {
+          if (botoes[i].textContent.trim().toUpperCase() === modoExterno) {
+            botoes[i].click();   // o proprio handler reaplica tune/bw/labels
+            return;
+          }
+        }
+      }
+      if (typeof updateVfoLabels === 'function') updateVfoLabels();
+      if (typeof updateWfFooter  === 'function') updateWfFooter();
+    }).catch(function(){ /* backend fora do ar: tenta no proximo ciclo */ });
+  }
+
+  setInterval(sincronizarVfo, INTERVALO_MS);
+})();
+
 /* =========================================================
    5. PAINÉIS DECODER DIGITAL (flutuantes, canto inferior esquerdo)
    ========================================================= */
@@ -5079,6 +5526,8 @@ function openDecoderPanel(id){
   const isDigital = (id === 'acars' || id === 'dsd' || id === 'tetra' || id === 'packetradio');
   panel.className = 'decoder-panel' + (isDigital ? ' dp-digital' : '');
   panel.id = 'dpanel-' + id;
+  // Sempre por cima do que ja esta aberto: a janela nova e a que voce quer ver.
+  panel.style.zIndex = String(1000 + document.querySelectorAll('.decoder-panel').length);
   
   // Posicionamento inicial cascateado para evitar sobreposição total
   const existingPanels = document.querySelectorAll('.decoder-panel');
@@ -5100,9 +5549,19 @@ function openDecoderPanel(id){
     panel.style.height = '500px';
   }
 
+  // O ANALISADOR nasce encostado na direita, e nao na cascata.
+  // Ele existe para ser lido AO LADO do decodificador - voce compara o que ele
+  // mediu com o que o decodificador esta usando. Na cascata ele nascia por
+  // baixo da janela do decoder, que e justamente onde nao serve para nada.
+  if (id === 'analise') {
+    const larg = parseInt(panel.style.width || '660', 10);
+    panel.style.left = Math.max(20, window.innerWidth - larg - 20) + 'px';
+    panel.style.bottom = '78px';
+  }
+
   // Nao deixa a janela nascer fora da tela quando ja ha varias abertas
   const alturaJanela = parseInt(panel.style.height || '360', 10);
-  const sobra = window.innerHeight - alturaJanela - (78 + offset);
+  const sobra = window.innerHeight - alturaJanela - parseInt(panel.style.bottom, 10);
   if (sobra < 40) panel.style.bottom = Math.max(78, window.innerHeight - alturaJanela - 40) + 'px';
   
   const titleText = isDigital 
@@ -5146,6 +5605,9 @@ function openDecoderPanel(id){
 function closeDecoderPanel(id){
   const panel = document.getElementById('dpanel-' + id);
   if(panel) panel.remove();
+  // Solta o arquivo de audio antes de avisar o decodificador: sem isto o som
+  // continua tocando com a janela ja fechada.
+  try { ArquivoAudio.encerrar(id.toUpperCase()); } catch (e) {}
   if (id === 'acars') AcarsDecoder.onClose();
   if (id === 'dsd')  DsdDecoder.onClose();
   if (id === 'tetra') TetraDecoder.onClose();
@@ -5934,7 +6396,7 @@ function saveVuLastFreq(hz) {
 
 // Map padrão de BW por modo (mesmo usado no listener .mode-btn)
 const HF_MODE_DEFAULT_BW = {
-  'LSB': 3000, 'USB': 3000, 'CW': 500, 'AM': 10000,
+  'LSB': 2400, 'USB': 2400, 'CW': 500, 'AM': 6000,
   'FM': 25000, 'NFM': 10000, 'WFM': 200000
 };
 
@@ -6306,10 +6768,10 @@ function applyDefaultGain(){
       currentBwHz = savedState.bw;
     } else {
       const BOOT_MODE_DEFAULT_BW = {
-        'LSB': 3000, 'USB': 3000, 'CW': 500, 'AM': 10000,
+        'LSB': 2400, 'USB': 2400, 'CW': 500, 'AM': 6000,
         'FM': 25000, 'NFM': 12500, 'WFM': 200000
       };
-      currentBwHz = BOOT_MODE_DEFAULT_BW[targetMode] || 3000;
+      currentBwHz = BOOT_MODE_DEFAULT_BW[targetMode] || 2400;
     }
 
     // Atualiza a UI do BW (rotulo + opcao activa no menu)
@@ -6441,6 +6903,9 @@ function applyDefaultGain(){
   resize();
   updateWfFooter();
   updateVfoLabels();
+  // Carrega as memorias depois do resto: se o arquivo estiver grande ou o
+  // servidor ainda subindo, o radio nao fica esperando por elas.
+  setTimeout(() => { try { Memorias.carregar(); } catch (e) {} }, 400);
   requestAnimationFrame(frame);
 })();
 
@@ -7595,6 +8060,8 @@ const SitorBDecoder = (() => {
     { hz: 4266000,  nome: '4266 kHz - Marinha do Brasil (Rio) - so a pedido' },
     { hz: 8415000,  nome: '8415 kHz - costeiras / Marinha argentina' },
     { hz: 8414500,  nome: '8414.5 kHz - NAVTEX HF (padrao ITU)' },
+    { hz: 12578000, nome: '12578 kHz - Marinha argentina (Buenos Aires)', shift: 200 },
+    { hz: 12580000, nome: '12580 kHz - costeiras HF', shift: 170 },
     { hz: 12579000, nome: '12579 kHz - costeiras HF' },
     { hz: 16806500, nome: '16806.5 kHz - costeiras HF' },
     { hz: 518000,   nome: '518 kHz - NAVTEX internacional' },
@@ -7602,7 +8069,12 @@ const SitorBDecoder = (() => {
   ];
 
   function buildPanelHTML() {
-    const ops = CANAIS.map(c => '<option value="' + c.hz + '">' + c.nome + '</option>').join('');
+    // O shift viaja junto com o canal: a Marinha argentina em 12578 transmite
+    // com 200 Hz, nao com os 170 da norma, e trocar isso na mao toda vez era
+    // fonte de erro. Canal sem shift declarado nao mexe no campo.
+    const ops = CANAIS.map(c => '<option value="' + c.hz + '"'
+        + (c.shift ? ' data-shift="' + c.shift + '"' : '')
+        + '>' + c.nome + '</option>').join('');
     return `
       <div class="dec-status-banner" style="background:#020603;padding:6px 10px;border-bottom:1px solid #10301a">
         <div style="color:#ffaa00;font-family:'Segoe UI',sans-serif;font-size:12px;font-weight:bold;margin-bottom:2px">
@@ -7618,10 +8090,21 @@ const SitorBDecoder = (() => {
         <select id="sitorb-canal" style="font-size:10px" onchange="SitorBDecoder.irParaCanal()">${ops}</select>
         <label style="font-size:10px">Tom central</label>
         <input type="number" id="sitorb-tom" value="1700" step="10" style="width:56px;font-size:10px"
-               onchange="SitorBDecoder.reiniciar()">
+               onchange="SitorBDecoder.reiniciar()" title="Frequencia no meio dos dois tons, em Hz">
+        <label style="font-size:10px">Shift</label>
+        <input type="number" id="sitorb-shift" value="170" step="5" style="width:52px;font-size:10px"
+               onchange="SitorBDecoder.reiniciar()" title="Separacao entre mark e space. 170 e o padrao, mas ha estacoes em 200, 425 e 850">
+        <label style="font-size:10px">Baud</label>
+        <input type="number" id="sitorb-baud" value="100" step="0.05" style="width:58px;font-size:10px"
+               onchange="SitorBDecoder.reiniciar()" title="Velocidade. 100 para SITOR-B; RTTY usa 45.45, 50 ou 75">
         <label style="font-size:10px" title="Inverte mark e space se o texto sair como lixo">
           <input type="checkbox" id="sitorb-inv" onchange="SitorBDecoder.reiniciar()"> Inverter
         </label>
+        ${ArquivoAudio.botaoHTML('SITORB')}
+        <button onclick="estreitarParaDigital(500)" class="gt-btn bw-digital-btn"
+                title="Reduz a largura de recepcao para 500 Hz. O sinal ocupa uns 300 Hz - receber com 3 kHz so acrescenta ruido."
+                style="padding:4px 8px;margin-left:6px;background:#0d2a1a;border-color:#2e8c5a;
+                       color:#8affc0;font-size:11px;font-weight:bold;cursor:pointer;border-radius:4px">BW 500</button>
         <span id="sitorb-stats" style="font-size:10px;color:#7fb0ff;margin-left:auto"></span>
       </div>
 
@@ -7642,6 +8125,19 @@ const SitorBDecoder = (() => {
     const sel = el('sitorb-canal');
     if (!sel) return;
     const hz = Number(sel.value) || 518000;
+
+    // Se o canal declara um shift proprio, ele entra no campo e o
+    // decodificador reinicia com o valor certo.
+    const op = sel.options[sel.selectedIndex];
+    const sh = op && op.dataset ? Number(op.dataset.shift) : 0;
+    if (sh > 0 && el('sitorb-shift') && Number(el('sitorb-shift').value) !== sh) {
+        el('sitorb-shift').value = String(sh);
+        try { localStorage.setItem('sitorb-shift', String(sh)); } catch (e) {}
+        el('sitorb-shift').style.color = '#80ff80';
+        setTimeout(() => { el('sitorb-shift').style.color = ''; }, 4000);
+        setTimeout(() => { reiniciar(); }, 100);
+    }
+
     _sintonizou = true;
     if (typeof renderVfo === 'function') renderVfo(hz);
     if (typeof Backend !== 'undefined' && Backend.tune) {
@@ -7651,8 +8147,8 @@ const SitorBDecoder = (() => {
 
   function paramsAtuais() {
     return {
-      baudRate:   100,
-      shift:      170,
+      baudRate:   Number((el('sitorb-baud') || {}).value) || 100,
+      shift:      Number((el('sitorb-shift') || {}).value) || 170,
       centerFreq: Number((el('sitorb-tom') || {}).value) || 1700,
       invert:     !!(el('sitorb-inv') || {}).checked
     };
@@ -7671,7 +8167,7 @@ const SitorBDecoder = (() => {
       .then(r => r.json()).then(mostrar).catch(() => {});
   }
 
-  function reiniciar() { parar(); setTimeout(iniciar, 250); }
+  function reiniciar() { guardarAjustes(); parar(); setTimeout(iniciar, 250); }
 
   function mostrar(d) {
     const t = el('sitorb-status'), st = el('sitorb-stats');
@@ -7683,11 +8179,21 @@ const SitorBDecoder = (() => {
     if (st) {
       // "sync" indica que achou o alinhamento do FEC; "FEC" conta os
       // caracteres que so foram recuperados gracas a copia repetida.
+      // "sincronizado" sozinho engana: o decodificador trava em ruido e diz
+      // que esta sincronizado. O que separa sinal de ruido e a PROPORCAO de
+      // caracteres que fecham a verificacao - em ruido ela fica perto de 20%,
+      // que e o acaso para este codigo.
+      const tot = d.chars || 0, val = d.valid || 0;
+      const taxa = tot > 0 ? val / tot : 0;
+      let estado;
+      if (!d.sync)            estado = 'procurando sinal';
+      else if (tot < 40)      estado = 'sincronizando...';
+      else if (taxa < 0.35)   estado = 'SINAL NAO CONFERE (' + Math.round(taxa*100) + '%)';
+      else                    estado = 'decodificando (' + Math.round(taxa*100) + '%)';
       st.textContent = rodando
-        ? (d.sync ? 'sincronizado' : 'procurando sinal') +
-          ' | ' + (d.valid || 0) + '/' + (d.chars || 0) + ' chars' +
-          ' | FEC salvou ' + (d.fecFixes || 0)
+        ? estado + ' | ' + val + '/' + tot + ' chars | FEC salvou ' + (d.fecFixes || 0)
         : '';
+      st.style.color = (rodando && d.sync && tot >= 40 && taxa < 0.35) ? '#ff9040' : '#7fb0ff';
     }
   }
 
@@ -7711,6 +8217,22 @@ const SitorBDecoder = (() => {
 
   function appendLine(line) {
     if (!line) return;
+    // O nucleo mede o tom central sozinho e anuncia o valor. Trazemos esse
+    // numero para a caixa da tela: antes ele ficava so no log, e dava a
+    // impressao de que nada tinha acontecido - a caixa dizia uma coisa e o
+    // decodificador estava usando outra.
+    const _m = /tom central medido:\s*(\d+)\s*Hz/i.exec(line);
+    if (_m) {
+      const campo = el('sitorb-tom');
+      if (campo) {
+        campo.value = _m[1];
+        // Grava direto, sem disparar o onchange: reiniciar aqui faria o
+        // decodificador medir de novo, e de novo, sem fim.
+        try { localStorage.setItem('sitorb-tom', _m[1]); } catch (e) {}
+        campo.style.color = '#80ff80';
+        setTimeout(() => { campo.style.color = ''; }, 4000);
+      }
+    }
     _linhas.push(line);
     if (_linhas.length > MAX_LINHAS) _linhas.shift();
     const term = el('sitorb-terminal');
@@ -7730,7 +8252,33 @@ const SitorBDecoder = (() => {
   }
 
   // Abrir a janela sintoniza o canal e liga; fechar devolve tudo.
+  // O tom central e a inversao ficam guardados: sem isso o valor digitado se
+  // perdia toda vez que a janela fechava, e o decodificador voltava calado a
+  // procurar os tons no lugar errado.
+  function carregarAjustes() {
+    try {
+      const tom = localStorage.getItem('sitorb-tom');
+      const inv = localStorage.getItem('sitorb-inv');
+      const shf = localStorage.getItem('sitorb-shift');
+      const bd  = localStorage.getItem('sitorb-baud');
+      if (tom && el('sitorb-tom')) el('sitorb-tom').value = tom;
+      if (shf && el('sitorb-shift')) el('sitorb-shift').value = shf;
+      if (bd  && el('sitorb-baud'))  el('sitorb-baud').value  = bd;
+      if (inv && el('sitorb-inv')) el('sitorb-inv').checked = (inv === '1');
+    } catch (e) {}
+  }
+
+  function guardarAjustes() {
+    try {
+      localStorage.setItem('sitorb-tom', String((el('sitorb-tom') || {}).value || '1700'));
+      localStorage.setItem('sitorb-shift', String((el('sitorb-shift') || {}).value || '170'));
+      localStorage.setItem('sitorb-baud',  String((el('sitorb-baud')  || {}).value || '100'));
+      localStorage.setItem('sitorb-inv', (el('sitorb-inv') || {}).checked ? '1' : '0');
+    } catch (e) {}
+  }
+
   function init() {
+    carregarAjustes();
     try {
       _estadoAnterior = {
         freq: currentFreqHz,
@@ -7785,6 +8333,214 @@ const SitorBDecoder = (() => {
    diz se o conteudo tem cara de texto ou de cifra.
    O nucleo esta no C++ (AnaliseCore).
    ========================================================= */
+
+/* =========================================================
+   ABRIR ARQUIVO - alimenta um decoder com audio gravado
+   O navegador ja sabe abrir mp3, wav e ogg, entao a decodificacao
+   do formato acontece aqui e o RXSDR recebe so as amostras. Serve
+   para reprocessar um sinal dificil quantas vezes quiser, mexendo
+   nos ajustes, sem depender da estacao estar no ar.
+   ========================================================= */
+// Estreitar a recepcao vale mais do que qualquer truque no decodificador.
+// O SITOR-B e o DSC ocupam cerca de 300 Hz; recebendo com 3 kHz entra dez
+// vezes mais ruido do que o necessario - uns 10 dB jogados fora. Este botao
+// leva a largura para 500 Hz, com folga para o desvio de sintonia.
+//
+// De proposito NAO fazemos isso sozinho ao abrir a janela: mexer na sintonia
+// sem pedir ja incomodou antes, e quem procura sinal desconhecido as vezes
+// quer a banda larga mesmo.
+// Guarda a largura de onde viemos, para o botao poder desfazer. null = o
+// modo estreito esta desligado e vale a largura normal do radio.
+let _bwAntesDoDigital = null;
+
+function _aplicarBw(alvo) {
+  currentBwHz = alvo;
+  try { updateMarkerPosition(currentFreqHz); } catch (e) {}
+  const h = document.getElementById('bwHandleLeft');
+  if (h && typeof formatBwTooltip === 'function') h.textContent = formatBwTooltip(alvo);
+  Backend.tune(currentFreqHz, activeMode(), alvo).catch(()=>{});
+}
+
+function _pintarBotoesBw() {
+  const ligado = (_bwAntesDoDigital !== null);
+  document.querySelectorAll('.bw-digital-btn').forEach(b => {
+    b.textContent      = ligado ? 'BW 500 ON' : 'BW 500';
+    b.style.background = ligado ? '#1d7a45' : '#0d2a1a';
+    b.style.borderColor= ligado ? '#4fffa0' : '#2e8c5a';
+    b.style.color      = ligado ? '#eafff2' : '#8affc0';
+    b.title            = ligado
+      ? 'Estreito ligado. Clique para voltar a largura de antes ('
+        + Math.round(_bwAntesDoDigital) + ' Hz).'
+      : 'Reduz a largura de recepcao para 500 Hz. O sinal ocupa uns 300 Hz - '
+        + 'receber com 3 kHz so acrescenta ruido.';
+  });
+}
+
+function estreitarParaDigital(hz) {
+  if (_bwAntesDoDigital === null) {
+    _bwAntesDoDigital = currentBwHz;      // lembra de onde viemos
+    _aplicarBw(hz || 500);
+  } else {
+    _aplicarBw(_bwAntesDoDigital);        // devolve a largura do radio
+    _bwAntesDoDigital = null;
+  }
+  _pintarBotoesBw();
+}
+
+const ArquivoAudio = (() => {
+  // Guarda o audio decodificado para poder PAUSAR e CONTINUAR de onde parou.
+  // Na primeira versao, Parar descartava tudo e obrigava a escolher o arquivo
+  // outra vez - em um audio de 13 minutos isso e insuportavel.
+  let _canal = null, _taxa = 0, _pos = 0, _dec = null;
+  let _tocando = false, _pausado = false;
+  let _ctx = null, _fonte = null;
+
+  function botaoHTML(decoder) {
+    return '<button id="arq-btn-' + decoder + '" onclick="ArquivoAudio.clique(\'' + decoder + '\')" class="gt-btn" ' +
+      'style="padding:4px 10px;background:#12203a;border-color:#2e5a8c;color:#8ac0ff;' +
+      'font-size:11px;font-weight:bold;cursor:pointer;border-radius:4px">Abrir arquivo</button>' +
+      '<button id="arq-zer-' + decoder + '" onclick="ArquivoAudio.recomecar(\'' + decoder + '\')" class="gt-btn" ' +
+      'style="display:none;padding:4px 8px;margin-left:4px;background:#2a1020;border-color:#8c2e5a;color:#ff9ac0;' +
+      'font-size:11px;font-weight:bold;cursor:pointer;border-radius:4px" title="Volta ao inicio do arquivo">Reiniciar</button>' +
+      '<span id="arq-prog-' + decoder + '" style="font-size:10px;color:#7fb0ff;margin-left:6px"></span>';
+  }
+
+  const el = id => document.getElementById(id);
+  function estado(d, t) { const e = el('arq-prog-' + d); if (e) e.textContent = t; }
+  function rotulo(d, t) { const b = el('arq-btn-' + d);  if (b) b.textContent = t; }
+  function mostrarZerar(d, v) { const b = el('arq-zer-' + d); if (b) b.style.display = v ? '' : 'none'; }
+
+  function clique(decoder) {
+    if (_tocando) { pausar(decoder); return; }
+    if (_canal && _dec === decoder && _pos < _canal.length) { continuar(decoder); return; }
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = 'audio/*,.mp3,.wav,.ogg,.m4a';
+    inp.onchange = () => { if (inp.files && inp.files[0]) abrir(decoder, inp.files[0]); };
+    inp.click();
+  }
+
+  function pararSom() {
+    try { if (_fonte) _fonte.stop(); } catch (e) {}
+    _fonte = null;
+  }
+
+  function pausar(decoder) {
+    _pausado = true; _tocando = false;
+    pararSom();
+    rotulo(decoder, 'Continuar');
+    estado(decoder, 'pausado em ' + (_pos / _taxa).toFixed(0) + 's');
+  }
+
+  function recomecar(decoder) {
+    _pos = 0;
+    estado(decoder, 'voltou ao inicio');
+    if (!_tocando) rotulo(decoder, 'Continuar');
+  }
+
+  async function abrir(decoder, file) {
+    estado(decoder, 'lendo ' + file.name + '...');
+    try {
+      const buf = await file.arrayBuffer();
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const audio = await ctx.decodeAudioData(buf);
+      _canal = audio.getChannelData(0);
+      _taxa  = audio.sampleRate;
+      _pos   = 0;
+      _dec   = decoder;
+      ctx.close();
+    } catch (e) { estado(decoder, 'falha ao ler o arquivo'); return; }
+    mostrarZerar(decoder, true);
+    continuar(decoder);
+  }
+
+  function ligarDecoder(decoder) {
+    try {
+      if (decoder === 'SITORB' && typeof SitorBDecoder !== 'undefined') SitorBDecoder.reiniciar();
+      else if (decoder === 'DSC' && typeof DscDecoder !== 'undefined')  DscDecoder.reiniciar();
+      else if (decoder === 'ANALISE' && typeof AnaliseDecoder !== 'undefined') AnaliseDecoder.analisar();
+    } catch (e) {}
+  }
+
+  async function continuar(decoder) {
+    if (!_canal) return;
+    _tocando = true; _pausado = false;
+    rotulo(decoder, 'Pausar');
+    if (_pos === 0) ligarDecoder(decoder);
+
+    // Toca so o trecho que ainda falta, para o som acompanhar o texto.
+    try {
+      _ctx = _ctx && _ctx.state !== 'closed' ? _ctx
+           : new (window.AudioContext || window.webkitAudioContext)();
+      const resto = _canal.length - _pos;
+      const b = _ctx.createBuffer(1, resto, _taxa);
+      b.copyToChannel(_canal.subarray(_pos), 0);
+      _fonte = _ctx.createBufferSource();
+      _fonte.buffer = b;
+      _fonte.connect(_ctx.destination);
+      _fonte.start();
+    } catch (e) {}
+
+    const dur = _canal.length / _taxa;
+    const passo = Math.round(_taxa * 0.25);
+    const inicio = _pos;
+    const t0 = performance.now();
+
+    while (_pos < _canal.length) {
+      if (!_tocando) return;
+      const quando = ((_pos - inicio) / _taxa) * 1000;
+      const atraso = quando - (performance.now() - t0);
+      if (atraso > 0) await new Promise(r => setTimeout(r, atraso));
+      if (!_tocando) return;
+
+      const fim = Math.min(_pos + passo, _canal.length);
+      const pcm = new Int16Array(fim - _pos);
+      for (let k = _pos; k < fim; k++) {
+        let v = _canal[k];
+        if (v > 1) v = 1; else if (v < -1) v = -1;
+        pcm[k - _pos] = Math.round(v * 32767);
+      }
+      let bin = '';
+      const bytes = new Uint8Array(pcm.buffer);
+      for (let k = 0; k < bytes.length; k += 8192)
+        bin += String.fromCharCode.apply(null, bytes.subarray(k, k + 8192));
+
+      try {
+        const r = await fetch('/api/decoder/audio', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ decoder: decoder, sampleRate: _taxa, pcm: btoa(bin) })
+        });
+        const jj = await r.json();
+        if (!jj.ok) { estado(decoder, 'erro: ' + (jj.error || '?')); pausar(decoder); return; }
+      } catch (e) { estado(decoder, 'erro de rede'); pausar(decoder); return; }
+
+      _pos = fim;
+      estado(decoder, (_pos / _taxa).toFixed(0) + 's / ' + dur.toFixed(0) + 's');
+    }
+
+    _tocando = false;
+    pararSom();
+    rotulo(decoder, 'Continuar');
+    estado(decoder, 'fim do arquivo');
+  }
+
+  // Fechar a janela tem de largar o arquivo por inteiro. Antes eu so removia
+  // o painel: o audio continuava tocando, o laco seguia mandando PCM para um
+  // decodificador que ja nao tinha janela, e com o radio desligado ficava
+  // aquele som saindo do nada, sem nenhum botao na tela para calar.
+  function encerrar(decoder) {
+    if (decoder && _dec && _dec !== decoder) return;   // outro painel, nao mexe
+    _tocando = false; _pausado = false;
+    pararSom();
+    try { if (_ctx && _ctx.state !== 'closed') _ctx.close(); } catch (e) {}
+    _ctx = null; _canal = null; _taxa = 0; _pos = 0; _dec = null;
+  }
+
+  return { botaoHTML, clique, pausar, recomecar, encerrar };
+})();
+
+
+
 const AnaliseDecoder = (() => {
   let _pollTimer = null;
   const el = id => document.getElementById(id);
@@ -7802,6 +8558,7 @@ const AnaliseDecoder = (() => {
 
       <div class="dig-ctrl-bar" style="gap:4px 6px;flex-wrap:wrap">
         <button onclick="AnaliseDecoder.analisar()" class="gt-btn" style="padding:4px 14px;background:#0d3a16;border-color:#2e7d32;color:#7CFC00;font-size:11px;font-weight:bold;cursor:pointer;border-radius:4px">Analisar</button>
+        ${ArquivoAudio.botaoHTML('ANALISE')}
         <span id="analise-progresso" style="font-size:10px;color:#7fb0ff;margin-left:auto"></span>
       </div>
 
@@ -7938,10 +8695,22 @@ const DscDecoder = (() => {
         <select id="dsc-canal" style="font-size:10px" onchange="DscDecoder.irParaCanal()">${ops}</select>
         <label style="font-size:10px">Tom central</label>
         <input type="number" id="dsc-tom" value="1700" step="10" style="width:56px;font-size:10px"
-               onchange="DscDecoder.reiniciar()">
+               title="Ponto de partida. O decodificador mede o tom real sozinho nos primeiros 12 segundos e escreve o valor no log."
+               onchange="DscDecoder.reiniciar()" title="Frequencia no meio dos dois tons, em Hz">
+        <label style="font-size:10px">Shift</label>
+        <input type="number" id="dsc-shift" value="170" step="5" style="width:52px;font-size:10px"
+               onchange="DscDecoder.reiniciar()" title="Separacao entre mark e space">
+        <label style="font-size:10px">Baud</label>
+        <input type="number" id="dsc-baud" value="100" step="0.05" style="width:58px;font-size:10px"
+               onchange="DscDecoder.reiniciar()" title="100 em HF; 1200 no canal 70 de VHF">
         <label style="font-size:10px" title="Inverte mark e space se nada fechar">
           <input type="checkbox" id="dsc-inv" onchange="DscDecoder.reiniciar()"> Inverter
         </label>
+        ${ArquivoAudio.botaoHTML('DSC')}
+        <button onclick="estreitarParaDigital(500)" class="gt-btn bw-digital-btn"
+                title="Reduz a largura de recepcao para 500 Hz. O sinal ocupa uns 300 Hz - receber com 3 kHz so acrescenta ruido."
+                style="padding:4px 8px;margin-left:6px;background:#0d2a1a;border-color:#2e8c5a;
+                       color:#8affc0;font-size:11px;font-weight:bold;cursor:pointer;border-radius:4px">BW 500</button>
         <span id="dsc-stats" style="font-size:10px;color:#7fb0ff;margin-left:auto"></span>
       </div>
 
@@ -7974,8 +8743,8 @@ const DscDecoder = (() => {
 
   function paramsAtuais() {
     return {
-      baudRate:   100,
-      shift:      170,
+      baudRate:   Number((el('dsc-baud') || {}).value) || 100,
+      shift:      Number((el('dsc-shift') || {}).value) || 170,
       centerFreq: Number((el('dsc-tom') || {}).value) || 1700,
       invert:     !!(el('dsc-inv') || {}).checked
     };
@@ -7994,7 +8763,7 @@ const DscDecoder = (() => {
       .then(r => r.json()).then(mostrar).catch(() => {});
   }
 
-  function reiniciar() { parar(); setTimeout(iniciar, 250); }
+  function reiniciar() { guardarAjustes(); parar(); setTimeout(iniciar, 250); }
 
   function mostrar(d) {
     const t = el('dsc-status'), st = el('dsc-stats');
@@ -8004,11 +8773,17 @@ const DscDecoder = (() => {
     t.textContent = rodando ? 'Rodando' : 'Parado';
     t.style.color = rodando ? '#7CFC00' : '#ffaa00';
     if (st) {
+      const tot = d.symbols || 0, val = d.valid || 0;
+      const taxa = tot > 0 ? val / tot : 0;
+      let estado;
+      if (!d.sync)            estado = 'procurando sinal';
+      else if (tot < 40)      estado = 'sincronizando...';
+      else if (taxa < 0.35)   estado = 'SINAL NAO CONFERE (' + Math.round(taxa*100) + '%)';
+      else                    estado = 'decodificando (' + Math.round(taxa*100) + '%)';
       st.textContent = rodando
-        ? (d.sync ? 'sincronizado' : 'procurando sinal') +
-          ' | ' + (d.valid || 0) + '/' + (d.symbols || 0) + ' simbolos' +
-          ' | ' + (d.messages || 0) + ' chamadas'
+        ? estado + ' | ' + val + '/' + tot + ' simbolos | ' + (d.messages || 0) + ' chamadas'
         : '';
+      st.style.color = (rodando && d.sync && tot >= 40 && taxa < 0.35) ? '#ff9040' : '#7fb0ff';
     }
   }
 
@@ -8018,6 +8793,22 @@ const DscDecoder = (() => {
 
   function appendLine(line) {
     if (!line) return;
+    // O nucleo mede o tom central sozinho e anuncia o valor. Trazemos esse
+    // numero para a caixa da tela: antes ele ficava so no log, e dava a
+    // impressao de que nada tinha acontecido - a caixa dizia uma coisa e o
+    // decodificador estava usando outra.
+    const _m = /tom central medido:\s*(\d+)\s*Hz/i.exec(line);
+    if (_m) {
+      const campo = el('dsc-tom');
+      if (campo) {
+        campo.value = _m[1];
+        // Grava direto, sem disparar o onchange: reiniciar aqui faria o
+        // decodificador medir de novo, e de novo, sem fim.
+        try { localStorage.setItem('dsc-tom', _m[1]); } catch (e) {}
+        campo.style.color = '#80ff80';
+        setTimeout(() => { campo.style.color = ''; }, 4000);
+      }
+    }
     _linhas.push(line);
     if (_linhas.length > MAX_LINHAS) _linhas.shift();
     const term = el('dsc-terminal');
@@ -8038,7 +8829,43 @@ const DscDecoder = (() => {
     if (term) term.textContent = 'Aguardando chamada DSC...';
   }
 
+  // O tom central e a inversao ficam guardados: sem isso o valor digitado se
+  // perdia toda vez que a janela fechava, e o decodificador voltava calado a
+  // procurar os tons no lugar errado.
+  function carregarAjustes() {
+    try {
+      const tom = localStorage.getItem('dsc-tom');
+      // A polaridade do DSC mudou de lugar: a convencao da M.493 agora esta
+      // dentro do nucleo e a caixa deve ficar desmarcada. Quem usou a versao
+      // anterior ficou com "marcado" guardado no navegador, e continuaria
+      // marcado para sempre. Esta limpeza roda uma vez so.
+      try {
+        if (localStorage.getItem('dsc-polaridade-v2') !== '1') {
+          localStorage.setItem('dsc-inv', '0');
+          localStorage.setItem('dsc-polaridade-v2', '1');
+        }
+      } catch (e) {}
+      const inv = localStorage.getItem('dsc-inv');
+      const shf = localStorage.getItem('dsc-shift');
+      const bd  = localStorage.getItem('dsc-baud');
+      if (tom && el('dsc-tom')) el('dsc-tom').value = tom;
+      if (shf && el('dsc-shift')) el('dsc-shift').value = shf;
+      if (bd  && el('dsc-baud'))  el('dsc-baud').value  = bd;
+      if (inv && el('dsc-inv')) el('dsc-inv').checked = (inv === '1');
+    } catch (e) {}
+  }
+
+  function guardarAjustes() {
+    try {
+      localStorage.setItem('dsc-tom', String((el('dsc-tom') || {}).value || '1700'));
+      localStorage.setItem('dsc-shift', String((el('dsc-shift') || {}).value || '170'));
+      localStorage.setItem('dsc-baud',  String((el('dsc-baud')  || {}).value || '100'));
+      localStorage.setItem('dsc-inv', (el('dsc-inv') || {}).checked ? '1' : '0');
+    } catch (e) {}
+  }
+
   function init() {
+    carregarAjustes();
     try {
       _estadoAnterior = {
         freq: currentFreqHz,

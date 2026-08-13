@@ -1,7 +1,10 @@
 #include "DscCore.h"
 
+#include "AnaliseCore.h"
+
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -110,8 +113,13 @@ void DscCore::setParams(const Params& p)
     janelaLen_ = static_cast<size_t>(std::lround(amostrasPorBit_));
     if (janelaLen_ < 8) janelaLen_ = 8;
 
-    const double markHz  = p_.centerFreq + p_.shift / 2.0;
-    const double spaceHz = p_.centerFreq - p_.shift / 2.0;
+    // POLARIDADE (ITU-R M.493): o bit 1 ("B") e o tom MAIS BAIXO - 1615 Hz
+    // contra 1785 Hz na sintonia nominal. Eu tinha assumido o contrario, e por
+    // isso as duas gravacoes reais so decodificavam com "Inverter" marcado.
+    // Agora a convencao certa esta aqui dentro e a caixa fica desmarcada, que
+    // e o que qualquer pessoa espera ao abrir a janela.
+    const double markHz  = p_.centerFreq - p_.shift / 2.0;
+    const double spaceHz = p_.centerFreq + p_.shift / 2.0;
 
     refMarkCos_.resize(janelaLen_);  refMarkSin_.resize(janelaLen_);
     refSpaceCos_.resize(janelaLen_); refSpaceSin_.resize(janelaLen_);
@@ -143,6 +151,8 @@ void DscCore::reset()
     coletando_ = false;
     saida_.clear();
     simbolos_ = validos_ = corrigidos_ = mensagens_ = 0;
+    // tomBuf_/tomPronto_ NAO entram aqui: setParams chama reset, e apagar a
+    // medicao aqui faria o decodificador medir para sempre, em circulo.
 }
 
 // ---------------------------------------------------------------------------
@@ -151,6 +161,64 @@ void DscCore::reset()
 std::string DscCore::feed(const float* samples, size_t n)
 {
     if (!samples || n == 0) return {};
+
+    // ---- tom central automatico -------------------------------------------
+    // O tom depende de onde o radio esta sintonizado, nao da norma: a mesma
+    // estacao aparece em 1080 Hz numa gravacao e em 1470 Hz noutra. Pedir o
+    // numero ao usuario e transferir para ele um trabalho que a maquina faz
+    // melhor. Aqui juntamos alguns segundos, medimos os dois tons e ajustamos.
+    if (p_.autoTom && !tomPronto_) {
+        tomBuf_.insert(tomBuf_.end(), samples, samples + n);
+
+        // Enquanto mede, NAO decodifica: o trecho guardado sera reprocessado
+        // depois, e decodificar agora fazia o mesmo texto sair duas vezes -
+        // uma antes da medicao e outra depois. Aparecia bem no log, com a
+        // linha repetida em volta do aviso "[tom central medido: ...]".
+        // 12 s e nao 6: uma rajada de DSC chega a durar 8 s, e com o buffer curto
+        // ela ficava cortada ao meio - nenhuma mensagem fechava, e o refino
+        // pontuava tudo igual, ou seja, escolhia as cegas. Nada se perde com a
+        // espera maior, porque o audio guardado e reprocessado.
+        const size_t bastante = size_t(12.0 * p_.sampleRate);
+        if (tomBuf_.size() < bastante) return {};
+        if (tomBuf_.size() >= bastante) {
+            double centro = 0.0;
+            std::vector<float> guardado;
+            guardado.swap(tomBuf_);            // solta o buffer antes de medir
+
+            if (estimarTom2(guardado, centro)) {
+                centro = refinarTom(guardado, centro);
+                tomMedido_ = centro;
+                aplicarTom(centro);            // aqui tomPronto_ vira true
+
+                char msg[128];
+                std::snprintf(msg, sizeof(msg),
+                    "\n[tom central medido: %.0f Hz]\n", centro);
+
+                // Reprocessa o audio que ficou guardado durante a medicao.
+                // Sem isto os primeiros segundos sao jogados fora - e num
+                // sinal de rajada como o DSC era comum perder as primeiras
+                // mensagens justamente porque foram elas que serviram para
+                // medir. A chamada nao entra em laco: tomPronto_ ja e true.
+                const std::string atrasado = feed(guardado.data(), guardado.size());
+                saida_ += msg;
+                saida_ += atrasado;
+            } else {
+                // Nao deu para medir: segue com o valor que o usuario pos.
+                tomPronto_ = true;
+                const std::string atrasado = feed(guardado.data(), guardado.size());
+                saida_ += "\n[nao consegui medir o tom - usando o valor da tela]\n";
+                saida_ += atrasado;
+            }
+
+            // Devolve AGORA. As amostras desta chamada ja entraram no trecho
+            // guardado e acabaram de ser reprocessadas - deixar o laco abaixo
+            // roda-las de novo era o que fazia a primeira linha do log sair
+            // repetida em volta do aviso da medicao.
+            std::string rr;
+            rr.swap(saida_);
+            return rr;
+        }
+    }
 
     for (size_t k = 0; k < n; ++k) {
         janela_[janelaPos_] = samples[k];
@@ -187,6 +255,145 @@ std::string DscCore::feed(const float* samples, size_t n)
     std::string r;
     r.swap(saida_);
     return r;
+}
+
+// ---------------------------------------------------------------------------
+//  Medicao do tom central
+//
+//  O DSC e um sinal de rajada: passa a maior parte do tempo calado. Mediar o
+//  espectro sobre tudo joga a energia dos tons contra o ruido do silencio e os
+//  picos somem - foi exatamente o defeito que apareceu no analisador quando
+//  testei com APRS no ar. Por isso so entram na media as janelas com sinal.
+// ---------------------------------------------------------------------------
+bool DscCore::estimarTom2(const std::vector<float>& buf, double& centro) const
+{
+    const std::vector<float>& tomBuf_ = buf;   // le do buffer recebido
+    const int N = 4096;
+    const size_t NN = size_t(N);
+    if (tomBuf_.size() < NN * 2) return false;
+
+    // Cuidado: escrever  std::vector<double> jan(size_t(N));  o compilador le
+    // como DECLARACAO DE FUNCAO, nao como variavel. Por isso o valor inicial.
+    std::vector<double> jan(NN, 0.0);
+    for (int i = 0; i < N; ++i)
+        jan[size_t(i)] = 0.5 - 0.5 * std::cos(2.0 * M_PI * double(i) / double(N - 1));
+
+    // energia de cada janela, para separar rajada de silencio
+    std::vector<double> ener;
+    for (size_t o = 0; o + size_t(N) <= tomBuf_.size(); o += size_t(N) / 2) {
+        double s = 0;
+        for (int i = 0; i < N; ++i) { const double v = tomBuf_[o + size_t(i)]; s += v * v; }
+        ener.push_back(s);
+    }
+    if (ener.size() < 2) return false;
+    std::vector<double> ord = ener;
+    std::sort(ord.begin(), ord.end());
+    const double corte = std::max(ord[ord.size() / 2], ord.back() * 0.10);
+
+    std::vector<double> P(NN / 2 + 1, 0.0);
+    int usadas = 0;
+    size_t idx = 0;
+    for (size_t o = 0; o + size_t(N) <= tomBuf_.size(); o += size_t(N) / 2, ++idx) {
+        if (idx < ener.size() && ener[idx] < corte) continue;
+        std::vector<std::complex<double>> a(NN, std::complex<double>(0.0, 0.0));
+        for (int i = 0; i < N; ++i)
+            a[size_t(i)] = std::complex<double>(double(tomBuf_[o + size_t(i)]) * jan[size_t(i)], 0.0);
+        AnaliseCore::fft(a, false);
+        for (size_t k = 0; k < P.size(); ++k) P[k] += std::norm(a[k]);
+        ++usadas;
+    }
+    if (usadas < 2) return false;
+
+    const double hzRaia = p_.sampleRate / double(N);
+    const size_t kMin = size_t(300.0 / hzRaia);
+    const size_t kMax = std::min(P.size() - 2, size_t(3000.0 / hzRaia));
+    if (kMax <= kMin + 4) return false;
+
+    // fundo, para nao aceitar ruido como tom
+    std::vector<double> c(P.begin() + long(kMin), P.begin() + long(kMax));
+    std::nth_element(c.begin(), c.begin() + long(c.size() / 2), c.end());
+    const double mediana = c[c.size() / 2];
+
+    auto refinar = [&](size_t k) {
+        const double y0 = P[k - 1], y1 = P[k], y2 = P[k + 1];
+        const double den = y0 - 2.0 * y1 + y2;
+        const double dd = (std::abs(den) < 1e-20) ? 0.0 : 0.5 * (y0 - y2) / den;
+        return (double(k) + dd) * hzRaia;
+    };
+
+    // dois picos mais fortes, separados o bastante para serem mark e space
+    size_t k1 = 0; double v1 = 0;
+    for (size_t k = kMin; k < kMax; ++k) if (P[k] > v1) { v1 = P[k]; k1 = k; }
+    if (k1 == 0 || v1 < mediana * 8.0) return false;
+    const double f1 = refinar(k1);
+
+    size_t k2 = 0; double v2 = 0;
+    for (size_t k = kMin; k < kMax; ++k) {
+        const double f = double(k) * hzRaia;
+        if (std::abs(f - f1) < 60.0) continue;          // nao pegar o mesmo lobo
+        if (std::abs(f - f1) > 400.0) continue;         // nem algo longe demais
+        if (P[k] > v2) { v2 = P[k]; k2 = k; }
+    }
+    if (k2 == 0 || v2 < mediana * 5.0) return false;
+    const double f2 = refinar(k2);
+
+    centro = (f1 + f2) / 2.0;
+    return centro > 300.0 && centro < 3000.0;
+}
+
+// ---------------------------------------------------------------------------
+//  Refino do tom central
+//
+//  O ponto medio entre os dois picos do espectro chega perto, mas nao e exato:
+//  as bandas laterais da propria modulacao puxam cada pico para um lado, e o
+//  erro que sobra - umas dezenas de hertz - ja e suficiente para derrubar
+//  mensagens. Entao a estimativa grosseira vira apenas o ponto de partida de
+//  uma busca curta, pontuada por aquilo que realmente importa: quantas
+//  mensagens fecham a soma de verificacao da ITU.
+//
+//  Pontuar por "simbolos validos" seria uma armadilha - esse numero conta
+//  apenas o que o proprio laco aceitou, e sobe mesmo quando a saida esta vazia.
+//  O ECC nao mente: ou a mensagem inteira fecha, ou nao fecha.
+// ---------------------------------------------------------------------------
+double DscCore::refinarTom(const std::vector<float>& buf, double centroInicial) const
+{
+    auto pontuar = [&](double c) {
+        Params p = p_;
+        p.centerFreq = c;
+        p.autoTom    = false;          // senao a copia tenta medir de novo
+        DscCore d(p);
+        std::string out;
+        for (size_t i = 0; i < buf.size(); i += 1600)
+            out += d.feed(&buf[i], std::min<size_t>(1600, buf.size() - i));
+
+        int ok = 0;
+        for (size_t k = out.find("| ECC ok"); k != std::string::npos;
+             k = out.find("| ECC ok", k + 1)) ++ok;
+        // desempate: mensagem reconhecida, ainda que o ECC nao feche
+        int msgs = 0;
+        for (size_t k = out.find("formato "); k != std::string::npos;
+             k = out.find("formato ", k + 1)) ++msgs;
+        return ok * 1000 + msgs;
+    };
+
+    double melhorC = centroInicial;
+    int    melhorP = pontuar(centroInicial);
+    for (double d = -48.0; d <= 48.0; d += 6.0) {
+        if (d == 0.0) continue;
+        const double c = centroInicial + d;
+        if (c < 300.0 || c > 3000.0) continue;
+        const int pt = pontuar(c);
+        if (pt > melhorP) { melhorP = pt; melhorC = c; }
+    }
+    return melhorC;
+}
+
+void DscCore::aplicarTom(double centro)
+{
+    Params p = p_;
+    p.centerFreq = centro;
+    setParams(p);        // recalcula correlatores e zera o estado
+    tomPronto_ = true;   // depois do reset, senao ele volta a falso
 }
 
 void DscCore::processarBit(int bit)

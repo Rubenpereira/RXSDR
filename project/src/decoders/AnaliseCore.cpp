@@ -304,7 +304,17 @@ AnaliseCore::Resultado AnaliseCore::analisar() const
     // uma centena de hertz, e seus dois tons ALTERNAM (quando um acende o
     // outro apaga). Banda lateral de amplitude acende JUNTO com a portadora.
     {
-        const int janTeste = std::max(8, int(sr_ / 400.0));
+        // A JANELA precisa ser mais estreita que o proprio deslocamento, senao
+        // cada filtro escuta os DOIS tons e a diferenca entre eles some. Estava
+        // fixa em 400 Hz de largura - mais que o dobro dos 170 Hz do SITOR-B e
+        // do DSC. Resultado: num NAVTEX que decodificava bem na tela, os dois
+        // "tons" mediam praticamente a mesma coisa, r ficava perto de zero, e o
+        // analisador concluia que nao havia alternancia nenhuma.
+        //
+        // Agora a largura acompanha o deslocamento medido: metade dele, o que
+        // separa os tons sem estreitar tanto a ponto de borrar os simbolos.
+        const double largura = std::max(40.0, (fb - fa) / 2.0);
+        const int janTeste = std::max(8, int(sr_ / largura));
         const std::vector<float> t1 = envoltoria(fa, janTeste);
         const std::vector<float> t2 = envoltoria(fb, janTeste);
         double m1 = 0, m2 = 0;
@@ -317,13 +327,51 @@ AnaliseCore::Resultado AnaliseCore::analisar() const
         }
         const double correl = (d1 > 0 && d2 > 0) ? num / std::sqrt(d1 * d2) : 0.0;
 
-        if ((fb - fa) < 100.0 || correl > -0.05) {
+        // A correlacao crua das duas envoltorias NAO serve como prova em HF.
+        // Em onda curta o sinal desvanece, e o desvanecimento levanta e abaixa
+        // os DOIS tons ao mesmo tempo. Esse movimento comum domina a conta e
+        // da correlacao positiva mesmo numa FSK perfeita - foi o que aconteceu
+        // com um NAVTEX que estava decodificando bem na tela: o analisador
+        // deu "+0,73, nao alternam" e mandou para a analise de amplitude.
+        //
+        // A prova certa e olhar a diferenca NORMALIZADA r = (t1-t2)/(t1+t2).
+        // Dividir pela soma cancela o desvanecimento, porque ele multiplica os
+        // dois tons pelo mesmo fator. Numa FSK r fica colado em +1 ou -1 e
+        // troca de lado a cada simbolo; numa banda lateral de amplitude r fica
+        // parado perto de um valor so. Entao a pergunta passa a ser simples:
+        // os DOIS estados aparecem?
+        double altos = 0, baixos = 0, usados = 0;
+        {
+            std::vector<double> soma(t1.size());
+            for (size_t i = 0; i < t1.size(); ++i) soma[i] = double(t1[i]) + double(t2[i]);
+            std::vector<double> ord = soma;
+            std::nth_element(ord.begin(), ord.begin() + long(ord.size() / 2), ord.end());
+            const double corte = ord[ord.size() / 2] * 0.35;   // ignora o silencio
+            for (size_t i = 0; i < soma.size(); ++i) {
+                if (soma[i] < corte || soma[i] <= 0) continue;
+                const double rr = (double(t1[i]) - double(t2[i])) / soma[i];
+                ++usados;
+                if (rr >  0.20) ++altos;
+                if (rr < -0.20) ++baixos;
+            }
+        }
+        const double fAlto  = usados > 0 ? altos  / usados : 0.0;
+        const double fBaixo = usados > 0 ? baixos / usados : 0.0;
+        const bool alterna  = (fAlto > 0.12 && fBaixo > 0.12);
+
+        if ((fb - fa) < 100.0 || !alterna) {
             if ((fb - fa) < 100.0)
                 r.linhas.push_back(fmt("Os dois picos estao a so %.0f Hz - estreito demais para FSK.", fb - fa));
             else
-                r.linhas.push_back(fmt("Os dois picos acendem juntos (correlacao %+.2f), nao alternam.", correl));
+                r.linhas.push_back(fmt("Os dois tons nao se revezam (%.0f%% num estado, %.0f%% no outro).",
+                                       fAlto * 100.0, fBaixo * 100.0));
             return analisarAmplitude(picos[0].first);
         }
+        r.linhas.push_back(fmt("Os dois tons se revezam: %.0f%% e %.0f%% do tempo - e FSK.",
+                               fAlto * 100.0, fBaixo * 100.0));
+        if (correl > -0.05)
+            r.linhas.push_back(fmt("(a correlacao crua deu %+.2f por causa do desvanecimento, "
+                                   "que sobe e desce os dois tons juntos)", correl));
     }
 
     r.tomBaixoHz   = fa;
@@ -402,24 +450,42 @@ AnaliseCore::Resultado AnaliseCore::analisar() const
             const double dD = accD[k] / medD;          // destaque na diferenca
             const double dS = accS[k] / medS;          // destaque na soma
             if (dD < 6.0) continue;                    // fraco demais para ser relogio
-            if (dD / (dS + 1.0) < 2.0) continue;       // mexe nos dois tons: nao e keying
+            // O teste da soma existe para derrubar zumbido de rede, que e uma
+            // raia FRACA. Uma raia muito alta na diferenca nao tem como ser
+            // zumbido - exigir a razao dela derrubava sinal forte e limpo,
+            // como o de 12.578, que ficava sem velocidade nenhuma.
+            if (dD < 100.0 && dD / (dS + 1.0) < 2.0) continue;
             if (dD > melhorDestaque) { melhorDestaque = dD; melhor = k; }
         }
 
-        // Se existe candidato aprovado perto da METADE da frequencia escolhida,
-        // o que achamos era o segundo harmonico. A fundamental e a resposta.
+        // A raia mais alta pode ser HARMONICO da velocidade real. Antes eu so
+        // testava a metade, e por isso um sinal de 100 baud foi anunciado como
+        // 500 - o quinto harmonico. Agora procuramos a menor subdivisao
+        // aprovada: se existe candidato em f/2, f/3, f/4 ou f/5, a fundamental
+        // e ele. Vamos do maior divisor para o menor para achar a mais baixa.
         if (melhor) {
-            const size_t kMeio = melhor / 2;
-            if (kMeio >= k0) {
+            for (size_t div = 5; div >= 2; --div) {
+                const size_t kSub = melhor / div;
+                if (kSub < k0) continue;
                 size_t achado = 0; double melhorAli = 0;
-                const size_t tol = std::max<size_t>(2, melhor / 40);
-                for (size_t k = (kMeio > tol ? kMeio - tol : k0); k <= kMeio + tol && k < k1; ++k) {
+                const size_t tol = std::max<size_t>(2, kSub / 40);
+                for (size_t k = (kSub > tol ? kSub - tol : k0); k <= kSub + tol && k < k1; ++k) {
                     const double dD = accD[k] / medD, dS = accS[k] / medS;
-                    if (dD < 6.0 || dD / (dS + 1.0) < 2.0) continue;
+                    if (dD < 6.0) continue;
+                    if (dD < 100.0 && dD / (dS + 1.0) < 2.0) continue;
                     if (dD > melhorAli) { melhorAli = dD; achado = k; }
                 }
-                if (achado && melhorAli > melhorDestaque * 0.30) {
+                // A folga de 0,20 era permissiva demais e passou a errar para o
+                // outro lado: num NAVTEX de 100 baud ela desceu ate 28, porque
+                // sempre existe alguma energia nas subdivisoes - a taxa de
+                // caracteres, a repeticao do FEC, o proprio ruido. Trocar uma
+                // raia forte por uma fraca so porque e mais baixa nao se
+                // sustenta. A fundamental de verdade nao e um tico acima do
+                // fundo: ela compete com o harmonico. Por isso agora exigimos
+                // METADE do destaque da linha principal.
+                if (achado && melhorAli > melhorDestaque * 0.50) {
                     melhor = achado; melhorDestaque = melhorAli;
+                    break;
                 }
             }
         }
@@ -490,13 +556,81 @@ AnaliseCore::Resultado AnaliseCore::analisar() const
         r.linhas.push_back("Sem raia de relogio clara: sinal fraco, intermitente, ou nao e FSK simples.");
     }
 
+    // ---- 3b) que modo pode ser -------------------------------------------
+    // Numeros soltos deixam a traducao por conta de quem le. Quem esta
+    // caçando sinal quer saber QUAL DECODIFICADOR ABRIR. Aqui cruzamos o que
+    // foi medido com os modos conhecidos e dizemos os candidatos - sempre no
+    // plural quando os parametros nao separam, porque afirmar um so seria
+    // inventar. SITOR-B e DSC, por exemplo, sao identicos no ar: 100 baud e
+    // 170 Hz nos dois. O que separa e a FREQUENCIA e o conteudo, nao a forma.
+    {
+        const double sh = r.deslocamento;
+        const bool temBaud = (r.baud > 5.0);
+        std::vector<std::string> cand;
+
+        if (sh >= 130.0 && sh <= 230.0) {
+            if (!temBaud || (r.baud > 80.0 && r.baud < 130.0)) {
+                cand.push_back("SITOR-B / NAVTEX  (100 baud, 170 Hz)");
+                cand.push_back("DSC  (100 baud, 170 Hz) - identico ao SITOR-B na forma");
+            }
+            if (!temBaud || (r.baud > 35.0 && r.baud < 85.0))
+                cand.push_back("RTTY  (45,45 / 50 / 75 baud, 170 Hz)");
+        } else if (sh >= 350.0 && sh <= 500.0) {
+            cand.push_back("RTTY comercial  (50 ou 75 baud, 425 Hz)");
+        } else if (sh >= 700.0 && sh <= 950.0) {
+            cand.push_back("RTTY comercial ou de imprensa  (50 / 75 baud, 850 Hz)");
+        }
+
+        if (!cand.empty()) {
+            r.linhas.push_back("---");
+            r.linhas.push_back("Compativel com:");
+            for (const std::string& c : cand)
+                r.linhas.push_back("  . " + c);
+            if (!temBaud)
+                r.linhas.push_back("A velocidade nao foi medida, entao a lista esta larga.");
+            if (cand.size() > 1)
+                r.linhas.push_back("Estes modos tem a MESMA forma no ar. Quem separa e a frequencia:");
+            r.linhas.push_back("  SITOR-B/NAVTEX: 490 e 518 kHz, 4209,5 / 8415 / 12579 / 16806,5 kHz");
+            r.linhas.push_back("  DSC: 2187,5 / 4207,5 / 6312 / 8414,5 / 12577 / 16804,5 kHz");
+        } else if (temBaud && sh >= 130.0 && sh <= 230.0) {
+            // O deslocamento bate com a familia de 170 Hz, mas a velocidade
+            // medida nao bate com nenhum modo dela. Nesse caso a suspeita
+            // recai sobre a MEDIDA, nao sobre o sinal - dizer "modo
+            // desconhecido" aqui mandaria o operador para o lado errado.
+            r.linhas.push_back("---");
+            r.linhas.push_back(fmt("O deslocamento de %.0f Hz e o da familia SITOR-B / DSC / RTTY,", sh));
+            r.linhas.push_back(fmt("mas a velocidade que medi (%.0f baud) nao bate com nenhum deles.", r.baud));
+            r.linhas.push_back("Desconfie da velocidade, nao do sinal: tente 100 baud (SITOR-B, DSC)");
+            r.linhas.push_back("ou 45,45 / 50 / 75 (RTTY) direto no decodificador.");
+        } else if (r.deslocamento > 0.0) {
+            r.linhas.push_back("---");
+            r.linhas.push_back(fmt("Deslocamento de %.0f Hz nao bate com os modos que conheco.", sh));
+            r.linhas.push_back("Pode ser servico militar, telemetria ou modo proprietario.");
+        }
+    }
+
     if (r.bitsUsados > 200) {
         r.linhas.push_back(fmt("Bits analisados: %.0f | proporcao de uns: %.3f | media das sequencias: %.2f",
                                double(r.bitsUsados), r.proporcaoUns, r.mediaCorridas));
         if (r.aleatoriedade > 0.80) {
-            r.veredito = "conteudo parece CIFRADO";
+            // NAO afirmar "e cifrado". Este teste le os bits no ritmo da
+            // velocidade MEDIDA, e se essa medida estiver errada a leitura cai
+            // fora de compasso e devolve algo indistinguivel de acaso - a
+            // media das sequencias da 2,00 certinho, que e o valor do puro
+            // sorteio. Foi o que aconteceu com um NAVTEX em texto claro, que
+            // estava sendo decodificado na tela enquanto o analisador o
+            // chamava de cifrado. Os dois casos produzem exatamente a mesma
+            // assinatura, entao a unica coisa honesta a dizer e que nao
+            // conseguimos extrair estrutura - e apontar as duas saidas.
+            r.veredito = "sem estrutura reconhecivel";
             r.linhas.push_back("Conteudo: indistinguivel de bits aleatorios.");
-            r.linhas.push_back("Isso e a assinatura de transmissao cifrada. Nao ha o que decodificar.");
+            r.linhas.push_back("ATENCAO: isso tem DUAS explicacoes possiveis, e este teste");
+            r.linhas.push_back("nao separa as duas:");
+            r.linhas.push_back("  1) a transmissao e mesmo cifrada;");
+            r.linhas.push_back("  2) a velocidade medida acima esta errada, e os bits");
+            r.linhas.push_back("     estao sendo lidos fora de compasso.");
+            r.linhas.push_back("Antes de concluir, confira a velocidade contra o que se espera");
+            r.linhas.push_back("do modo (SITOR-B e DSC sao 100 baud; RTTY 45,45, 50 ou 75).");
         } else if (r.aleatoriedade > 0.55) {
             r.veredito = "indefinido";
             r.linhas.push_back("Conteudo: sem estrutura clara. Pode ser cifrado, ou o sinal esta fraco demais.");
