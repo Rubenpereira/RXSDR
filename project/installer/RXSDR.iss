@@ -3,7 +3,7 @@
 ; O instalador gerado ficará em: project\installer\output\RXSDR_Setup_1.0.0.exe
 
 #define MyAppName      "RXSDR"
-#define MyAppVersion   "1.0.38"
+#define MyAppVersion   "1.0.41"
 #define MyAppPublisher "PU1XTB — Ruben"
 #define MyAppURL       "https://github.com/ruben/RXSDR"
 #define MyAppExeName   "RXSDR.exe"
@@ -172,10 +172,10 @@ begin
       apresenta as caixas, e o detalhe do SDRplay ficou na propria caixa. }
     WizardForm.FinishedLabel.Caption :=
       'O {#MyAppName} foi instalado com sucesso!' + #13#10 + #13#10 +
-      'Para RTL-SDR e RTL-TCP: pronto para usar. Os decodificadores digitais' + #13#10 +
-      '(DMR, P25, NXDN, TETRA, ACARS, APRS) ja vao junto, na pasta decoders.' + #13#10 + #13#10 +
-      'Quem usa SDRplay (RSP1/RSP1A/RSP1B/RSP2/RSPduo/RSPdx) precisa da API' + #13#10 +
-      'oficial da SDRplay - marque a opcao abaixo para abrir a pagina.' + #13#10 + #13#10 +
+      'RTL-SDR e RTL-TCP: pronto para usar. Vao junto os decodificadores' + #13#10 +
+      'DMR, P25, NXDN, TETRA, ACARS, APRS, SITOR-B e DSC, mais 2765 memorias' + #13#10 +
+      'com regua no espectro e filtro de quem esta no ar agora.' + #13#10 + #13#10 +
+      'Quem usa SDRplay precisa da API oficial - veja a opcao abaixo.' + #13#10 + #13#10 +
       'Marque abaixo o que deseja fazer agora:';
   end;
 end;

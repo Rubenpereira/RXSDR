@@ -1,5 +1,41 @@
 # Histórico de mudanças
 
+## 1.0.41
+
+- **Idioma português e inglês**, com botão no cabeçalho. Na primeira abertura
+  o programa pergunta e memoriza a escolha. O motor nunca traduz conteúdo
+  recebido — texto decodificado, nomes de memória e o VFO ficam intactos.
+- A cachoeira **abre** com Range 50 e Brilho 106, valores ajustados no ar. O
+  botão AUTO continua medindo o espectro do momento, como antes.
+
+## 1.0.40
+
+- **Memórias** com régua no topo do espectro, no formato do OpenWebRX. Criar a
+  partir do VFO (perguntando a categoria), editar, excluir, importar e
+  exportar. O instalador traz 2765 frequências: as suas mais 1807 emissoras
+  importadas da grade do EiBi.
+- **Filtros da régua**: mostrar todas, somente utilitárias, somente broadcast,
+  e — o mais útil — **broadcast no ar agora**, que usa o relógio UTC e a grade
+  de horários para mostrar só o que está transmitindo neste momento. De 1807
+  emissoras para cerca de 300 a 500 conforme a hora.
+- A classificação entre utilitária e radiodifusão é feita pelas **faixas da
+  UIT** e pela regra "AM abaixo de 30 MHz é radiodifusão" — que mantém as
+  torres de controle aéreo, também em AM mas acima de 118 MHz, entre as
+  utilitárias.
+- A linha `Span | Ref | Avg | FFT` saiu do topo do espectro para o rodapé,
+  abrindo espaço para a régua.
+- **Sombra da banda passante muda de lado conforme o modo**: em USB fica acima
+  do risco, em LSB abaixo, como no SDR#. O risco continua marcando a
+  frequência sintonizada.
+- **Suavização do espectro corrigida.** Ela era aplicada a cada desenho (30 por
+  segundo) sobre dados que chegam a 15, e era assimétrica — subida 0,55 contra
+  descida 0,12. O traço colava no pico e descia em degraus, dando a impressão
+  de espectro travado. Pior: o comportamento mudava sozinho se o navegador
+  caísse de 30 para 20 quadros. Agora as constantes são tempos (40 ms para
+  subir, 130 para descer) e o resultado é o mesmo em qualquer taxa de quadros.
+- Largura padrão: SSB 2,4 kHz, AM 6 kHz, e 1,8 kHz acrescentado à lista.
+- Teclado de frequência responde ao toque, sem a espera do duplo-toque.
+
 ## 1.0.37
 
 ### Novidades

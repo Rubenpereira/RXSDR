@@ -508,6 +508,10 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
   border-top:none;color:#8ac0ff}
 .regua-memorias .mm:hover{background:#12365e;color:#eaf4ff;border-color:#63b3ff}
 .regua-memorias .mm.perto{color:#7CFC00;border-color:#3a8a4a}
+/* Radiodifusao em ambar, utilitaria em azul: da para separar de relance mesmo
+   com o filtro em "todas". */
+.regua-memorias .mm.bc{color:#ffc46b;border-color:rgba(220,160,60,.4)}
+.regua-memorias .mm.bc:hover{background:#5e3a12;color:#fff3e0;border-color:#ffb340}
 .regua-memorias .tick{position:absolute;top:13px;width:1px;height:4px;
   background:rgba(120,180,240,.5)}
 .canvas-overlay{position:absolute;top:0;left:0;right:0;pointer-events:none;
@@ -523,6 +527,12 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
 .wf-footer .spacer{flex:1}
 .tune-marker{position:absolute;top:0;bottom:0;background:var(--marker-bg, rgba(255,48,48,0.08));pointer-events:auto}
 .tune-marker::after{content:'';position:absolute;top:0;bottom:0;left:50%;transform:translateX(-50%);width:2.5px;background:var(--marker-color, var(--accent-tx))}
+/* Em banda lateral a sombra fica de UM LADO SO do risco, como no SDR#. A div
+   inteira e a sombra, e o risco e o ::after dela - por isso ele precisa ser
+   preso na BORDA, e nao no centro, senao anda junto com a sombra e sai de
+   cima da frequencia sintonizada. */
+.tune-marker.mk-usb::after{left:0;transform:none}
+.tune-marker.mk-lsb::after{left:100%;transform:translateX(-100%)}
 .spectrum-wrap:hover ~ .waterfall-wrap #tuneMarkerWf::after {
   display: none;
 }
@@ -1049,6 +1059,11 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       <div class="menubar-dropdown-menu" id="memoriasDropdown">
         <a onclick="Memorias.novaDoVfo()" href="javascript:void(0)">Criar a partir do VFO atual</a>
         <a onclick="Memorias.abrirLista()" href="javascript:void(0)">Editar / excluir…</a>
+        <a onclick="Memorias.filtrar('todas')" href="javascript:void(0)"><span id="mmFtodas">● </span>Mostrar todas</a>
+        <a onclick="Memorias.filtrar('util')" href="javascript:void(0)"><span id="mmFutil"></span>Somente utilitárias</a>
+        <a onclick="Memorias.filtrar('agora')" href="javascript:void(0)"><span id="mmFagora"></span>Broadcast — no ar agora</a>
+        <a onclick="Memorias.filtrar('agoraAm')" href="javascript:void(0)"><span id="mmFagoraAm"></span>Broadcast — no ar, Américas</a>
+        <a onclick="Memorias.filtrar('bc')" href="javascript:void(0)"><span id="mmFbc"></span>Broadcast — todas</a>
         <a onclick="Memorias.alternarRegua()" href="javascript:void(0)"><span id="mmReguaEstado">Ocultar</span> a régua</a>
         <a onclick="Memorias.importar()" href="javascript:void(0)">Importar arquivo .json…</a>
         <a onclick="Memorias.exportar()" href="javascript:void(0)">Exportar para arquivo…</a>
@@ -1058,6 +1073,13 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
     <div class="item" id="menuGravar" onclick="openGravarModal()" style="cursor:pointer; color:#ff5252; font-weight:bold;" title="Gravar áudio da frequência atual em MP3">
       Gravar
     </div>
+    <div class="item menubar-dropdown-container" id="menuIdiomaWrap" style="cursor:pointer">
+      <span id="menuIdioma">PT ▾</span>
+      <div class="menubar-dropdown-menu" id="idiomaDropdown">
+        <a onclick="trocarIdioma('pt')" href="javascript:void(0)">Português</a>
+        <a onclick="trocarIdioma('en')" href="javascript:void(0)">English</a>
+      </div>
+    </div>
     <div class="item menubar-dropdown-container" id="menuAbout">
       About ▾
       <div class="menubar-dropdown-menu" id="aboutDropdown">
@@ -1066,7 +1088,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       </div>
     </div>
     <div style="flex:1"></div>
-    <div class="item" style="color:var(--accent-lcd)">RXSDR v1.0.36</div>
+    <div class="item" style="color:var(--accent-lcd)">RXSDR v1.0.41</div>
   </div>
 
   <!-- =============================== TOPO =============================== -->
@@ -1323,7 +1345,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       <span class="cell key">AUTO</span>
       <span class="cell" id="wfCanvasOverlay" style="color:#7fb0ff">Span: — | Ref: — | Avg: 4 | FFT —</span>
       <span class="spacer"></span>
-      <span class="cell key">RXSDR V1.0.36</span>
+      <span class="cell key">RXSDR V1.0.41</span>
     </div>
   </div>
 
@@ -2524,6 +2546,28 @@ function updateAutoBtnVisual() {
   }
 }
 
+// Valores de abertura da cachoeira, ajustados no ar. Precisam ser declarados
+// AQUI, antes de qualquer uso: 'const' nao e icado como 'function', e usar a
+// constante antes da declaracao lanca ReferenceError - o que derrubava todo o
+// script e deixava o radio sem ligar.
+const WF_ABRIR_RANGE  = 50;
+const WF_ABRIR_BRILHO = 106;
+
+function aplicarAberturaCachoeira(){
+  applyingWaterfallAuto = true;
+  setSliderAutoValue('rangeSlider', WF_ABRIR_RANGE);
+  setSliderAutoValue('brightnessSlider', WF_ABRIR_BRILHO);
+  setSliderAutoValue('contrastSlider', 0);
+  setSliderAutoValue('speedSlider', 2);
+  applyingWaterfallAuto = false;
+  wfRange    = WF_ABRIR_RANGE;
+  wfContrast = 0;
+  wfRefLevel = (WF_ABRIR_BRILHO - 100) * 0.5;
+  wfSmooth   = null;
+  waterfallAutoEnabled = true;
+  updateAutoBtnVisual();
+}
+
 function applyWaterfallAutoDefaults(){
   applyingWaterfallAuto = true;
   const defaults = getWaterfallAutoDefaults();
@@ -3350,11 +3394,33 @@ function drawSpectrum(){
     fftSmooth = new Float32Array(bins);
     for (let i = 0; i < bins; i++) fftSmooth[i] = fftData[i];
   }
-  const RISE = 0.55;   
-  const FALL = 0.12;   
+  // A suavizacao roda POR TEMPO, e nao por desenho.
+  //
+  // Antes ela era aplicada a cada chamada de drawSpectrum, que acontece 30
+  // vezes por segundo, enquanto os dados chegam a 15. Cada leitura nova era
+  // filtrada duas vezes antes da seguinte, e o resultado dependia da taxa de
+  // quadros do navegador: se ele caisse para 20 quadros, o traco mudava de
+  // comportamento sem ninguem tocar em nada.
+  //
+  // Pior era a assimetria: subida 0,55 contra descida 0,12. O traco colava no
+  // pico e depois descia em degraus, o que da a impressao de espectro travado
+  // com solavancos, em vez de fluir.
+  //
+  // Agora as constantes sao TEMPOS, nao fatores: 40 ms para subir e 130 ms
+  // para descer. Com alpha = 1 - exp(-dt/tau) o resultado e o mesmo a 15, 30
+  // ou 60 quadros por segundo.
+  const TAU_SOBE = 40;    // ms
+  const TAU_DESCE = 130;  // ms
+  const agoraMs = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+  let dt = agoraMs - (window._fftSmoothT || (agoraMs - 33));
+  window._fftSmoothT = agoraMs;
+  if (!(dt > 0)) dt = 33;
+  if (dt > 250) dt = 250;          // volta de aba em segundo plano: nao dar salto
+  const A_SOBE  = 1 - Math.exp(-dt / TAU_SOBE);
+  const A_DESCE = 1 - Math.exp(-dt / TAU_DESCE);
   for (let i = 0; i < bins; i++) {
     const d = fftData[i];
-    const alpha = d > fftSmooth[i] ? RISE : FALL;
+    const alpha = d > fftSmooth[i] ? A_SOBE : A_DESCE;
     fftSmooth[i] += (d - fftSmooth[i]) * alpha;
   }
 
@@ -3598,6 +3664,114 @@ function getFreqScaleSteps(span) {
 const Memorias = (() => {
   let _lista = [];
   let _visivel = true;
+  let _filtro = 'todas';       // todas | util | bc
+
+  // Faixas de RADIODIFUSAO alocadas pela UIT, em kHz. Sao FIXAS - nao mudam
+  // de temporada, ao contrario das frequencias de cada estacao. Por isso a
+  // classificacao e feita pela faixa, e nao por uma lista digitada que
+  // envelheceria em seis meses.
+  const FAIXAS_BC = [
+    [148.5, 283.5],    // ondas longas
+    [526.5, 1710],     // ondas medias
+    [2300, 2495],      // 120 m tropical
+    [3200, 3400],      // 90 m tropical
+    [3900, 4000],      // 75 m
+    [4750, 5060],      // 60 m tropical
+    [5800, 6200],      // 49 m
+    [7200, 7600],      // 41 m
+    [9400, 9900],      // 31 m
+    [11600, 12100],    // 25 m
+    [13570, 13870],    // 22 m
+    [15100, 15830],    // 19 m
+    [17480, 17900],    // 16 m
+    [18900, 19020],    // 15 m
+    [21450, 21850],    // 13 m
+    [25670, 26100],    // 11 m
+    [87500, 108000]    // FM comercial
+  ];
+
+  // ---- horario -------------------------------------------------------
+  // Uma frequencia costuma ser usada por varias emissoras em horas
+  // diferentes. Mostrar todas de uma vez empilha rotulos no mesmo ponto e nao
+  // ajuda ninguem: as outras nem estao no ar. Filtrar pelo relogio UTC resolve
+  // isso sem inventar categoria - e para isso que a grade de horarios existe.
+  //
+  // As janelas atravessam a meia-noite com frequencia (1400-0530), entao a
+  // comparacao precisa tratar esse caso, senao a emissora some justamente na
+  // madrugada, que e quando a propagacao em onda curta e melhor.
+  function agoraUtc() {
+    const d = new Date();
+    return d.getUTCHours() * 100 + d.getUTCMinutes();
+  }
+
+  function noAr(m, t) {
+    if (!Array.isArray(m.hor) || !m.hor.length) return true;   // sem horario: sempre
+    for (const [a, b] of m.hor) {
+      if (a === b) return true;
+      if (a < b) { if (t >= a && t < b) return true; }
+      else       { if (t >= a || t < b) return true; }         // atravessa a meia-noite
+    }
+    return false;
+  }
+
+  const ALVOS_AM = ['SAm', 'LAm', 'CAm', 'NAm', 'Am'];
+  function miraAmericas(m) {
+    const a = m.alvo || '';
+    if (!a) return true;                 // sem alvo declarado: pode ser ouvida
+    return ALVOS_AM.some(x => a.split('/').includes(x));
+  }
+
+  function ehBroadcast(m) {
+    // Decisao explicita do usuario (ou da grade do EiBi) manda mais que a
+    // regra automatica. So quando bc nao existe e que classificamos sozinhos.
+    if (m.bc === true)  return true;
+    if (m.bc === false) return false;
+    const mod = (m.modulation || '').toLowerCase();
+
+    // ABAIXO DE 30 MHz, AM de faixa dupla e praticamente so radiodifusao: o
+    // servico utilitario em onda curta usa SSB, CW ou dados. Isso recupera as
+    // emissoras que operam FORA da borda oficial da faixa - WWCR em 9350,
+    // Voz da America em 9380, Radio Free Asia em 9930, KVOH em 9975 -, coisa
+    // que a classificacao so por faixa deixava passar como utilitaria.
+    //
+    // O corte em 30 MHz e o que salva a aviacao: as torres do Galeao, o
+    // Controle Rio e os demais tambem sao AM, mas vivem em 118-137 MHz, acima
+    // do corte, e continuam onde devem estar.
+    if (m.frequency < 30000000 && (mod === 'am' || mod === 'drm')) return true;
+
+    const k = m.frequency / 1000;
+    const naFaixa = FAIXAS_BC.some(([a, b]) => k >= a && k <= b);
+    if (!naFaixa) return false;
+    // Dentro da faixa, mas em SSB, quase sempre e utilitario ou radioamador
+    // invadindo a borda.
+    return mod === '' || mod === 'am' || mod === 'wfm' || mod === 'fm' || mod === 'drm';
+  }
+
+  let _agoraCache = -1, _agoraQuando = 0;
+  function passaFiltro(m) {
+    if (_filtro === 'todas') return true;
+    const bc = ehBroadcast(m);
+    if (_filtro === 'util') return !bc;
+    if (_filtro === 'bc')   return bc;
+    if (!bc) return false;
+    // O relogio so e lido uma vez por segundo: chamar Date por memoria, com
+    // milhares delas em cada redesenho, seria desperdicio puro.
+    const ag = performance.now();
+    if (ag - _agoraQuando > 1000) { _agoraQuando = ag; _agoraCache = agoraUtc(); }
+    if (!noAr(m, _agoraCache)) return false;
+    return _filtro === 'agoraAm' ? miraAmericas(m) : true;
+  }
+
+  function filtrar(qual) {
+    _filtro = qual;
+    const marca = { todas: 'mmFtodas', util: 'mmFutil', bc: 'mmFbc',
+                    agora: 'mmFagora', agoraAm: 'mmFagoraAm' };
+    for (const k in marca) {
+      const e = el(marca[k]);
+      if (e) e.textContent = (k === qual) ? '● ' : '';
+    }
+    desenhar(true);
+  }
   let _ultimoDesenho = 0;
 
   const el = id => document.getElementById(id);
@@ -3668,7 +3842,7 @@ const Memorias = (() => {
     const larg = r.clientWidth || 1;
 
     // So o que cabe na tela. Com 1097 memorias, desenhar todas seria travar.
-    const dentro = _lista.filter(m => m.frequency >= j.lo && m.frequency <= j.hi);
+    const dentro = _lista.filter(m => m.frequency >= j.lo && m.frequency <= j.hi && passaFiltro(m));
 
     // Evita empilhar rotulos em cima uns dos outros quando ha muitas juntas:
     // guarda a ultima posicao usada e pula o que ficaria colado.
@@ -3679,7 +3853,8 @@ const Memorias = (() => {
     // Assinatura da janela: so remonta o HTML quando algo mudou de verdade.
     // Remontar a cada 150 ms tambem gastava CPU a toa com a tela parada.
     const ass = j.lo.toFixed(0) + '|' + j.hi.toFixed(0) + '|' + larg + '|' +
-                dentro.length + '|' + Math.round(currentFreqHz / 100);
+                dentro.length + '|' + Math.round(currentFreqHz / 100) + '|' + _filtro +
+                ((_filtro === 'agora' || _filtro === 'agoraAm') ? '|' + agoraUtc() : '');
     if (!forcar && ass === _assinatura) return;
     _assinatura = ass;
 
@@ -3691,7 +3866,8 @@ const Memorias = (() => {
       ultimoX = x;
       const perto = Math.abs(m.frequency - currentFreqHz) < Math.max(500, j.span * 0.002);
       const nome = (m.name || '').replace(/[<>&]/g, '');
-      html += '<div class="mm' + (perto ? ' perto' : '') + '" style="left:' + x.toFixed(1) + 'px" ' +
+      html += '<div class="mm' + (perto ? ' perto' : '') + (ehBroadcast(m) ? ' bc' : '') +
+              '" style="left:' + x.toFixed(1) + 'px" ' +
               'data-hz="' + m.frequency + '" data-mod="' + (m.modulation || '') + '" ' +
               'title="' + nome + ' — ' + (m.frequency / 1e6).toFixed(6) + ' MHz' +
               (m.description ? ' — ' + String(m.description).replace(/[<>&"]/g, '') : '') + '">' +
@@ -3733,20 +3909,68 @@ const Memorias = (() => {
     return b ? b.textContent.trim().toLowerCase() : 'usb';
   }
 
+  // Pergunta a categoria numa janelinha, em vez de prompt com letra.
+  // A escolha e GRAVADA no campo bc: quando o usuario decide, a regra
+  // automatica nao deve mais opinar sobre aquela memoria.
+  function perguntarCategoria(sugerida) {
+    return new Promise(resolve => {
+      const fundo = document.createElement('div');
+      fundo.style.cssText = 'position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.6);' +
+                            'display:flex;align-items:center;justify-content:center';
+      fundo.innerHTML =
+        '<div style="width:min(420px,92vw);background:#071018;border:1px solid #1e4c8c;' +
+             'border-radius:8px;overflow:hidden;font-family:Consolas,monospace">' +
+          '<div style="padding:10px 12px;background:#0a1a2c;border-bottom:1px solid #1e4c8c;' +
+               'color:#8ac0ff;font-weight:bold;font-size:13px">EM QUE CATEGORIA?</div>' +
+          '<div style="padding:12px;color:#9fc4e8;font-size:12px;line-height:1.5">' +
+            'Isso decide em qual filtro da régua ela vai aparecer.' +
+            '<div style="margin-top:6px;color:#5f87b0">Sugestão pela frequência e pelo modo: <b>' +
+            (sugerida === 'bc' ? 'broadcast' : 'utilitária') + '</b></div>' +
+          '</div>' +
+          '<div style="display:flex;gap:8px;padding:0 12px 12px">' +
+            '<button data-r="util" style="flex:1;background:#12203a;border:1px solid #2e5a8c;' +
+                    'color:#8ac0ff;border-radius:6px;padding:9px;cursor:pointer;font-family:inherit;' +
+                    'font-size:12px' + (sugerida === 'util' ? ';border-color:#63b3ff;font-weight:bold' : '') +
+                    '">Utilitária</button>' +
+            '<button data-r="bc" style="flex:1;background:#3a2a10;border:1px solid #8c6a2e;' +
+                    'color:#ffc46b;border-radius:6px;padding:9px;cursor:pointer;font-family:inherit;' +
+                    'font-size:12px' + (sugerida === 'bc' ? ';border-color:#ffb340;font-weight:bold' : '') +
+                    '">Broadcast</button>' +
+            '<button data-r="" style="background:#2a1020;border:1px solid #8c2e5a;color:#ff9ac0;' +
+                    'border-radius:6px;padding:9px 12px;cursor:pointer;font-family:inherit;' +
+                    'font-size:12px">Cancelar</button>' +
+          '</div>' +
+        '</div>';
+      fundo.addEventListener('click', ev => {
+        const b = ev.target.closest ? ev.target.closest('button[data-r]') : null;
+        if (!b) return;
+        fundo.remove();
+        resolve(b.dataset.r || null);
+      });
+      document.body.appendChild(fundo);
+    });
+  }
+
   async function novaDoVfo() {
     const sugestao = (currentFreqHz / 1e6).toFixed(6) + ' MHz';
-    const nome = prompt('Nome da memoria:', sugestao);
+    const nome = prompt('Nome da memória:', sugestao);
     if (nome === null) return;
-    _lista.push({
+
+    const rascunho = {
       name: nome.trim() || sugestao,
       frequency: Math.round(currentFreqHz),
       modulation: modoAtualCurto(),
       underlying: '',
       description: '',
       scannable: false
-    });
+    };
+    const cat = await perguntarCategoria(ehBroadcast(rascunho) ? 'bc' : 'util');
+    if (cat === null) return;              // cancelou: nada e gravado
+    rascunho.bc = (cat === 'bc');
+
+    _lista.push(rascunho);
     _lista.sort((a, b) => a.frequency - b.frequency);
-    if (await gravar()) { desenhar(true); toastMem('Memoria criada.'); }
+    if (await gravar()) { desenhar(true); }
   }
 
   function toastMem(t) {
@@ -3782,6 +4006,7 @@ const Memorias = (() => {
       el('mmBusca').addEventListener('input', function(){ renderLista(this.value); });
     }
     m.style.display = 'flex';
+    try { aplicarIdioma(m); } catch (e) {}
     el('mmBusca').value = filtro || '';
     renderLista(filtro || '');
   }
@@ -3846,6 +4071,9 @@ const Memorias = (() => {
     m.frequency = hz;
     m.modulation = String(mod).trim().toLowerCase();
     m.description = desc;
+
+    const cat = await perguntarCategoria(ehBroadcast(m) ? 'bc' : 'util');
+    if (cat !== null) m.bc = (cat === 'bc');
     _lista.sort((a, b) => a.frequency - b.frequency);
     if (await gravar()) { desenhar(true); renderLista(el('mmBusca').value); }
   }
@@ -3918,10 +4146,206 @@ const Memorias = (() => {
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   }
 
-  return { carregar, desenhar, sintonizar, alternarRegua, novaDoVfo,
+  return { carregar, desenhar, sintonizar, alternarRegua, novaDoVfo, filtrar,
            abrirLista, fecharLista, editar, excluir, recarregar,
            importar, exportar };
 })();
+
+
+// ===========================================================================
+//  IDIOMA (pt / en)
+//
+//  O dicionario e indexado pelo PROPRIO TEXTO EM PORTUGUES. Assim nao foi
+//  preciso marcar 183 elementos com identificadores no HTML: o motor percorre
+//  a arvore, procura cada texto no dicionario e troca. Quem escreve HTML novo
+//  nao precisa lembrar de nada - basta acrescentar a frase aqui.
+//
+//  CUIDADO CENTRAL: NUNCA traduzir conteudo recebido. O texto decodificado do
+//  NAVTEX, os nomes das memorias e a frequencia do VFO passam pela mesma
+//  arvore, e traduzir isso seria adulterar dado do usuario. Por isso existem
+//  as zonas proibidas em I18N_NAO_MEXER, alem da propria protecao natural de
+//  so trocar o que esta no dicionario.
+// ===========================================================================
+const I18N_EN = {
+  // menus do topo
+  'CONFIGURAÇÃO':'SETTINGS', 'SALVAR':'SAVE', 'Aviação ▾':'Aviation ▾',
+  'Leitura Metar':'METAR reading', 'Satelites ▾':'Satellites ▾',
+  'Radioescutas ▾':'SWL ▾', 'Radioamador ▾':'Ham radio ▾',
+  'Barcos&Navios ▾':'Ships ▾', 'Digital Decoder ▾':'Digital decoder ▾',
+  'DSC (chamada seletiva)':'DSC (selective calling)',
+  'Analisar sinal desconhecido':'Analyse unknown signal',
+  'Memórias ▾':'Memories ▾', 'Gravar':'Record', 'Parar':'Stop',
+  // menu de memorias
+  'Criar a partir do VFO atual':'Create from current VFO',
+  'Editar / excluir…':'Edit / delete…',
+  'Mostrar todas':'Show all', 'Somente utilitárias':'Utility only',
+  'Broadcast — no ar agora':'Broadcast — on air now',
+  'Broadcast — no ar, Américas':'Broadcast — on air, Americas',
+  'Broadcast — todas':'Broadcast — all',
+  'Ocultar':'Hide', 'Mostrar':'Show', 'a régua':'the ruler',
+  'Importar arquivo .json…':'Import .json file…',
+  'Exportar para arquivo…':'Export to file…',
+  'Recarregar as memórias':'Reload memories',
+  // painel principal
+  'HABILITAR AUDIO':'ENABLE AUDIO', 'Tonalidade':'Tone', 'Plano':'Flat',
+  'Volume':'Volume', 'Redutor de Ruído':'Noise reduction', 'Ganho de RF':'RF gain',
+  'Mode:':'Mode:', 'Contraste':'Contrast', 'Brilho':'Brightness',
+  'Speed':'Speed', 'Range':'Range', 'Zoom':'Zoom',
+  'S-METER (RMS)':'S-METER (RMS)',
+  // rodape
+  'Device:':'Device:', 'Sample Rate:':'Sample rate:', 'offline':'offline',
+  // configuracao
+  'SDR Configuration':'SDR configuration', 'Source':'Source',
+  '— escaneando —':'— scanning —', 'Porta':'Port',
+  'Quadrature':'Quadrature', 'Q-OFF (so tuner)':'Q-OFF (tuner only)',
+  'AUTO (troca em 24 MHz)':'AUTO (switches at 24 MHz)',
+  'Q-ON (sempre direta)':'Q-ON (always direct)',
+  'Ao trocar de Off para ON ou vice-versa = Aguarde 10 Segundos antes de clicar em Fechar.':
+    'After switching Off to ON or back, wait 10 seconds before clicking Close.',
+  'Correção IQ':'IQ correction', 'Auto':'Auto', 'Gain':'Gain',
+  '2.000 MSPS (SDRplay máx)':'2.000 MSPS (SDRplay max)',
+  '250 kHz (SDRplay HF)':'250 kHz (SDRplay HF)',
+  'SOM':'SOUND', 'Padrão Windows':'Windows default',
+  'Output: altifalantes, VB-Cable, VAC, etc.':'Output: speakers, VB-Cable, VAC, etc.',
+  'HF freq. vazia':'HF empty freq.', 'VHF freq. vazia':'VHF empty freq.',
+  'Avanço S-meter':'S-meter attack', 'Retorno S-meter':'S-meter decay',
+  'RMS alinhado (~30 em S3)':'RMS aligned (~30 at S3)',
+  'Quadratura OFF: RMS por defeito. HF ON: dBm na barra.':
+    'Quadrature OFF: RMS by default. HF ON: dBm on the bar.',
+  '✕  Fechar':'✕  Close', 'Cancelar':'Cancel', 'Fechar':'Close',
+  'Sim':'Yes', 'Não':'No', 'Limpar':'Clear',
+  // avisos
+  '⚠️ AVISO DE CONEXÃO':'⚠️ CONNECTION WARNING',
+  'O rádio não está enxergando o dispositivo!':'The radio cannot see the device!',
+  'Não foi possível estabelecer conexão com o receptor SDR. Certifique-se de que o hardware USB está devidamente conectado ou, no caso de conexão de rede (RTL-TCP), verifique se o servidor remoto está ativo e acessível.':
+    'Could not connect to the SDR receiver. Make sure the USB hardware is properly plugged in or, for a network connection (RTL-TCP), check that the remote server is running and reachable.',
+  'Recomendamos revisar as configurações de tipo de dispositivo, endereço de IP, porta e parâmetros associados antes de tentar ligar o rádio novamente.':
+    'Review the device type, IP address, port and related settings before switching the radio on again.',
+  'REVISAR CONFIGURAÇÕES':'REVIEW SETTINGS',
+  '&#9998; EDITAR FREQUÊNCIA':'&#9998; EDIT FREQUENCY',
+  'MHz (ex: 14.250) ou Hz (ex: 14250000)':'MHz (e.g. 14.250) or Hz (e.g. 14250000)',
+  'Gravar áudio':'Record audio',
+  'Você pode fazer uma gravação de áudio da frequência atual em MP3.':
+    'You can record the audio of the current frequency as MP3.',
+  'Deseja iniciar uma gravação agora?':'Start recording now?',
+  '&#9888; Internet Explorer nao e compativel com RXSDR. Instale e use':
+    '&#9888; Internet Explorer is not supported by RXSDR. Please install and use',
+  // larguras
+  '1.8 kHz (SSB estreito)':'1.8 kHz (narrow SSB)', '2.4 kHz (SSB)':'2.4 kHz (SSB)',
+  '3.0 kHz (SSB largo)':'3.0 kHz (wide SSB)', '6 kHz (AM)':'6 kHz (AM)',
+  '10 kHz (AM largo)':'10 kHz (wide AM)',
+  // paineis dos decodificadores
+  'Modo: SITOR-B / NAVTEX':'Mode: SITOR-B / NAVTEX', 'Canal':'Channel',
+  'Tom central':'Centre tone', 'Shift':'Shift', 'Baud':'Baud',
+  'Inverter':'Invert', 'Abrir arquivo':'Open file', 'Pausar':'Pause',
+  'Continuar':'Resume', 'Reiniciar':'Restart', 'Analisar':'Analyse',
+  'Parado':'Stopped', 'Rodando':'Running',
+  'Aguardando mensagem NAVTEX...':'Waiting for NAVTEX message...',
+  'Aguardando chamada DSC...':'Waiting for DSC call...',
+  'Analisador de sinal':'Signal analyser',
+  'Sintonize o sinal em USB e clique em Analisar':'Tune the signal in USB and click Analyse'
+};
+
+// Zonas onde o motor NUNCA entra: sao dados, nao interface.
+const I18N_NAO_MEXER = [
+  '.dec-terminal', '.dmr-log-box', '#reguaMemorias', '#mmCorpo',
+  '#vfoA', '#vfoB', '#keyDisplay', '#clock', 'script', 'style'
+];
+
+let I18N_IDIOMA = 'pt';
+const I18N_ORIG = new WeakMap();     // guarda o texto original de cada no
+
+function T(txt) {
+  if (I18N_IDIOMA !== 'en') return txt;
+  return I18N_EN[txt] || txt;
+}
+
+function i18nProibido(no) {
+  const el = no.nodeType === 3 ? no.parentElement : no;
+  if (!el) return true;
+  return I18N_NAO_MEXER.some(sel => el.closest && el.closest(sel));
+}
+
+function aplicarIdioma(raiz) {
+  const base = raiz || document.body;
+  if (!base) return;
+
+  // textos
+  const it = document.createTreeWalker(base, NodeFilter.SHOW_TEXT);
+  const nos = [];
+  let n;
+  while ((n = it.nextNode())) nos.push(n);
+  for (const no of nos) {
+    if (i18nProibido(no)) continue;
+    if (!I18N_ORIG.has(no)) {
+      const t = no.nodeValue.trim();
+      if (!t || !I18N_EN[t]) continue;      // so guarda o que sabemos traduzir
+      I18N_ORIG.set(no, no.nodeValue);
+    }
+    const orig = I18N_ORIG.get(no);
+    const chave = orig.trim();
+    no.nodeValue = (I18N_IDIOMA === 'en' && I18N_EN[chave])
+      ? orig.replace(chave, I18N_EN[chave]) : orig;
+  }
+
+  // dicas e marcadores de campo
+  for (const el of base.querySelectorAll('[title],[placeholder]')) {
+    if (i18nProibido(el)) continue;
+    for (const attr of ['title', 'placeholder']) {
+      const v = el.getAttribute(attr);
+      if (v === null) continue;
+      const guardado = el.dataset['i18n' + attr];
+      const orig = (guardado !== undefined) ? guardado : v;
+      if (!I18N_EN[orig.trim()]) continue;
+      if (guardado === undefined) el.dataset['i18n' + attr] = orig;
+      el.setAttribute(attr, I18N_IDIOMA === 'en' ? I18N_EN[orig.trim()] : orig);
+    }
+  }
+  const b = document.getElementById('menuIdioma');
+  if (b) b.textContent = (I18N_IDIOMA === 'en') ? 'EN ▾' : 'PT ▾';
+}
+
+function trocarIdioma(id) {
+  I18N_IDIOMA = (id === 'en') ? 'en' : 'pt';
+  try { localStorage.setItem('rxsdr_idioma', I18N_IDIOMA); } catch (e) {}
+  aplicarIdioma();
+}
+
+// Primeira abertura: pergunta uma vez e nunca mais. Quem ja usa o RXSDR nao
+// deve ser interrompido, entao so aparece quando nao ha nada guardado.
+function perguntarIdiomaPrimeiraVez() {
+  let salvo = null;
+  try { salvo = localStorage.getItem('rxsdr_idioma'); } catch (e) {}
+  if (salvo) { I18N_IDIOMA = salvo; aplicarIdioma(); return; }
+
+  const m = document.createElement('div');
+  m.style.cssText = 'position:fixed;inset:0;z-index:9800;background:rgba(0,0,0,.72);' +
+                    'display:flex;align-items:center;justify-content:center';
+  m.innerHTML =
+    '<div style="width:min(400px,92vw);background:#071018;border:1px solid #1e4c8c;' +
+         'border-radius:10px;overflow:hidden;font-family:Consolas,monospace">' +
+      '<div style="padding:12px;background:#0a1a2c;border-bottom:1px solid #1e4c8c;' +
+           'color:#8ac0ff;font-weight:bold;font-size:14px;text-align:center">' +
+        'IDIOMA / LANGUAGE</div>' +
+      '<div style="display:flex;gap:10px;padding:16px">' +
+        '<button data-i="pt" style="flex:1;background:#12203a;border:1px solid #2e5a8c;' +
+                'color:#8ac0ff;border-radius:8px;padding:14px;cursor:pointer;' +
+                'font-family:inherit;font-size:14px">Português</button>' +
+        '<button data-i="en" style="flex:1;background:#12203a;border:1px solid #2e5a8c;' +
+                'color:#8ac0ff;border-radius:8px;padding:14px;cursor:pointer;' +
+                'font-family:inherit;font-size:14px">English</button>' +
+      '</div>' +
+      '<div style="padding:0 16px 14px;color:#5f87b0;font-size:11px;text-align:center">' +
+        'Pode trocar depois no topo da tela · You can change this later at the top</div>' +
+    '</div>';
+  m.addEventListener('click', ev => {
+    const b = ev.target.closest ? ev.target.closest('button[data-i]') : null;
+    if (!b) return;
+    m.remove();
+    trocarIdioma(b.dataset.i);
+  });
+  document.body.appendChild(m);
+}
 
 function drawFreqScale() {
   const canvas = document.getElementById('freqScaleCanvas');
@@ -4412,8 +4836,16 @@ document.getElementById('brightnessSlider')?.addEventListener('input', e=>{
     });
   });
 
-  // estado inicial: aplica os valores padrao automaticamente.
-  applyWaterfallAutoDefaults();
+  // ESTADO INICIAL DA CACHOEIRA
+  //
+  // Ao abrir, o programa passava pelos padroes por banda e caia em Range 55 /
+  // Brilho 96. Estes 50 e 106 foram ajustados na mao, no ar, ate a imagem
+  // ficar como o operador quer - entao sao eles que valem na abertura.
+  //
+  // Isto NAO mexe no botao AUTO: ele continua medindo o espectro do momento,
+  // que e o comportamento certo para encaixar a escala num sinal especifico.
+  // Aqui e so o ponto de partida de quem acabou de abrir o software.
+  aplicarAberturaCachoeira();
 })();
 
 document.getElementById('gainSlider').addEventListener('input', (e)=>{
@@ -4675,14 +5107,19 @@ document.getElementById('powerBtn').addEventListener('click', async e=>{
     if (targetPower && (!res || !res.ok)) {
       throw new Error("Falha ao ligar");
     }
-    // Ao LIGAR, sempre re-aplica os defaults AUTO de COR conforme o modo:
-    //   Q on  (HF) : range 78 · contraste 10 · brilho 91
-    //   Q off (V/U): range 58 · contraste 40 · brilho 86
-    // — independentemente de o usuário ter alterado os sliders no uso
-    // anterior. Os valores gravados continuam preservados em
-    // getWaterfallAutoDefaults() e podem ser editados lá.
+    // Ao LIGAR, a cachoeira volta ao ponto de partida escolhido: Range 50 e
+    // Brilho 106, ajustados no ar.
+    //
+    // Era AQUI que estava a resposta ao "abre sempre com 55 e 96". Eu tinha
+    // mexido no carregamento da pagina, mas o que manda e este trecho: ele
+    // reaplica os padroes por banda a cada clique em ON, depois que a pagina
+    // ja abriu. Mudar so a abertura nao adiantava nada.
+    //
+    // Os padroes por banda continuam existindo em getWaterfallAutoDefaults()
+    // e seguem servindo de reserva ao botao AUTO quando ainda nao ha espectro
+    // medido - nao foram perdidos.
     if (targetPower) {
-      applyWaterfallAutoDefaults();
+      aplicarAberturaCachoeira();
     }
   } catch (err) {
     // Se falhar ao ligar, reverte o estado na UI
@@ -4886,12 +5323,27 @@ function updateMarkerPosition(hz) {
   const bw = currentBwHz;
   const ratio = (hz - centerFreqHz) / zoomedSpan + 0.5;
   const bwRatio = bw / zoomedSpan;
-  const left = (ratio - bwRatio/2) * 100;
+
+  // A SOMBRA muda de lado conforme o modo; o RISCO fica sempre na frequencia
+  // sintonizada. Em USB toda a banda esta acima dela, em LSB toda abaixo -
+  // e o que se ve no SDR# e nos demais. Nos modos simetricos (AM, FM, CW) a
+  // sombra continua centrada, com o risco no meio.
+  const modo = (typeof activeMode === 'function' ? activeMode() : '').toUpperCase();
+  let desloc = -0.5, classe = '';
+  if (modo === 'USB') { desloc = 0;  classe = 'mk-usb'; }
+  else if (modo === 'LSB') { desloc = -1; classe = 'mk-lsb'; }
+
+  const left = (ratio + desloc * bwRatio) * 100;
   const width = bwRatio * 100;
   const mkS = document.getElementById('tuneMarkerSpec');
   const mkW = document.getElementById('tuneMarkerWf');
-  if (mkS) { mkS.style.left = left + '%'; mkS.style.width = width + '%'; }
-  if (mkW) { mkW.style.left = left + '%'; mkW.style.width = width + '%'; }
+  for (const mk of [mkS, mkW]) {
+    if (!mk) continue;
+    mk.style.left = left + '%';
+    mk.style.width = width + '%';
+    mk.classList.remove('mk-usb', 'mk-lsb');
+    if (classe) mk.classList.add(classe);
+  }
 }
 
 let isWfDragging = false;
@@ -5564,6 +6016,10 @@ function openDecoderPanel(id){
   const sobra = window.innerHeight - alturaJanela - parseInt(panel.style.bottom, 10);
   if (sobra < 40) panel.style.bottom = Math.max(78, window.innerHeight - alturaJanela - 40) + 'px';
   
+  // O painel nasce depois da pagina, entao o motor de idioma precisa passar
+  // nele quando for criado - senao abre sempre em portugues.
+  setTimeout(() => { try { aplicarIdioma(panel); } catch (e) {} }, 0);
+
   const titleText = isDigital 
     ? (id === 'rtty' ? '📡 RTTY Decoder' : id === 'dsd' ? '📻 DMR / P25 / NXDN' : id === 'tetra' ? '📶 TETRA Demodulador' : id === 'adsb' ? '✈️ ADS-B Decoder' : id === 'cw' ? '🔑 CW Morse Decoder' : id === 'bpsk' ? '📡 BPSK Decoder' : 'Digital Decoder')
     : `⚡ ${d.name}`;
@@ -6906,6 +7362,7 @@ function applyDefaultGain(){
   // Carrega as memorias depois do resto: se o arquivo estiver grande ou o
   // servidor ainda subindo, o radio nao fica esperando por elas.
   setTimeout(() => { try { Memorias.carregar(); } catch (e) {} }, 400);
+  try { perguntarIdiomaPrimeiraVez(); } catch (e) {}
   requestAnimationFrame(frame);
 })();
 

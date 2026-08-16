@@ -77,7 +77,37 @@ lado da internet, visível por aplicativos e pelo APRS.fi.
 Use sempre o seu próprio indicativo.
 
 -------------------------------------------------------------------------------
-7. ESPECTRO E CACHOEIRA
+7. MEMÓRIAS
+-------------------------------------------------------------------------------
+
+O RXSDR acompanha 2765 memórias no arquivo bookmarks.json, ao lado do
+executável, no mesmo formato do OpenWebRX - dá para trocar o arquivo entre os
+dois programas sem converter nada.
+
+São frequências utilitárias e 1807 emissoras de radiodifusão em onda curta,
+estas com a grade de horários UTC.
+
+Elas aparecem como uma régua na faixa acima do espectro, fora da cachoeira,
+para não cobrir os sinais. Um clique sintoniza e já troca o modo gravado.
+
+No menu Memórias, no topo da tela:
+- Criar a partir do VFO atual, escolhendo a categoria
+- Editar e excluir
+- Importar e exportar arquivo .json
+- Filtros da régua:
+    Mostrar todas
+    Somente utilitárias
+    Broadcast - no ar agora     (usa o relógio UTC e a grade de horários)
+    Broadcast - no ar, Américas
+    Broadcast - todas
+
+O filtro "no ar agora" é o mais útil em onda curta: das 1807 emissoras, mostra
+apenas as 300 a 500 que estão transmitindo naquele momento.
+
+A atualização do RXSDR NÃO sobrescreve as suas memórias.
+
+-------------------------------------------------------------------------------
+8. ESPECTRO E CACHOEIRA
 -------------------------------------------------------------------------------
 A cachoeira usa a paleta Eclipse e o mesmo tratamento do OpenWebRX+: a potência
 de todos os blocos recebidos é somada e a média é enviada a cada linha, o que
