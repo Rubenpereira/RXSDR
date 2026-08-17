@@ -353,6 +353,11 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
   font-weight: 500;
   white-space: nowrap;
 }
+/* A Tonalidade ficou sozinha na coluna depois que o botao AUDIO passou a se
+   esconder; com a barra um pouco mais alta ela deixa de parecer perdida ali. */
+.tone-alto input[type=range] { height: 9px !important; }
+.tone-alto .slider-hdr { font-size: 11px; }
+
 .horizontal-slider input[type=range] {
   appearance: none;
   -webkit-appearance: none;
@@ -1051,6 +1056,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
         <a onclick="openDecoderPanel('ais')" href="javascript:void(0)">AIS</a>
         <a onclick="openDecoderPanel('sitorb')" href="javascript:void(0)">SITOR-B / NAVTEX</a>
         <a onclick="openDecoderPanel('dsc')" href="javascript:void(0)">DSC (chamada seletiva)</a>
+        <a onclick="openDecoderPanel('cw')" href="javascript:void(0)">CW / Morse</a>
         <a onclick="openDecoderPanel('analise')" href="javascript:void(0)">Analisar sinal desconhecido</a>
       </div>
     </div>
@@ -1192,7 +1198,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
 
     <div class="slider-stack">
       <!-- Coluna 1 (Esquerda): slider Vol + botão ÁUDIO empilhados, alinhados com Filtro -->
-      <div class="col-left-wrap slider-group" style="display:flex;flex-direction:column;gap:6px;height:100%;box-sizing:border-box;padding:6px 8px">
+      <div class="col-left-wrap slider-group" style="display:flex;flex-direction:column;justify-content:center;gap:6px;height:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border-light,#2a4a2a);border-radius:5px;background:rgba(255,255,255,0.02)">
         <!-- gainSlider oculto: mantido no DOM para sincronização JS -->
         <input type="range" min="0" max="496" value="496" step="1" id="gainSlider" style="display:none">
         <span id="gainValContainer" style="display:none"><span id="gainVal">49.6</span></span>
@@ -1205,7 +1211,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
         </button>
 
         <!-- Slider de Tonalidade -->
-        <div class="horizontal-slider" style="margin-top:2px;">
+        <div class="horizontal-slider tone-alto" style="margin-top:2px;">
           <div class="slider-hdr">
             <span class="lbl">Tonalidade</span>
             <span class="val"><span id="toneVal">Plano</span></span>
@@ -1344,6 +1350,8 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       <span class="cell key" id="wfInfoRfq">RFQ-OFF</span>
       <span class="cell key">AUTO</span>
       <span class="cell" id="wfCanvasOverlay" style="color:#7fb0ff">Span: — | Ref: — | Avg: 4 | FFT —</span>
+      <span class="cell" id="wfInfoAudio" style="color:#7fb0ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:460px"
+            title="Saude do audio: folga do buffer, maior intervalo entre pacotes e quantas vezes faltou audio para tocar.">Audio: —</span>
       <span class="spacer"></span>
       <span class="cell key">RXSDR V1.0.41</span>
     </div>
@@ -2837,6 +2845,59 @@ var AudioOut = {
   gain: null,
   sinkId: '',
   nextTime: 0,
+  worklet: null,
+  workletPendente: false,
+  fila: [],
+  buracosAudio: 0,
+  // Diagnostico do audio. Existe porque a travada da ABERTURA nunca foi
+  // reproduzida em simulacao - sem numeros do computador real nao da para
+  // saber se o audio deixa de chegar ou se e a reproducao que tropeca.
+  diag: { inicio: 0, ultimo: 0, maiorGap: 0, pacotes: 0, faltas: [], ocupacaoMs: 0,
+          mudoAntes: false, trocas: {}, ocupMin: 99999, ocupMax: 0,
+          backFalta: undefined, backVao: 0, backVaos: 0 },
+  // Versao curta, para o rodape. A longa, com o historico das faltas, fica na
+  // tarjinha do botao - ali cabe texto, aqui nao.
+  resumoCurto(){
+    const d = this.diag;
+    if (!d.pacotes) return 'Audio: —';
+
+    // O rodape acompanha o usuario o tempo todo, entao no caso normal mostra
+    // pouco: a folga do buffer e as faltas. O resto - mutes, descartes,
+    // contadores do C++ - so aparece quando NAO esta zerado, porque so ai
+    // significa alguma coisa. A conta completa continua na tarjinha do botao.
+    let txt = 'Audio ' + d.ocupMin + '-' + d.ocupMax + ' ms';
+    txt += ' | folga ' + (this._alvoMs || 180);
+    if (this.buracosAudio) txt += ' | faltas ' + this.buracosAudio;
+    if (!this.worklet) txt += ' | SEM WORKLET';
+
+    const t = Object.keys(d.trocas).map(k => k + ':' + d.trocas[k]).join(' ');
+    if (t) txt += ' | mute ' + t;
+    if (d.desc_power) txt += ' | pwr ' + d.desc_power;
+    if (d.desc_audio) txt += ' | aud ' + d.desc_audio;
+
+    // Do lado do C++ so vale falar quando ha o que falar: falta de audio acima
+    // de 100 ms, ou algum vao grande entre envios.
+    // A PERDA de audio no backend e o numero mais grave que existe aqui: audio
+    // que nao foi produzido nao tem conserto do lado de ca. Por isso ele ganha
+    // nome proprio e so aparece quando e perda de verdade (positiva e grande).
+    if (d.backFalta !== undefined) {
+      if (d.backFalta > 300) txt += ' | PERDA ' + (d.backFalta / 1000).toFixed(1) + 's';
+      else if (d.backVaos)   txt += ' | vaos ' + d.backVaos;
+    }
+    return txt;
+  },
+  resumoAudio(){
+    const d = this.diag;
+    const f = d.faltas.map(x => x.t + 's/' + x.tinha + 'ms').join(' ');
+    return 'reconfig do dongle ' + (d.reconfigs || 0)
+         + ' | C++ falta ' + (d.backFalta === undefined ? '?' : d.backFalta + 'ms')
+         + ' vao ' + (d.backVao || 0) + 'ms'
+         + '\npacotes ' + d.pacotes
+         + ' | maior intervalo de chegada ' + Math.round(d.maiorGap) + ' ms'
+         + ' | buffer ' + d.ocupacaoMs + ' ms'
+         + ' | faltas ' + this.buracosAudio
+         + (f ? ' -> ' + f : '');
+  },
   volume(){
     // ATENCAO: nao usar "|| 40" aqui. Em JavaScript o zero e falso, entao
     // o volume 0% caia no padrao 40% e o audio voltava a tocar no mudo.
@@ -2924,9 +2985,228 @@ var AudioOut = {
         } catch (e) {}
     }
 
+    // ---------------------------------------------------------------------
+    //  AUDIO EM THREAD PROPRIA (AudioWorklet)
+    //
+    //  Antes cada bloco virava um AudioBufferSourceNode agendado a mao, e todo
+    //  esse trabalho acontecia no MESMO onmessage que desenha a cachoeira. Se o
+    //  desenho demorasse, o audio atrasava; e a regra de recuperacao jogava o
+    //  relogio 180 ms a frente, abrindo um buraco. Pior: quando o atraso era
+    //  menor que 50 ms, o start() caia no PASSADO e o Chrome tocava na hora,
+    //  sobrepondo blocos - as amplitudes somavam e viravam pico.
+    //
+    //  Medido no video de um usuario: 18 interrupcoes em 39 s, mediana 56 ms.
+    //
+    //  O worklet roda na thread de audio, que o navegador nao interrompe para
+    //  desenhar. A thread principal so ENTREGA amostras num buffer circular; o
+    //  worklet consome no ritmo da placa de som. Uma travada de desenho passa a
+    //  ser absorvida pelo buffer em vez de virar silencio. E a mesma arquitetura
+    //  de um programa nativo.
+    // ---------------------------------------------------------------------
+    if (!this.worklet && this.ctx.audioWorklet) {
+      // Enquanto o addModule nao termina, this.worklet e null - e sem esta
+      // marca cada pacote que chegasse nesse intervalo cairia no caminho de
+      // RESERVA, que e o agendamento antigo, o dos picotes. Era uma janela
+      // curta, so na abertura, e depois nunca mais: exatamente o sintoma de
+      // "varios picotes que param em seguida". Agora o audio espera numa fila.
+      this.workletPendente = true;
+      const codigo = `
+class RxsdrPlayer extends AudioWorkletProcessor {
+  constructor(op){
+    super();
+    const o = (op && op.processorOptions) || {};
+    this.cap  = Math.max(4800, Math.round(sampleRate * 4));
+    this.buf  = new Float32Array(this.cap);
+    this.rd = 0; this.wr = 0; this.disp = 0;
+    this.alvo = Math.round(sampleRate * (o.latencia || 0.18));
+    this.tocando = false;
+    this.reprime = false;
+    this.buracos = 0;
+    this.faltasSeguidas = 0;   // faltas em sequencia, sem tocar limpo no meio
+    this.limpoDesde = 0;       // amostras tocadas sem falta
+    this.port.onmessage = (ev) => {
+      const d = ev.data; if (!d) return;
+      if (d.cmd === 'limpar'){ this.rd = this.wr = this.disp = 0; this.tocando = false; return; }
+      if (d.cmd === 'latencia'){ this.alvo = Math.round(sampleRate * d.valor); return; }
+      const a = d.pcm; if (!a || !a.length) return;
+      let n = a.length; if (n > this.cap) n = this.cap;
+      // Nao cabe? descarta o mais ANTIGO. Perder passado incomoda menos que
+      // perder o que esta chegando agora.
+      const sobra = this.cap - this.disp;
+      if (n > sobra){ const fora = n - sobra; this.rd = (this.rd + fora) % this.cap; this.disp -= fora; }
+      for (let i = 0; i < n; i++){ this.buf[this.wr] = a[i]; this.wr = (this.wr + 1) % this.cap; }
+      this.disp += n;
+    };
+  }
+  process(entradas, saidas){
+    const out = saidas[0][0]; if (!out) return true;
+    const N = out.length;
+    // Enche ate a latencia alvo antes de comecar. Sem essa espera o primeiro
+    // quadro sai e o buffer estoura logo em seguida.
+    if (!this.tocando){
+      // Quanto reencher depois de uma falta?
+      //
+      // Fixo em um quarto do alvo (45 ms) parecia bom - uma falta isolada sai
+      // barata. Mas na ABERTURA do programa as travadas vem em serie: a thread
+      // principal esta carregando as memorias e desenhando tudo pela primeira
+      // vez. Com so 45 ms de folga, o worklet faltava de novo em seguida, e
+      // isso se repetia por uns 13 segundos ate o buffer crescer sozinho -
+      // exatamente os "varios picotes que param depois" que se via na abertura.
+      //
+      // Agora a folga DOBRA a cada falta seguida: 45, 90, 180, ate 360 ms. Uma
+      // falta isolada continua barata; uma sequencia constroi o colchao de que
+      // ela precisa em poucos ciclos, em vez de repetir o erro.
+      let precisa = this.alvo;
+      if (this.reprime){
+        const dobras = Math.min(this.faltasSeguidas, 4);
+        precisa = Math.min(this.alvo * 2, (this.alvo >> 2) * Math.pow(2, dobras - 1));
+        precisa = Math.max(N * 2, precisa);
+      }
+      if (this.disp < precisa){ out.fill(0); return true; }
+      this.tocando = true;
+      this.reprime = false;
+    }
+    if (this.disp < N){
+      out.fill(0);
+      this.buracos++;
+      // Volta a encher - mas so ate um QUARTO do alvo, nao ate o alvo inteiro.
+      // Exigir os 180 ms completos fazia cada falta custar 180 ms de silencio,
+      // ou seja, o remedio ficava maior que a doenca: 9 faltas viravam 2,3 s
+      // de mudo. Com um quarto, a falta custa o tempo que realmente faltou
+      // mais uns 45 ms de folga para nao recair na falta seguinte.
+      this.tocando = false;
+      this.reprime = true;
+      this.faltasSeguidas++;
+      this.limpoDesde = 0;
+      this.port.postMessage({ buraco: true, total: this.buracos, tinha: this.disp });
+      return true;
+    }
+    // Relata a ocupacao a cada ~0,5 s, para dar para ver o buffer enchendo.
+    this.desdeRelato = (this.desdeRelato || 0) + N;
+    if (this.desdeRelato >= sampleRate >> 1){
+      this.desdeRelato = 0;
+      this.port.postMessage({ ocupacao: this.disp });
+    }
+
+    // Dois segundos tocando limpo: a serie acabou, volta a recuperacao barata.
+    this.limpoDesde += N;
+    if (this.limpoDesde > sampleRate * 2){
+      this.faltasSeguidas = 0;
+      this.limpoDesde = 0;
+    }
+    // ── Controle do atraso ────────────────────────────────────────────────
+    // Duas coisas engordam o buffer: a deriva entre o relogio do dongle e o da
+    // placa de som, e as rajadas que chegam depois de uma travada de desenho.
+    // Sem freio o atraso so cresce - medido em simulacao, chegava a 529 ms, o
+    // que se sente ao girar o VFO.
+    //
+    // Acima de 1,5x o alvo, descarta UMA amostra por quadro: 0,78 %, inaudivel,
+    // e devolve o atraso ao normal em poucos segundos. Acima de 4x nao ha o que
+    // salvar (aba em segundo plano, maquina que congelou): corta de uma vez.
+    // Primeiro tentei apertar isto para 1,5x o alvo, para segurar o atraso.
+    // Foi pior: as faltas subiram de 2 para 10 com travadas de 250 ms. O
+    // motivo e que a folga acumulada E a defesa - uma maquina que trava muito
+    // ganha buffer sozinha e para de falhar. O que nao pode e crescer sem
+    // limite, entao o freio fica em 3x (540 ms) e ha um teto duro em 6x para
+    // o caso da aba ter ficado em segundo plano.
+    // Os limites eram 3x e 6x o alvo, de quando o alvo era fixo em 180 ms e a
+    // folga acumulada era a unica defesa contra solavanco. Agora que o alvo
+    // APRENDE o tamanho do solavanco, deixar crescer ate 6x so acrescenta
+    // atraso: medido no ar, o buffer chegou a 3036 ms com alvo de 546 - tres
+    // segundos de atraso, e mesmo assim faltou audio, porque o que faltava
+    // nao era folga e sim audio que nunca foi produzido.
+    if (this.disp > (this.alvo * 5 >> 1)){
+      const fora = this.disp - this.alvo;
+      this.rd = (this.rd + fora) % this.cap;
+      this.disp -= fora;
+    } else if (this.disp > (this.alvo * 3 >> 1) && this.disp > N + 1){
+      this.rd = (this.rd + 1) % this.cap; this.disp--;
+    }
+    for (let i = 0; i < N; i++){
+      out[i] = this.buf[this.rd];
+      this.rd = (this.rd + 1) % this.cap;
+      this.disp--;
+    }
+    return true;
+  }
+}
+registerProcessor('rxsdr-player', RxsdrPlayer);
+`;
+      try {
+        const url = URL.createObjectURL(new Blob([codigo], { type: 'application/javascript' }));
+        await this.ctx.audioWorklet.addModule(url);
+        URL.revokeObjectURL(url);
+        this.worklet = new AudioWorkletNode(this.ctx, 'rxsdr-player', {
+          numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [1],
+          processorOptions: { latencia: 0.18 }
+        });
+        this.worklet.port.onmessage = (ev) => {
+          const d = ev.data; if (!d) return;
+          if (d.buraco) {
+            this.buracosAudio = d.total | 0;
+            // Guarda QUANDO faltou e QUANTO havia no buffer. Isto separa as
+            // duas causas possiveis: se 'tinha' era quase zero e o maior
+            // intervalo de chegada foi grande, o audio nao chegou (backend ou
+            // dongle). Se o audio chegava normal, o tropeco e do navegador.
+            if (this.diag.faltas.length < 60) {
+              this.diag.faltas.push({
+                t: +( (performance.now() - this.diag.inicio) / 1000 ).toFixed(1),
+                tinha: Math.round(d.tinha / 48)
+              });
+            }
+          }
+          if (d.ocupacao !== undefined) {
+            const ms = Math.round(d.ocupacao / 48);
+            this.diag.ocupacaoMs = ms;
+            if (ms < this.diag.ocupMin) this.diag.ocupMin = ms;
+            if (ms > this.diag.ocupMax) this.diag.ocupMax = ms;
+          }
+        };
+        this.worklet.connect(this.lowShelfFilter);
+        this.workletPendente = false;
+        // Despeja o que chegou durante a criacao, na ordem.
+        if (this.fila && this.fila.length) {
+          for (const a of this.fila) {
+            this.worklet.port.postMessage({ pcm: a }, [a.buffer]);
+          }
+          this.fila.length = 0;
+        }
+      } catch (e) {
+        // Navegador sem AudioWorklet: segue pelo caminho antigo, ja corrigido.
+        this.worklet = null;
+        this.workletPendente = false;
+        if (this.fila) this.fila.length = 0;
+      }
+    }
+
     // Aplica a tonalidade atual
     const toneVal = Number(document.getElementById('toneSlider')?.value ?? 50);
     this.applyTone(toneVal);
+  },
+  // Interpolacao de Hermite com estado entre chamadas. Existe so para o caso
+  // de a placa de som nao estar em 48000 - no caso comum nem e chamado.
+  _reamostra(f32, de, para){
+    if (!this._rs || this._rs.de !== de || this._rs.para !== para) {
+      this._rs = { de: de, para: para, pos: 0, h: new Float32Array(4), pronto: false };
+    }
+    const e = this._rs;
+    const passo = de / para;
+    const out = new Float32Array(Math.ceil(f32.length / passo) + 4);
+    let k = 0;
+    for (let i = 0; i < f32.length; i++) {
+      e.h[0] = e.h[1]; e.h[1] = e.h[2]; e.h[2] = e.h[3]; e.h[3] = f32[i];
+      if (!e.pronto) { if (i >= 3) e.pronto = true; else continue; }
+      while (e.pos < 1 && k < out.length) {
+        const t = e.pos, y0 = e.h[0], y1 = e.h[1], y2 = e.h[2], y3 = e.h[3];
+        const c0 = y1, c1 = 0.5 * (y2 - y0),
+              c2 = y0 - 2.5 * y1 + 2 * y2 - 0.5 * y3,
+              c3 = 0.5 * (y3 - y0) + 1.5 * (y1 - y2);
+        out[k++] = ((c3 * t + c2) * t + c1) * t + c0;
+        e.pos += passo;
+      }
+      e.pos -= 1;
+    }
+    return out.slice(0, k);
   },
   applyTone(val){
     if (val === undefined) {
@@ -3056,12 +3336,44 @@ var AudioOut = {
     return out;
   },
 
-  playPcm(pcm, sps){
+  playPcm(pcm, sps, mudo){
     // ── Guarda dupla: nenhum áudio antes do botão HABILITAR ÁUDIO ────────────
     // Backend.playPcm já verifica audioEnabled, mas se alguém chamar
     // AudioOut.playPcm diretamente esta guarda garante silêncio total.
     if (typeof audioEnabled !== 'undefined' && !audioEnabled) return;
     if (!pcm || !pcm.length) return;
+    {
+      const agora = performance.now();
+      const d = this.diag;
+      if (!d.inicio) { d.inicio = agora; d.ultimo = agora; }
+      const gap = agora - d.ultimo;
+      d.ultimo = agora;
+      d.pacotes++;
+      // Ignora o primeiro pacote e a pausa de audio desligado.
+      if (d.pacotes > 2 && gap < 5000 && gap > d.maiorGap) d.maiorGap = gap;
+
+      // ── FOLGA QUE APRENDE COM O QUE MEDIU ────────────────────────────────
+      //
+      // Eu tinha fixado a folga em 180 ms sem medir o solavanco que ela
+      // precisa absorver - e um amortecedor menor que o solavanco nao serve
+      // para nada. Medido no ar: o audio nao chega num fluxo continuo, chega
+      // em RAJADAS, porque o dispositivo entrega um bloco grande de IQ de uma
+      // vez e o demodulador produz varias centenas de milissegundos numa
+      // tacada. Foram contados 148 intervalos acima de 150 ms, com o buffer
+      // oscilando de 4 a 970 ms. Com 180 ms de folga ele esvaziava entre uma
+      // rajada e a proxima, e as faltas so cresciam.
+      //
+      // Agora a folga acompanha o maior intervalo ja observado, com 60% de
+      // margem. Ela so SOBE - baixar seria convidar a falta de volta - e para
+      // em 700 ms, que ainda e resposta aceitavel ao girar o VFO.
+      if (this.worklet && d.maiorGap > 0) {
+        const alvoMs = Math.min(700, Math.max(180, Math.round(d.maiorGap * 1.6)));
+        if (alvoMs > (this._alvoMs || 180) + 20) {
+          this._alvoMs = alvoMs;
+          this.worklet.port.postMessage({ cmd: 'latencia', valor: alvoMs / 1000 });
+        }
+      }
+    }
     this.init().then(()=>{
       if (!this.ctx || !this.gain) return;
       const rate = sps || 48000;
@@ -3069,8 +3381,15 @@ var AudioOut = {
       // Ganho global de áudio para compensar níveis baixos entre modos.
       // Modificado de 12.0 para 1.0 para evitar distorção/clipping digital e saturação de áudio.
       const boost = 1.0;
+      // Rampa de silenciamento: constante de tempo de uns 8 ms. Rapido o
+      // bastante para esconder o estalo do dongle ao trocar de frequencia,
+      // lento o bastante para nao virar um clique ele mesmo.
+      if (this._rampa === undefined) this._rampa = 1;
+      const alvoRampa = mudo ? 0 : 1;
+      const passoRampa = 1 - Math.exp(-1 / (rate * 0.008));
       for (let i = 0; i < pcm.length; i++) {
-        const s = (pcm[i] / 32768) * boost;
+        this._rampa += (alvoRampa - this._rampa) * passoRampa;
+        const s = (pcm[i] / 32768) * boost * this._rampa;
         f32[i] = s > 1 ? 1 : s < -1 ? -1 : s;
       }
       // ── Noise Blanker (NB) ──────────────────────────────────────────────
@@ -3101,13 +3420,48 @@ var AudioOut = {
       this.audioTargetLevel = f32.length > 0 ? Math.min(1.0, Math.sqrt(sumSq / f32.length) / 0.22) : 0;
       this.lastAudioTime = performance.now();
       // ────────────────────────────────────────────────────────────────────
+      // ── O worklet esta nascendo? guarda, nao toca pelo caminho velho ─────
+      if (this.workletPendente && !this.worklet) {
+        let g = f32;
+        const tx = this.ctx.sampleRate;
+        if (Math.abs(rate - tx) > 0.5) g = this._reamostra(f32, rate, tx);
+        // Meio segundo de folga basta: o addModule leva dezenas de ms. Se por
+        // algum motivo demorar mais, o mais antigo cai fora.
+        if (g.length) this.fila.push(new Float32Array(g));
+        while (this.fila.length > 24) this.fila.shift();
+        return;
+      }
+
+      // ── Entrega ao worklet (caminho normal) ──────────────────────────────
+      if (this.worklet) {
+        // O backend manda 48000 exatos. Se a placa de som do usuario estiver
+        // em 44100, converte-se AQUI - e com estado, que e justamente o que
+        // faltava quando o navegador reamostrava sozinho.
+        let amostras = f32;
+        const taxaCtx = this.ctx.sampleRate;
+        if (Math.abs(rate - taxaCtx) > 0.5) amostras = this._reamostra(f32, rate, taxaCtx);
+        if (amostras.length) {
+          const copia = new Float32Array(amostras);   // buffer proprio p/ transferir
+          this.worklet.port.postMessage({ pcm: copia }, [copia.buffer]);
+        }
+        return;
+      }
+
+      // ── Reserva: navegador sem AudioWorklet ──────────────────────────────
       const buf = this.ctx.createBuffer(1, f32.length, rate);
       buf.getChannelData(0).set(f32);
       const src = this.ctx.createBufferSource();
       src.buffer = buf;
       src.connect(this.lowShelfFilter || this.gain);
       const now = this.ctx.currentTime;
-      if (this.nextTime < now - 0.05 || this.nextTime > now + 0.8) this.nextTime = now + 0.18;
+      const folga = 0.02;
+      // NUNCA agendar no passado. start() com tempo ja vencido faz o Chrome
+      // tocar na hora, e dois blocos soam juntos - as amplitudes somam e viram
+      // pico. A regra antiga so corrigia atrasos MAIORES que 50 ms, entao toda
+      // a faixa de 0 a 50 ms de atraso caia exatamente nesse defeito.
+      if (this.nextTime < now + folga) this.nextTime = now + folga;
+      // Adiantado demais (troca de banda, aba em segundo plano): recomeca.
+      if (this.nextTime > now + 0.8) this.nextTime = now + 0.18;
       src.start(this.nextTime);
       this.nextTime += buf.duration;
     }).catch(()=>{});
@@ -3180,18 +3534,40 @@ const Backend = {
   async setConfig(body){ return this.post('/api/config', body); },
   ensureAudio(){ return AudioOut.init(); },
   playPcm(pcm, sps){
-    if (!powerOn) return;
-    if (!audioEnabled) return;
-    // Mute digital: quando o decoder digital está ativo e vox-gate fechado
-    if (window._digitalMuted) return;
-    if (window._radioMuted) return;
-    if (performance.now() < muteUntil) return;
-    // Squelch RF
-    if (!window._digitalDecoding) {
+    // Radio desligado ou audio nao habilitado: nao ha o que tocar nem timeline
+    // a preservar. Aqui descartar e correto - MAS fica contado, porque um
+    // descarte sem rampa e picote garantido, e se algum desses estados piscar
+    // sozinho ninguem enxergaria.
+    if (!powerOn)      { AudioOut.diag.desc_power = (AudioOut.diag.desc_power || 0) + 1; return; }
+    if (!audioEnabled) { AudioOut.diag.desc_audio = (AudioOut.diag.desc_audio || 0) + 1; return; }
+
+    // ── Silenciar NAO e descartar ────────────────────────────────────────
+    //
+    // Todos os casos abaixo faziam "return", ou seja, jogavam o audio fora. E
+    // jogar fora produz exatamente o estalo que se queria esconder: o som pula
+    // de um ponto para outro. Na ABERTURA isso acontecia umas dez vezes - o
+    // programa restaura frequencia, modo, banda e centro salvos, e cada um
+    // desses arma 250 ms de mute -, o que dava os "varios picotes que param
+    // em seguida". O squelch sofria do mesmo mal a cada abertura e fechamento.
+    //
+    // Agora a linha do tempo nunca se rompe: o audio continua chegando e o
+    // volume desce e sobe suavemente. Quem cala, cala em rampa.
+    let mudo = false, motivo = '';
+    if (window._digitalMuted) { mudo = true; motivo = 'dig'; }
+    if (window._radioMuted)   { mudo = true; motivo = 'radio'; }
+    if (performance.now() < muteUntil) { mudo = true; motivo = 'tune'; }
+    if (!mudo && !window._digitalDecoding) {
       const sql = Number(document.getElementById('sqlSlider')?.value ?? -90);
-      if (sql > -90 && Smeter.rfLive && Smeter.peakDb < sql) return;
+      if (sql > -90 && Smeter.rfLive && Smeter.peakDb < sql) { mudo = true; motivo = 'sql'; }
     }
-    AudioOut.playPcm(pcm, sps);
+    // Conta as TRANSICOES, nao os pacotes: o que se ouve como picote e a
+    // entrada e a saida do silenciamento, nao o tempo mudo em si.
+    const dg = AudioOut.diag;
+    if (mudo !== dg.mudoAntes) {
+      dg.mudoAntes = mudo;
+      if (mudo) { dg.trocas[motivo] = (dg.trocas[motivo] || 0) + 1; }
+    }
+    AudioOut.playPcm(pcm, sps, mudo);
   },
   connectWs(){
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -3220,6 +3596,7 @@ const Backend = {
             if (msg.decoder === 'SITOR-B') SitorBDecoder.appendLine(msg.text);
             if (msg.decoder === 'DSC') DscDecoder.appendLine(msg.text);
             if (msg.decoder === 'ANALISE') AnaliseDecoder.appendLine(msg.text);
+            if (msg.decoder === 'CW') { if (msg.cont) CwDecoder.appendTexto(msg.text); else CwDecoder.appendLine(msg.text); }
           }
         } catch (_) {}
         return;
@@ -5802,6 +6179,52 @@ if (stepSelectEl) {
 })();
 
 
+// ---------------------------------------------------------------------------
+//  Vigia do audio: rodape sempre em dia e botao aparecendo so quando precisa
+//
+//  Este temporizador vivia DENTRO do clique do botao, e por isso so nascia
+//  depois que alguem (ou o proprio programa) acionava o botao. Resultado: com
+//  o radio desligado o botao continuava na tela, e so sumia quando o radio
+//  ligava. Aqui ele passa a rodar desde que a pagina abre.
+//
+//  Regra do botao: ele existe por causa da exigencia de gesto do usuario que
+//  todo navegador aplica antes de deixar um site emitir som. Entao so faz
+//  sentido mostra-lo quando ha som para ouvir E o navegador ainda esta
+//  barrando - ou seja, radio LIGADO e AudioContext fora de 'running'. Com o
+//  radio desligado nao ha o que habilitar, e ele fica fora do caminho.
+// ---------------------------------------------------------------------------
+(function vigiaDoAudio(){
+  let sobre = false, ultimo = '';
+  const btn0 = document.getElementById('audioBtn');
+  if (btn0) {
+    btn0.addEventListener('mouseenter', () => { sobre = true;  });
+    btn0.addEventListener('mouseleave', () => { sobre = false; });
+  }
+  setInterval(() => {
+    const b = document.getElementById('audioBtn');
+
+    const rod = document.getElementById('wfInfoAudio');
+    if (rod && typeof AudioOut !== 'undefined') {
+      const curto = AudioOut.resumoCurto();
+      if (rod.textContent !== curto) rod.textContent = curto;
+      rod.style.color = AudioOut.buracosAudio > 0 ? '#e0a52f' : '#7fb0ff';
+    }
+
+    if (!b) return;
+    const ligado = (typeof powerOn !== 'undefined') && powerOn;
+    const tocando = (typeof AudioOut !== 'undefined') && AudioOut.ctx
+                 && AudioOut.ctx.state === 'running';
+    b.style.display = (ligado && !tocando) ? '' : 'none';
+
+    if (!sobre && typeof AudioOut !== 'undefined' && AudioOut.ctx) {
+      // Reescrever o title com o mouse em cima faz o navegador fechar e
+      // reabrir a tarjinha - foi o que ficou piscando.
+      const txt = `AudioContext: ${AudioOut.ctx.state} | ${AudioOut.ctx.sampleRate} Hz\n${AudioOut.resumoAudio()}`;
+      if (txt !== ultimo) { b.title = txt; ultimo = txt; }
+    }
+  }, 1000);
+})();
+
 // Botão ÁUDIO — desbloqueia AudioContext via gesto explícito (exigido pelo Chrome)
 document.getElementById('audioBtn').addEventListener('click', async ()=>{
   const btn = document.getElementById('audioBtn');
@@ -5820,7 +6243,8 @@ document.getElementById('audioBtn').addEventListener('click', async ()=>{
         <span class="audio-title" style="font-size: 8.5px; font-weight: bold; display: block; line-height: 1.1; margin-bottom: 2px;">AUDIO</span>
         <span class="audio-icon" style="font-size: 15px; display: block; line-height: 1;">🔊 ON</span>
       `;
-      btn.title = `AudioContext: ${AudioOut.ctx.state} | ${AudioOut.ctx.sampleRate} Hz`;
+      btn.title = `AudioContext: ${AudioOut.ctx.state} | ${AudioOut.ctx.sampleRate} Hz\n${AudioOut.resumoAudio()}`;
+
     }
   } catch(err) { alert('Erro ao ativar áudio: ' + err.message); }
 });
@@ -5876,6 +6300,15 @@ setInterval(tickClock, 1000); tickClock();
 
     Backend.status().then(function(st){
       if (!st || !st.ok) return;
+      // Aproveita a mesma consulta para trazer a saude da producao de audio do
+      // lado do C++. O navegador ja foi inocentado; agora precisamos saber se
+      // o backend entrega 48000 amostras por segundo de relogio ou menos.
+      if (st.audioFalta !== undefined && typeof AudioOut !== 'undefined') {
+        AudioOut.diag.backFalta = Math.round(st.audioFalta);
+        AudioOut.diag.backVao   = st.audioMaiorVao | 0;
+        AudioOut.diag.backVaos  = st.audioVaos | 0;
+        AudioOut.diag.reconfigs = st.reconfigs | 0;
+      }
       var freqExterna = Number(st.freqA) || 0;
       if (!freqExterna) return;
       if (freqExterna === ultimoAplicado) return;
@@ -5915,6 +6348,7 @@ const DECODERS = [
   {id:'tetra', name:'TETRA',    freq:'380-470 MHz',  mod:'π/4-DQPSK 36 kbps'},    {id:'packet',name:'APRS',   freq:'VHF/HF',       mod:'AFSK/FSK AX.25'},
   {id:'ais',   name:'AIS',    freq:'161.975 / 162.025 MHz', mod:'GMSK 9600 bps'},
   {id:'sitorb',name:'SITOR-B', freq:'8415 kHz e outras',    mod:'FSK 100 bd, shift 170 Hz'},
+  {id:'cw',    name:'CW / Morse', freq:'qualquer',           mod:'telegrafia, velocidade medida sozinha'},
   {id:'dsc',   name:'DSC',      freq:'8414.5 kHz e outras', mod:'FSK 100 bd, shift 170 Hz'},
   {id:'analise',name:'Analisador', freq:'onde voce estiver', mod:'mede tons, shift e velocidade'}
 ];
@@ -5934,6 +6368,8 @@ function buildDecoderContent(d){
     return SitorBDecoder.buildPanelHTML();
   } else if(d.id==='dsc'){
     return DscDecoder.buildPanelHTML();
+  } else if(d.id==='cw'){
+    return CwDecoder.buildPanelHTML();
   } else if(d.id==='analise'){
     return AnaliseDecoder.buildPanelHTML();
   }
@@ -5996,7 +6432,7 @@ function openDecoderPanel(id){
   }
   // Painies com barra de controles, terminal e nota de rodape precisam de
   // altura; com o padrao antigo o texto explicativo ficava cortado.
-  if (id === 'sitorb' || id === 'dsc' || id === 'ais' || id === 'acars' || id === 'analise') {
+  if (id === 'sitorb' || id === 'dsc' || id === 'ais' || id === 'acars' || id === 'analise' || id === 'cw') {
     panel.style.width = '660px';
     panel.style.height = '500px';
   }
@@ -6051,6 +6487,7 @@ function openDecoderPanel(id){
   if (id === 'acars') AcarsDecoder.init();
   if (id === 'ais')   AisDecoder.init();
   if (id === 'sitorb') SitorBDecoder.init();
+  if (id === 'cw') CwDecoder.init();
   if (id === 'dsc') DscDecoder.init();
   if (id === 'analise') AnaliseDecoder.init();
   if (id === 'dsd')  DsdDecoder.init();
@@ -6070,6 +6507,7 @@ function closeDecoderPanel(id){
   if (id === 'packet') AprsDecoder.onClose();
   if (id === 'ais') AisDecoder.onClose();
   if (id === 'sitorb') SitorBDecoder.onClose();
+  if (id === 'cw') CwDecoder.onClose();
   if (id === 'dsc') DscDecoder.onClose();
   if (id === 'analise') AnaliseDecoder.onClose();
 }
@@ -8914,6 +9352,7 @@ const ArquivoAudio = (() => {
   function ligarDecoder(decoder) {
     try {
       if (decoder === 'SITORB' && typeof SitorBDecoder !== 'undefined') SitorBDecoder.reiniciar();
+      else if (decoder === 'CW' && typeof CwDecoder !== 'undefined') CwDecoder.reiniciar();
       else if (decoder === 'DSC' && typeof DscDecoder !== 'undefined')  DscDecoder.reiniciar();
       else if (decoder === 'ANALISE' && typeof AnaliseDecoder !== 'undefined') AnaliseDecoder.analisar();
     } catch (e) {}
@@ -8997,6 +9436,178 @@ const ArquivoAudio = (() => {
 })();
 
 
+
+// ===================== CW / MORSE =====================
+// Nao ha "baud" nem "shift" para ajustar: a velocidade e do operador humano,
+// muda dentro da propria transmissao e por isso e MEDIDA continuamente pelo
+// nucleo. O unico ajuste que faz sentido e o tom - e mesmo esse e medido.
+const CwDecoder = (() => {
+  let _pollTimer = null;
+  const el = id => document.getElementById(id);
+
+  function buildPanelHTML() {
+    return `
+      <div class="dec-status-banner" style="background:#060302;padding:6px 10px;border-bottom:1px solid #30200a">
+        <div style="color:#ffaa00;font-family:'Segoe UI',sans-serif;font-size:12px;font-weight:bold;margin-bottom:2px">
+          Modo: CW / Morse | <span id="cw-status" style="color:#ffaa00">Parado</span>
+        </div>
+        <div style="color:#ffcc60;font-family:Consolas,monospace;font-size:12px;font-weight:bold">
+          Telegrafia — tom e velocidade medidos sozinhos
+        </div>
+      </div>
+
+      <div class="dig-ctrl-bar" style="gap:4px 6px;flex-wrap:wrap">
+        <label style="font-size:10px" title="Deixe 0 para o decodificador medir sozinho. Só preencha se ele errar.">Tom</label>
+        <input type="number" id="cw-tom" value="0" step="10" min="0" max="2500"
+               style="width:56px;font-size:10px"
+               title="0 = medir sozinho. Em CW não existe tom padrão: depende de onde você sintonizou.">
+        <button onclick="CwDecoder.reiniciar()" class="gt-btn"
+                style="padding:4px 10px;background:#3a2a10;border-color:#8c6a2e;color:#ffc46b;
+                       font-size:11px;font-weight:bold;cursor:pointer;border-radius:4px">Reiniciar</button>
+        ${ArquivoAudio.botaoHTML('CW')}
+        <button onclick="estreitarParaDigital(500)" class="gt-btn bw-digital-btn"
+                title="Reduz a largura de recepcao para 500 Hz."
+                style="padding:4px 8px;margin-left:6px;background:#0d2a1a;border-color:#2e8c5a;
+                       color:#8affc0;font-size:11px;font-weight:bold;cursor:pointer;border-radius:4px">BW 500</button>
+        <span id="cw-stats" style="font-size:10px;color:#c8a060;margin-left:6px"></span>
+      </div>
+
+      <div class="dec-terminal" id="cw-terminal"
+           style="color:#ffcc60;border-color:#8c6a2e">Aguardando telegrafia...</div>
+
+      <div style="font-size:10px;color:#8a7040;padding:4px 8px;line-height:1.4">
+        Receba em CW ou USB com filtro estreito. O decodificador mede o tom nos
+        primeiros 3 segundos e acompanha a velocidade do operador.
+        Sequências que não existem no Morse aparecem entre &lt; &gt; — isso ajuda
+        a ver se o problema é o sinal ou o ajuste.
+      </div>
+
+      <button onclick="CwDecoder.limpar()" class="gt-btn"
+              style="margin:4px 8px;padding:4px 10px;font-size:11px;cursor:pointer">Limpar</button>
+    `;
+  }
+
+  let _linhas = [];
+  const MAX = 300;
+
+  // A ultima linha esta ABERTA para receber mais texto?
+  //
+  // Mensagens de status - "decodificador iniciado" - sao linhas fechadas: o
+  // texto que chega depois nao pode ser grudado nelas. Sem esta marca, as
+  // primeiras dezenas de letras decodificadas iam parar no fim da frase
+  // "o tom e a velocidade sao medidos sozinhos", e a tela parecia travada
+  // justamente nos primeiros segundos, que e quando se olha para ela.
+  let _aberta = false;
+
+  function appendLine(line) {
+    if (!line) return;
+    _linhas.push(String(line).replace(/^\[CW\]\s*/, ''));
+    _aberta = false;
+    if (_linhas.length > MAX) _linhas.splice(0, _linhas.length - MAX);
+    const t = el('cw-terminal');
+    if (!t) return;
+    if (t.textContent.indexOf('Aguardando') === 0) t.textContent = '';
+    t.textContent = _linhas.join('\n');
+    t.scrollTop = t.scrollHeight;
+  }
+
+  // ---------------------------------------------------------------------
+  //  appendTexto - emenda o texto que vai chegando
+  //
+  //  O CW nao tem fim de linha: e um fluxo continuo. Antes o servidor juntava
+  //  72 caracteres antes de mandar, o que a 20 PPM significa esperar mais de
+  //  40 segundos olhando para uma tela parada. Agora ele manda assim que le,
+  //  e a quebra de linha acontece aqui - no ultimo espaco antes do limite,
+  //  para nao partir palavra ao meio.
+  // ---------------------------------------------------------------------
+  const LARGURA = 72;
+
+  function appendTexto(pedaco) {
+    if (!pedaco) return;
+    const t = el('cw-terminal');
+    if (t && t.textContent.indexOf('Aguardando') === 0) t.textContent = '';
+
+    const partes = String(pedaco).split('\n');
+    for (let i = 0; i < partes.length; i++) {
+      if (i > 0) { _linhas.push(''); _aberta = true; }   // o nucleo pediu linha nova
+      if (!partes[i]) continue;
+      if (!_aberta || _linhas.length === 0) { _linhas.push(''); _aberta = true; }
+      _linhas[_linhas.length - 1] += partes[i];
+
+      // quebra o que passou da largura
+      while (_linhas[_linhas.length - 1].length > LARGURA) {
+        const linha = _linhas[_linhas.length - 1];
+        let corte = linha.lastIndexOf(' ', LARGURA);
+        if (corte < LARGURA / 2) corte = LARGURA;
+        _linhas[_linhas.length - 1] = linha.slice(0, corte).replace(/\s+$/, '');
+        _linhas.push(linha.slice(corte).replace(/^\s+/, ''));
+      }
+    }
+    if (_linhas.length > MAX) _linhas.splice(0, _linhas.length - MAX);
+    if (!t) return;
+    t.textContent = _linhas.join('\n');
+    t.scrollTop = t.scrollHeight;
+  }
+
+  function limpar() {
+    _linhas = [];
+    _aberta = false;
+    const t = el('cw-terminal');
+    if (t) t.textContent = 'Aguardando telegrafia...';
+  }
+
+  function tomAtual() {
+    const e = el('cw-tom');
+    const v = e ? Number(e.value) : 0;
+    return (v > 0 && v < 2500) ? v : 0;
+  }
+
+  function iniciar() {
+    fetch('/api/cw/start', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tom: tomAtual(), autoTom: tomAtual() === 0 })
+    }).catch(()=>{});
+  }
+  function parar() { fetch('/api/cw/stop', { method: 'POST' }).catch(()=>{}); }
+  function reiniciar() { parar(); setTimeout(iniciar, 250); }
+
+  function mostrar(d) {
+    const t = el('cw-status'), st = el('cw-stats');
+    if (!t) return;
+    const rodando = d && d.state === 'running';
+    t.textContent = rodando ? 'Rodando' : 'Parado';
+    t.style.color = rodando ? '#7CFC00' : '#ffaa00';
+    if (st) {
+      if (rodando && d) {
+        const tom = d.tom > 0 ? Math.round(d.tom) + ' Hz' : '—';
+        const ppm = d.ppm > 0 ? Math.round(d.ppm) + ' PPM' : '—';
+        st.textContent = 'tom ' + tom + ' | ' + ppm + ' | ' +
+                         (d.letras || 0) + ' letras | ' + (d.naoLidos || 0) + ' nao lidas';
+        // O tom medido volta para a caixa, como nos outros decodificadores.
+        if (d.tom > 0 && el('cw-tom') && Number(el('cw-tom').value) === 0)
+          el('cw-tom').placeholder = Math.round(d.tom);
+      } else st.textContent = '';
+    }
+  }
+
+  function pollStatus() {
+    fetch('/api/cw/status').then(r => r.json()).then(mostrar).catch(()=>{});
+  }
+
+  function init() {
+    limpar();
+    iniciar();
+    if (_pollTimer) clearInterval(_pollTimer);
+    _pollTimer = setInterval(pollStatus, 1000);
+  }
+
+  function onClose() {
+    if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+    parar();
+  }
+
+  return { buildPanelHTML, init, onClose, appendLine, appendTexto, limpar, reiniciar };
+})();
 
 const AnaliseDecoder = (() => {
   let _pollTimer = null;
@@ -10211,7 +10822,20 @@ const AprsDecoder = (() => {
   </div>
   <div style="padding:16px 18px;">
     <div id="gravarText" style="font-size:14px; line-height:1.5; margin-bottom:16px;">
-      Você pode fazer uma gravação de áudio da frequência atual em MP3.<br><br>Deseja iniciar uma gravação agora?
+      Você pode fazer uma gravação de áudio da frequência atual.<br><br>
+      <label style="display:block; margin:8px 0; cursor:pointer;">
+        <input type="radio" name="gravarFmt" value="wav" checked style="vertical-align:middle;">
+        <b>WAV</b> — sem perdas, para decodificar e analisar
+      </label>
+      <label style="display:block; margin:8px 0; cursor:pointer;">
+        <input type="radio" name="gravarFmt" value="mp3" style="vertical-align:middle;">
+        <b>MP3</b> — arquivo menor, para ouvir e compartilhar
+      </label>
+      <div style="font-size:11px; opacity:.75; margin-top:6px;">
+        O MP3 recomprime o som e mexe nas bordas de manipulação, que é justamente
+        o que os decodificadores medem. Para análise, prefira WAV.
+      </div>
+      <br>Deseja iniciar uma gravação agora?
     </div>
     <div id="gravarTimer" style="display:none; font-size:22px; font-weight:bold; text-align:center;
          margin-bottom:14px; color:#ff5252; letter-spacing:1px;">● 00:00</div>
@@ -10235,6 +10859,34 @@ const AprsDecoder = (() => {
 const RXRecorder = {
   recording:false, processor:null, encoder:null, parts:[], tapNode:null, ctx:null,
   startTime:0, timerId:null,
+  formato:'wav', pcm:[], pcmLen:0, taxa:48000,
+
+  // ---------------------------------------------------------------------
+  //  montaWav - junta as amostras guardadas num arquivo WAV
+  //
+  //  WAV nao tem compressao: e so um cabecalho de 44 bytes na frente das
+  //  amostras. Por isso nao precisa de biblioteca nenhuma - ao contrario do
+  //  MP3, que depende do lamejs.
+  // ---------------------------------------------------------------------
+  montaWav(){
+    const n = this.pcmLen, sr = this.taxa;
+    const buf = new ArrayBuffer(44 + n * 2);
+    const v = new DataView(buf);
+    const txt = (pos, str) => { for (let i = 0; i < str.length; i++) v.setUint8(pos + i, str.charCodeAt(i)); };
+    txt(0,'RIFF');  v.setUint32(4, 36 + n * 2, true);  txt(8,'WAVE');
+    txt(12,'fmt '); v.setUint32(16, 16, true);
+    v.setUint16(20, 1, true);          // PCM
+    v.setUint16(22, 1, true);          // mono
+    v.setUint32(24, sr, true);
+    v.setUint32(28, sr * 2, true);     // bytes por segundo
+    v.setUint16(32, 2, true);          // bytes por amostra
+    v.setUint16(34, 16, true);         // bits
+    txt(36,'data'); v.setUint32(40, n * 2, true);
+    let pos = 44;
+    for (const parte of this.pcm)
+      for (let i = 0; i < parte.length; i++, pos += 2) v.setInt16(pos, parte[i], true);
+    return new Blob([buf], {type:'audio/wav'});
+  },
   async start(){
     if (typeof AudioOut === 'undefined' || !AudioOut.init){ alert('Sistema de áudio indisponível.'); return false; }
     try { await AudioOut.init(); } catch(e){}
@@ -10242,12 +10894,18 @@ const RXRecorder = {
     // Ponto de captura: após filtros de tonalidade, antes do volume → grava em nível pleno
     const tap = AudioOut.highShelfFilter || AudioOut.gain;
     if (!ctx || !tap){ alert('Ligue o rádio (POWER) e ative o ÁUDIO antes de gravar.'); return false; }
-    if (typeof lamejs === 'undefined' || !lamejs.Mp3Encoder){ alert('Encoder MP3 (lame.min.js) não carregado.'); return false; }
+    const escolhido = document.querySelector('input[name="gravarFmt"]:checked');
+    this.formato = escolhido ? escolhido.value : 'wav';
+    if (this.formato === 'mp3' && (typeof lamejs === 'undefined' || !lamejs.Mp3Encoder)){
+      alert('Encoder MP3 (lame.min.js) não carregado. Grave em WAV.'); return false;
+    }
     if (ctx.state === 'suspended'){ try{ await ctx.resume(); }catch(e){} }
     this.ctx = ctx;
     const sr = ctx.sampleRate || 48000;
-    this.encoder = new lamejs.Mp3Encoder(1, sr, 128);
+    this.taxa = sr;
+    this.encoder = (this.formato === 'mp3') ? new lamejs.Mp3Encoder(1, sr, 128) : null;
     this.parts = [];
+    this.pcm = []; this.pcmLen = 0;
     const bufSize = 4096;
     this.processor = ctx.createScriptProcessor(bufSize, 1, 1);
     const self = this;
@@ -10259,8 +10917,15 @@ const RXRecorder = {
         let s = input[i]; if (s>1) s=1; else if (s<-1) s=-1;
         samples[i] = s < 0 ? s*0x8000 : s*0x7FFF;
       }
-      const buf = self.encoder.encodeBuffer(samples);
-      if (buf.length>0) self.parts.push(new Int8Array(buf));
+      if (self.formato === 'mp3'){
+        const buf = self.encoder.encodeBuffer(samples);
+        if (buf.length>0) self.parts.push(new Int8Array(buf));
+      } else {
+        // WAV: guardamos as amostras como vieram. Uma copia e obrigatoria -
+        // o navegador reaproveita o mesmo buffer no proximo quadro.
+        self.pcm.push(samples.slice(0));
+        self.pcmLen += samples.length;
+      }
       // saída silenciosa: evita eco/duplicação do áudio
       const out = e.outputBuffer.getChannelData(0); for (let i=0;i<out.length;i++) out[i]=0;
     };
@@ -10275,11 +10940,17 @@ const RXRecorder = {
     this.recording = false;
     try { this.tapNode && this.tapNode.disconnect(this.processor); } catch(e){}
     try { this.processor && this.processor.disconnect(); } catch(e){}
-    let end = null;
-    try { end = this.encoder ? this.encoder.flush() : null; } catch(e){}
-    if (end && end.length>0) this.parts.push(new Int8Array(end));
-    const blob = new Blob(this.parts, {type:'audio/mp3'});
+    let blob;
+    if (this.formato === 'mp3'){
+      let end = null;
+      try { end = this.encoder ? this.encoder.flush() : null; } catch(e){}
+      if (end && end.length>0) this.parts.push(new Int8Array(end));
+      blob = new Blob(this.parts, {type:'audio/mp3'});
+    } else {
+      blob = this.montaWav();
+    }
     this.processor=null; this.encoder=null; this.tapNode=null;
+    this.pcm=[]; this.pcmLen=0;
     return blob;
   }
 };
@@ -10331,7 +11002,7 @@ async function gravarStop(){
   const d=new Date();
   const pad=n=>String(n).padStart(2,'0');
   const stamp=d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+'_'+pad(d.getHours())+pad(d.getMinutes())+pad(d.getSeconds());
-  const fname='RXSDR_'+fMHz+'MHz_'+stamp+'.mp3';
+  const fname='RXSDR_'+fMHz+'MHz_'+stamp+'.'+(RXRecorder.formato||'wav');
   // envia ao servidor C++ → grava na Área de Trabalho
   let salvo=false, destino='';
   try {

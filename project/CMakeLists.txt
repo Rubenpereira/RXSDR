@@ -56,6 +56,8 @@ set(SOURCES
     src/decoders/AprsIsClient.cpp
     src/decoders/SitorBManager.cpp
     src/decoders/SitorBCore.cpp
+    src/decoders/CwCore.cpp
+    src/decoders/CwManager.cpp
     src/decoders/PactorManager.cpp
     src/decoders/DscManager.cpp
     src/decoders/DscCore.cpp
@@ -95,6 +97,8 @@ set(HEADERS
     src/decoders/AprsIsClient.h
     src/decoders/SitorBManager.h
     src/decoders/SitorBCore.h
+    src/decoders/CwCore.h
+    src/decoders/CwManager.h
     src/decoders/PactorManager.h
     src/decoders/DscCore.h
     src/decoders/AnaliseCore.h

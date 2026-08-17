@@ -63,6 +63,11 @@ public:
     std::function<QJsonObject(const QJsonObject&)>           onSitorBStart;
     std::function<QJsonObject()>                             onSitorBStop;
 
+    // CW / Morse - so o tom e configuravel; a velocidade e medida pelo nucleo
+    std::function<QJsonObject()>                             onCwStatus;
+    std::function<QJsonObject(const QJsonObject&)>           onCwStart;
+    std::function<QJsonObject()>                             onCwStop;
+
     // PACTOR Decoder (Pactor-I FSK)
     std::function<QJsonObject()>                             onPactorStatus;
     std::function<QJsonObject(const QJsonObject&)>           onPactorStart;

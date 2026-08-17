@@ -35,6 +35,8 @@
 !/GERAR_INSTALADOR_WIN7.bat
 !/LIMPAR_PROJETO.bat
 !/SUBIR_GITHUB.bat
+!/PUBLICAR_RELEASE.bat
+!/publicar_release.ps1
 
 # ---- 3) codigo-fonte -----------------------------------------------------
 !/project/

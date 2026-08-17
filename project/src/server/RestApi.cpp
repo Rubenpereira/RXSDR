@@ -313,6 +313,23 @@ void RestApi::install(QHttpServer* server)
             return QHttpServerResponse(r);
         });
 
+    // ── CW / Morse ────────────────────────────────────────────────────────
+    server->route("/api/cw/status", QHttpServerRequest::Method::Get, [this]() {
+        QJsonObject o = onCwStatus ? onCwStatus() : QJsonObject{{"state","unavailable"}};
+        return QHttpServerResponse(o);
+    });
+    server->route("/api/cw/start", QHttpServerRequest::Method::Post,
+        [this](const QHttpServerRequest& req) {
+            auto j = QJsonDocument::fromJson(req.body()).object();
+            QJsonObject r = onCwStart ? onCwStart(j)
+                                      : QJsonObject{{"ok",false},{"error","indisponivel"}};
+            return QHttpServerResponse(r);
+        });
+    server->route("/api/cw/stop", QHttpServerRequest::Method::Post, [this]() {
+        QJsonObject r = onCwStop ? onCwStop() : QJsonObject{{"ok",false},{"error","indisponivel"}};
+        return QHttpServerResponse(r);
+    });
+
     // ── Memorias (bookmarks) ──────────────────────────────────────────────
     // Formato IGUAL ao do OpenWebRX: lista de objetos com name, frequency,
     // modulation, underlying, description e scannable. Manter compativel

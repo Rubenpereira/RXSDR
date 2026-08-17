@@ -23,6 +23,7 @@
 #include "../decoders/AprsManager.h"
 #include "../decoders/AprsIsClient.h"
 #include "../decoders/SitorBManager.h"
+#include "../decoders/CwManager.h"
 #include "../decoders/PactorManager.h"
 #include "../decoders/DscManager.h"
 #include "../decoders/AnaliseManager.h"
@@ -37,6 +38,7 @@
 #include <QTimer>
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>   // std::llabs, usado na deteccao de VFO sobre o DC
 #include <complex>
 
 namespace masdr {
@@ -147,6 +149,25 @@ bool Application::start()
             QCoreApplication::quit();
         });
     }
+    // Entrega o audio em ritmo constante, numa thread que ninguem interrompe.
+    audioThread_ = new QThread(this);
+    audioThread_->setObjectName(QStringLiteral("audio-pace"));
+    audioPaceTimer_ = new QTimer();              // sem pai: vai mudar de thread
+    audioPaceTimer_->setInterval(20);
+    audioPaceTimer_->setTimerType(Qt::PreciseTimer);
+    audioPaceTimer_->moveToThread(audioThread_);
+
+    // O timer so pode ser iniciado de dentro da propria thread.
+    connect(audioThread_, &QThread::started, audioPaceTimer_,
+            QOverload<>::of(&QTimer::start));
+    // DirectConnection: a entrega roda NA thread do audio. Se fosse a
+    // conexao automatica, o trabalho voltaria para a fila da thread principal
+    // e o problema continuaria exatamente igual.
+    connect(audioPaceTimer_, &QTimer::timeout, this,
+            &Application::entregarAudioRitmado, Qt::DirectConnection);
+    connect(audioThread_, &QThread::finished, audioPaceTimer_, &QObject::deleteLater);
+    audioThread_->start();
+
     connect(ws_.get(), &WsServer::clientsChanged, this, [this](int count) {
         if (count > 0) {
             hadWsClient_ = true;
@@ -532,7 +553,7 @@ bool Application::start()
     });
     connect(dsdDeco_.get(), &DsdManager::decodedAudioReady, this, [this](const std::vector<int16_t>& pcm, uint32_t sps) {
         if (ws_) {
-            ws_->broadcastAudioThreadSafe(pcm, sps);
+            enviarAudioAoNavegador(pcm, sps);
         }
     });
 
@@ -681,6 +702,53 @@ bool Application::start()
         return r;
     };
 
+    // ── CW / Morse ─────────────────────────────────────────────────────────
+    cwDeco_ = std::make_unique<CwManager>(this);
+
+    connect(cwDeco_.get(), &CwManager::logLine, [this](const QString& line) {
+        Logger::info(line);
+        ws_->broadcastJson(QJsonObject{
+            {"t",       "dec_line"},
+            {"decoder", "CW"},
+            {"text",    line}
+        });
+    });
+
+    // O texto decodificado vai por um caminho proprio, marcado com "cont".
+    // A tela emenda esses pedacos na linha que ja esta la, em vez de comecar
+    // uma linha nova a cada um - e assim a letra aparece no momento em que e
+    // lida, como num terminal de telegrafia de verdade.
+    connect(cwDeco_.get(), &CwManager::textoFluxo, [this](const QString& pedaco) {
+        ws_->broadcastJson(QJsonObject{
+            {"t",       "dec_line"},
+            {"decoder", "CW"},
+            {"text",    pedaco},
+            {"cont",    true}
+        });
+    });
+
+    rest_->onCwStatus = [this]() { return cwDeco_->statusJson(); };
+
+    rest_->onCwStart = [this](const QJsonObject& j) -> QJsonObject {
+        CwManager::Params p;
+        // Tom 0 significa "meca sozinho". Em CW nao existe tom padrao: ele
+        // depende de onde o operador sintonizou.
+        p.tomHz   = static_cast<float>(j.value("tom").toDouble(0.0));
+        p.autoTom = (p.tomHz <= 0.0f) || j.value("autoTom").toBool(true);
+        cwDeco_->setParams(p);
+        cwDeco_->start();
+        QJsonObject r = cwDeco_->statusJson();
+        r["ok"] = (cwDeco_->state() == CwManager::State::Running);
+        return r;
+    };
+
+    rest_->onCwStop = [this]() -> QJsonObject {
+        cwDeco_->stop();
+        QJsonObject r = cwDeco_->statusJson();
+        r["ok"] = true;
+        return r;
+    };
+
     // ── PACTOR Decoder (Pactor-I FSK) ──────────────────────────────────────
     pactorDeco_ = std::make_unique<PactorManager>(this);
 
@@ -774,6 +842,8 @@ bool Application::start()
             dscDeco_->feedAudio(pcm, n, sps);
         else if (alvo == QLatin1String("ANALISE") && analiseDeco_)
             analiseDeco_->feedAudio(pcm, n, sps);
+        else if (alvo == QLatin1String("CW") && cwDeco_)
+            cwDeco_->feedAudio(pcm, n, sps);
         else
             return QJsonObject{{"ok",false},{"error","decoder desconhecido: " + alvo}};
 
@@ -866,7 +936,7 @@ bool Application::start()
             [this](const std::vector<int16_t>& pcm, uint32_t sps) {
         // Reproduz a voz TETRA decodificada (ACELP -> PCM 48 kHz) no navegador
         // pelo mesmo caminho do audio do radio.
-        if (ws_) ws_->broadcastAudioThreadSafe(pcm, sps);
+        enviarAudioAoNavegador(pcm, sps);
     });
 
     rest_->onTetraStatus = [this]() {
@@ -912,6 +982,20 @@ bool Application::start()
         o["quadrature"] = cfg.quadrature();
         o["qmode"] = cfg.qMode();
         o["sampleRate"] = static_cast<int>(cfg.sampleRate());
+
+        // ---- saude da producao de audio -------------------------------------
+        // 'audioFalta' e a diferenca, em milissegundos, entre o audio que
+        // DEVERIA ter sido produzido pelo relogio de parede e o que realmente
+        // saiu. Se crescer, o backend esta perdendo audio - e audio perdido e
+        // descontinuidade, ou seja, picote, mesmo sem o navegador falhar.
+        const int64_t t0 = audioT0_.load();
+        if (t0 > 0) {
+            const int64_t esperado = audioEsperadoMs_.load() * 48;   // 48 amostras por ms
+            o["audioFalta"]  = double(esperado - audioAmostras_.load()) / 48.0;
+            o["audioMaiorVao"] = audioMaiorVaoMs_.load();
+            o["audioVaos"]     = audioVaosGrandes_.load();
+        }
+        o["reconfigs"] = reconfigs_.load();
         return o;
     };
 
@@ -950,6 +1034,16 @@ bool Application::start()
 
 void Application::stop()
 {
+    // Para o relogio do audio ANTES de tudo. Se ele continuasse batendo
+    // enquanto o WebSocket e os decodificadores sao desmontados, ele acabaria
+    // usando algo ja destruido - e o programa fecharia com falha em vez de
+    // fechar limpo, que foi trabalho que ja tivemos aqui.
+    if (audioThread_) {
+        audioThread_->quit();
+        audioThread_->wait(1000);
+        audioPaceTimer_ = nullptr;   // apagado pelo sinal finished
+    }
+
     dcBlock_.reset();
     if (aisCatcher_) aisCatcher_->stop();
     if (acarsDeco_) acarsDeco_->stop();
@@ -982,6 +1076,7 @@ QString Application::frontendUrl() const
 void Application::applyConfigToDevice()
 {
     if (!device_) return;
+    reconfigs_.fetch_add(1);
     auto& cfg = Config::instance();
     // O modo escolhido pelo usuario decide: "off" nunca, "on" sempre, "auto"
     // liga abaixo de 24 MHz e desliga acima. A escolha nunca e sobrescrita no
@@ -1187,7 +1282,42 @@ void Application::wireDeviceCallback()
         // distorção severa (envelope sem portadora → detector produz frequência dobrada).
         // Em modo Low-IF o mesmo ocorre após o DDC interno da API. Por isso o bloqueador
         // de DC em software é desativado para o SDRplay.
-        if (deviceType_ != QStringLiteral("sdrplay")) {
+        const bool usaBloqueadorDc = (deviceType_ != QStringLiteral("sdrplay"));
+
+        // ---------------------------------------------------------------------
+        //  CAMINHOS SEPARADOS PARA A TELA E PARA O ÁUDIO
+        //
+        //  O bloqueador acima existe por causa da TELA: sem ele aparece o risco
+        //  do LO no meio da cachoeira. Só que o mesmo buffer alimentava também o
+        //  demodulador, e aí a observação do comentário do SDRplay vale para
+        //  QUALQUER rádio — inclusive o RTL-SDR: se o sinal sintonizado cair em
+        //  cima do centro, a portadora dele está em DC e o filtro a apaga.
+        //
+        //  Medido no próprio IirDcBlock, a 1,024 Msps: uma portadora AM exatamente
+        //  no centro perde 35 dB. A 1 kHz do centro perde 0,1 dB. Por isso o botão
+        //  ">.<", que põe o VFO exatamente no centro, fazia a estação sumir — e um
+        //  arrasto de nada na cachoeira a trazia de volta.
+        //
+        //  A saída não é escolher entre risco na tela e áudio: é usar cada coisa
+        //  onde ela serve. A tela continua com o bloqueador SEMPRE. O demodulador
+        //  recebe o sinal sem filtrar apenas quando o VFO está perto do centro,
+        //  que é o único caso em que o filtro atrapalha. Fora dessa faixa nada
+        //  muda em relação ao que já funcionava.
+        //
+        //  O limite é generoso de propósito: o corte do filtro fica em
+        //  fs/6283 (163 Hz a 1,024 Msps), e fs/500 é umas doze vezes isso.
+        // ---------------------------------------------------------------------
+        const int64_t desvioVfo = static_cast<int64_t>(vfoHz)
+                                - static_cast<int64_t>(dev->centerFreq());
+        const bool vfoSobreODc = usaBloqueadorDc
+            && std::llabs(desvioVfo) < static_cast<int64_t>(dev->sampleRate() / 500.0);
+
+        // Só existe quando o demodulador vai precisar dela - fora disso não se
+        // paga a cópia.
+        std::vector<std::complex<float>> semBloqueioDc;
+        if (vfoSobreODc) semBloqueioDc.assign(iq, iq + n);
+
+        if (usaBloqueadorDc) {
             for (size_t i = 0; i < n; ++i) {
                 work[i] = dcBlock_.process(work[i]);
             }
@@ -1199,9 +1329,14 @@ void Application::wireDeviceCallback()
             for (size_t i = 0; i < n; ++i) {
                 work[i] *= uiGain;
             }
+            for (size_t i = 0; i < semBloqueioDc.size(); ++i) {
+                semBloqueioDc[i] *= uiGain;
+            }
         }
 
         const std::complex<float>* src = work.data();
+        const std::complex<float>* srcDemod = vfoSobreODc ? semBloqueioDc.data()
+                                                          : work.data();
 
 
         // Encontra o pico de potência máxima linearmente (otimização de CPU crítica)
@@ -1246,7 +1381,7 @@ void Application::wireDeviceCallback()
 
         // Para o demodulador, aplica o deslocamento complexo de frequência (Software VFO / DDC offset tuning)
         std::vector<std::complex<float>> demodWork;
-        const std::complex<float>* demodSrc = src;
+        const std::complex<float>* demodSrc = srcDemod;
 
         {
             // Usa vfoHz capturado atomicamente no inicio do bloco (nao freqA_ diretamente)
@@ -1265,7 +1400,11 @@ void Application::wireDeviceCallback()
                 std::complex<float> nco(cosA, sinA);
 
                 for (size_t i = 0; i < n; ++i) {
-                    demodWork[i] = src[i] * nco;
+                    // srcDemod, nao src: quando o VFO esta a poucas centenas de
+                    // hertz do centro este ramo roda (fOffset != 0) e precisa do
+                    // sinal SEM o bloqueador de DC, senao a correcao valeria so
+                    // no centro exato e falharia justamente na borda do notch.
+                    demodWork[i] = srcDemod[i] * nco;
                     nco *= step;
                     
                     // Renormaliza a cada 1024 amostras para evitar deriva numerica
@@ -1315,6 +1454,100 @@ void Application::wireDeviceCallback()
     });
 }
 
+// ---------------------------------------------------------------------------
+//  enviarAudioAoNavegador - unico portao de saida do audio para a tela
+//
+//  Converte para 48000 Hz exatos. Antes cada bloco chegava ao navegador em
+//  51200 (ou 50000) Hz e ERA O NAVEGADOR quem reamostrava - um bloco de cada
+//  vez, sem memoria entre eles. Media: 49 emendas quebradas e 2 ms de atraso
+//  acumulado a cada 2 segundos de audio.
+//
+//  Os decodificadores nao passam por aqui de proposito: eles ja reamostram
+//  para a taxa que precisam, e uma interpolacao extra so somaria erro.
+// ---------------------------------------------------------------------------
+void Application::enviarAudioAoNavegador(const std::vector<int16_t>& pcm, uint32_t sps)
+{
+    if (!ws_ || pcm.empty() || sps == 0) return;
+
+    // ---- contabilidade: este lado produz em tempo real? -------------------
+    // O tempo esperado NAO pode ser o relogio desde o inicio.
+    //
+    // A primeira versao fazia isso, e por isso acusava perda onde nao havia:
+    // com o radio DESLIGADO o relogio corre e o audio nao e produzido, entao
+    // cada pausa do usuario entrava na conta como se fosse audio perdido.
+    // Testando com varios liga-desliga, a "perda" chegou a 5 segundos sem que
+    // uma unica amostra tivesse sido descartada.
+    //
+    // Agora somamos apenas os intervalos em que o audio estava FLUINDO: vaos
+    // acima de 2 s significam radio parado, nao perda, e ficam de fora.
+    const int64_t agora = QDateTime::currentMSecsSinceEpoch();
+    if (audioT0_.load() == 0) { audioT0_.store(agora); audioUltimo_.store(agora); }
+    else {
+        const int vao = int(agora - audioUltimo_.exchange(agora));
+        if (vao > audioMaiorVaoMs_.load()) audioMaiorVaoMs_.store(vao);
+        if (vao > 150) audioVaosGrandes_.fetch_add(1);
+        if (vao > 0 && vao < 2000) audioEsperadoMs_.fetch_add(vao);
+    }
+
+    // Nao envia: ENFILEIRA. Quem entrega e o temporizador, em ritmo constante.
+    std::lock_guard<std::mutex> lk(audioFilaMutex_);
+
+    if (sps == 48000) {                      // ja esta certo: passa direto
+        audioAmostras_.fetch_add(int64_t(pcm.size()));
+        audioFila48k_.insert(audioFila48k_.end(), pcm.begin(), pcm.end());
+    } else {
+        audioSaida48k_.clear();
+        audioResampler_.processa(pcm.data(), pcm.size(), sps, audioSaida48k_);
+        if (!audioSaida48k_.empty()) {
+            audioAmostras_.fetch_add(int64_t(audioSaida48k_.size()));
+            audioFila48k_.insert(audioFila48k_.end(),
+                                 audioSaida48k_.begin(), audioSaida48k_.end());
+        }
+    }
+
+    // Teto de 3 s. So chega aqui se o temporizador tiver parado de rodar - e
+    // nesse caso guardar mais nao ajuda ninguem, so atrasa.
+    while (audioFila48k_.size() > 48000 * 3) audioFila48k_.pop_front();
+}
+
+// ---------------------------------------------------------------------------
+//  entregarAudioRitmado - chamado pelo temporizador, a cada 20 ms
+//
+//  Manda so o que couber no tempo que passou desde a ultima vez. Assim uma
+//  rajada de IQ que produza 200 ms de audio de uma vez sai espalhada por 200
+//  ms de relogio, e o navegador recebe um fluxo em vez de solavancos.
+// ---------------------------------------------------------------------------
+void Application::entregarAudioRitmado()
+{
+    if (!ws_) return;
+    const int64_t agora = QDateTime::currentMSecsSinceEpoch();
+    if (audioPaceUltimo_ == 0) { audioPaceUltimo_ = agora; return; }
+
+    int64_t dt = agora - audioPaceUltimo_;
+    audioPaceUltimo_ = agora;
+    if (dt <= 0) return;
+    // Se o programa ficou parado (janela minimizada, travada longa), nao
+    // despeja tudo de uma vez - seria trocar uma rajada por outra.
+    if (dt > 500) dt = 500;
+
+    std::vector<int16_t> saida;
+    {
+        std::lock_guard<std::mutex> lk(audioFilaMutex_);
+        if (audioFila48k_.empty()) return;
+
+        size_t querem = size_t(dt * 48);          // 48 amostras por ms
+        // Fila crescendo: anda 50% mais rapido para devolver o atraso. Meio
+        // por cento de diferenca de ritmo e inaudivel; o atraso acumulado nao.
+        if (audioFila48k_.size() > 48000) querem += querem / 2;
+        if (querem > audioFila48k_.size()) querem = audioFila48k_.size();
+        if (querem == 0) return;
+
+        saida.assign(audioFila48k_.begin(), audioFila48k_.begin() + long(querem));
+        audioFila48k_.erase(audioFila48k_.begin(), audioFila48k_.begin() + long(querem));
+    }
+    ws_->broadcastAudioThreadSafe(saida, 48000);
+}
+
 void Application::handleAudioCallback(const std::vector<int16_t>& pcm, uint32_t sps)
 {
     if (pcm.empty()) return;
@@ -1338,7 +1571,7 @@ void Application::handleAudioCallback(const std::vector<int16_t>& pcm, uint32_t 
             // ja que o audio decodificado entra via decodedAudioReady
         } else {
             if (ws_) {
-                ws_->broadcastAudioThreadSafe(chunk, sps);
+                enviarAudioAoNavegador(chunk, sps);
             }
         }
 
@@ -1359,6 +1592,9 @@ void Application::handleAudioCallback(const std::vector<int16_t>& pcm, uint32_t 
         }
         if (analiseDeco_ && analiseDeco_->state() == AnaliseManager::State::Running) {
             analiseDeco_->feedAudio(chunk.data(), static_cast<int>(chunk.size()), sps);
+        }
+        if (cwDeco_ && cwDeco_->state() == CwManager::State::Running) {
+            cwDeco_->feedAudio(chunk.data(), static_cast<int>(chunk.size()), sps);
         }
         if (selcalDeco_ && selcalDeco_->state() == SelcalManager::State::Running) {
             selcalDeco_->feedAudio(chunk.data(), static_cast<int>(chunk.size()), sps);

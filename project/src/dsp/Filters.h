@@ -1,4 +1,5 @@
 #pragma once
+#include <cstdint>
 #include <vector>
 #include <complex>
 #include <cmath>
@@ -35,6 +36,80 @@ struct IirDcBlock {
     void reset() {
         prevRealX = prevRealY = 0.0f;
         prevImagX = prevImagY = 0.0f;
+    }
+};
+
+// ---------------------------------------------------------------------------
+//  Reamostrador para 48000 Hz exatos, COM ESTADO entre blocos.
+//
+//  Por que isto existe
+//  -------------------
+//  O audioDecimStep usa divisao inteira, entao a taxa de audio nunca cai em
+//  48000: a 1,024 e a 2,048 Msps da 51200 Hz; a 0,25 e 2,4 Msps da 50000. O
+//  navegador roda a 48000 e reamostrava cada bloco SOZINHO, sem memoria do
+//  bloco anterior.
+//
+//  Medido com um tom de 1 kHz, 2 segundos entregues em blocos de 2048:
+//
+//     com estado   95998 amostras (2,0000 s)  0 emendas quebradas
+//     por bloco    95900 amostras (1,9979 s)  49 emendas quebradas
+//
+//  Ou seja, 25 descontinuidades por segundo - a "travadinha" que se ouvia em
+//  qualquer banda, sem relacao com propagacao - mais 1 ms de atraso acumulado
+//  por segundo. Esse atraso e que fazia o relogio do agendador escorregar ate
+//  disparar o reset, abrindo os buracos de audio.
+//
+//  Interpolacao de Hermite (Catmull-Rom) sobre 4 amostras. O conteudo de audio
+//  vai ate uns 5 kHz contra 48 kHz de saida, entao nao ha risco de dobra; o
+//  que importa aqui e a CONTINUIDADE entre blocos, nao a ordem do polinomio.
+// ---------------------------------------------------------------------------
+struct Resampler48k {
+    static constexpr double kSaida = 48000.0;
+
+    double   pos = 0.0;          // posicao fracionaria dentro da entrada
+    float    h[4] = {0,0,0,0};   // janela deslizante que atravessa os blocos
+    bool     pronto = false;     // ja entraram as 4 primeiras amostras?
+    uint32_t taxaAnterior = 0;
+
+    void reset() {
+        pos = 0.0;
+        h[0] = h[1] = h[2] = h[3] = 0.0f;
+        pronto = false;
+    }
+
+    static float hermite(float y0, float y1, float y2, float y3, float t) {
+        const float c0 = y1;
+        const float c1 = 0.5f * (y2 - y0);
+        const float c2 = y0 - 2.5f * y1 + 2.0f * y2 - 0.5f * y3;
+        const float c3 = 0.5f * (y3 - y0) + 1.5f * (y1 - y2);
+        return ((c3 * t + c2) * t + c1) * t + c0;
+    }
+
+    // Acrescenta o resultado em 'saida'. Se a taxa de entrada mudar, o estado
+    // e zerado - continuar com a posicao antiga produziria um salto.
+    void processa(const int16_t* ent, size_t n, uint32_t taxaEntrada,
+                  std::vector<int16_t>& saida)
+    {
+        if (!ent || n == 0 || taxaEntrada == 0) return;
+        if (taxaEntrada != taxaAnterior) { reset(); taxaAnterior = taxaEntrada; }
+
+        const double passo = double(taxaEntrada) / kSaida;
+        saida.reserve(saida.size() + size_t(double(n) / passo) + 4);
+
+        for (size_t i = 0; i < n; ++i) {
+            h[0] = h[1]; h[1] = h[2]; h[2] = h[3];
+            h[3] = float(ent[i]) / 32768.0f;
+            if (!pronto) { if (i >= 3) pronto = true; else continue; }
+
+            while (pos < 1.0) {
+                float v = hermite(h[0], h[1], h[2], h[3], float(pos));
+                if (v >  1.0f) v =  1.0f;
+                if (v < -1.0f) v = -1.0f;
+                saida.push_back(int16_t(v * 32767.0f));
+                pos += passo;
+            }
+            pos -= 1.0;
+        }
     }
 };
 
