@@ -1126,6 +1126,22 @@ bool Application::applyConfigJson(const QJsonObject& j)
     const bool oldQuadrature = cfg.quadratureEm(freqA_.load());
     const int oldSampleRate = cfg.sampleRate();
     const bool oldBiasT = cfg.biasT();
+
+    // Guardamos tambem os parametros NAO estruturais, para saber depois se
+    // algum deles realmente mudou. Sem isso, todo POST em /api/config
+    // reprogramava o dongle mesmo quando nada tinha mudado - e a pagina manda
+    // as configuracoes salvas a cada vez que e aberta. Medido na caixa: dez
+    // reprogramacoes ao recarregar a pagina, cada uma um solavanco fisico no
+    // sinal. Com o radio DESLIGADO ninguem ouvia; com ele no ar, eram os
+    // "vinte picotes da abertura" que caçamos o dia inteiro.
+    const int  oldGain = cfg.gainTenths();
+    const bool oldAgc  = cfg.agc();
+    const int  oldPpm  = cfg.ppm();
+    const int  oldSpIfMode  = cfg.sdrplayIfMode();
+    const int  oldSpLna     = cfg.sdrplayLnaState();
+    const int  oldSpIfGain  = cfg.sdrplayIfGain();
+    const bool oldSpIfAgc   = cfg.sdrplayIfAgc();
+    const int  oldSpBw      = cfg.sdrplayBw();
     const int oldFftSize = cfg.fftSize();
 
     QString newType = j.contains("deviceType") ? j.value("deviceType").toString() : oldType;
@@ -1203,9 +1219,22 @@ bool Application::applyConfigJson(const QJsonObject& j)
     if (deviceChanged && !newType.isEmpty() && rest_->onSelectDevice) {
         rest_->onSelectDevice(newType, newSerial);
     } else {
-        // Se caímos aqui, os parâmetros alterados não foram estruturais (como ganho manual, AGC e PPM)
-        // e podem ser aplicados em tempo real na mesma transmissão sem interromper o stream.
-        applyConfigToDevice();
+        // Parametros nao estruturais - ganho, AGC, PPM e os do SDRplay - podem
+        // ser aplicados na mesma transmissao. Mas SO se algum tiver mudado de
+        // verdade: reprogramar o dongle a toa produz um solavanco audivel, e
+        // era exatamente o que acontecia a cada carregamento da pagina.
+        auto& c = Config::instance();
+        const bool mexeuNoHardware =
+               c.gainTenths()      != oldGain
+            || c.agc()             != oldAgc
+            || c.ppm()             != oldPpm
+            || c.sdrplayIfMode()   != oldSpIfMode
+            || c.sdrplayLnaState() != oldSpLna
+            || c.sdrplayIfGain()   != oldSpIfGain
+            || c.sdrplayIfAgc()    != oldSpIfAgc
+            || c.sdrplayBw()       != oldSpBw;
+
+        if (mexeuNoHardware) applyConfigToDevice();
     }
 
     Config::instance().sync();
