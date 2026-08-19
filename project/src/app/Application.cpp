@@ -280,7 +280,19 @@ bool Application::start()
             device_->setGain(Config::instance().agc() ? -1 : Config::instance().gainTenths());
         }
         wireDeviceCallback();
-        if (powerOn_) device_->start();
+    // ---- aquecimento: engole o comeco do fluxo ----------------------------
+    //
+    // Os primeiros instantes depois do read_async vem irregulares: as entregas
+    // de IQ ainda nao pegaram ritmo e o AGC do proprio RTL2832U esta buscando
+    // o ponto. Medido nesta caixa em 19/08/2026: o contador de vaos acusava
+    // paradas acima de 150 ms na producao de audio logo apos ligar, e era isso
+    // que se ouvia como os picotes da abertura - nao buffer, nao rede.
+    //
+    // Descartar o inicio e o que fazem os programas de SDR maduros. Meio
+    // segundo nao se percebe ao ligar o radio; os estalos, sim.
+        if (powerOn_) {
+            ligarComAquecimento();
+        }
         Logger::info(QString("Dispositivo selecionado: %1 (%2)").arg(type, deviceSerial_));
         out.insert("ok", true);
         out.insert("serial", deviceSerial_);
@@ -428,7 +440,9 @@ bool Application::start()
             } else {
                 device_->setGain(cfg.agc() ? -1 : cfg.gainTenths());
             }
-            device_->start();
+            // Mesmo aquecimento do caminho de selecao de dispositivo: o comeco
+            // do fluxo vem irregular e nao deve virar som.
+            ligarComAquecimento();
         } else {
             device_->stop();
             {
@@ -1536,7 +1550,20 @@ void Application::enviarAudioAoNavegador(const std::vector<int16_t>& pcm, uint32
 
     // Teto de 3 s. So chega aqui se o temporizador tiver parado de rodar - e
     // nesse caso guardar mais nao ajuda ninguem, so atrasa.
-    while (audioFila48k_.size() > 48000 * 3) audioFila48k_.pop_front();
+    // Meio segundo, nao tres.
+    //
+    // Tres segundos de audio guardado nao sao folga, sao divida. Enquanto
+    // ninguem esta ouvindo - o navegador so liga o audio quando o usuario
+    // manda - esta fila enche ate o teto e passa a descartar do inicio. Cada
+    // descarte e um DEGRAU na forma de onda: um clique, sem buraco nenhum no
+    // tempo. Era por isso que o contador de faltas do navegador marcava zero
+    // enquanto se ouviam quase vinte estalos na abertura.
+    //
+    // E a mesma licao das filas do rtl_tcp: em radio ao vivo, sinal velho nao
+    // vale nada, e guarda-lo so transforma um solavanco curto num defeito
+    // longo. Meio segundo cobre um engasgo do sistema operacional e nao da
+    // tempo de acumular divida.
+    while (audioFila48k_.size() > 48000 / 2) audioFila48k_.pop_front();
 }
 
 // ---------------------------------------------------------------------------
@@ -1546,14 +1573,75 @@ void Application::enviarAudioAoNavegador(const std::vector<int16_t>& pcm, uint32
 //  rajada de IQ que produza 200 ms de audio de uma vez sai espalhada por 200
 //  ms de relogio, e o navegador recebe um fluxo em vez de solavancos.
 // ---------------------------------------------------------------------------
+void Application::ligarComAquecimento()
+{
+    if (!device_) return;
+
+    const int64_t agora = QDateTime::currentMSecsSinceEpoch();
+    const uint64_t alvo = freqA_.load();
+    auto& cfg = Config::instance();
+
+    // ---- caso simples: acima de 24 MHz o tuner faz o caminho normal --------
+    if (alvo >= 24000000ULL) {
+        audioLiberadoEm_.store(agora + 500);
+        reiniciarRitmoAudio();
+        device_->start();
+        return;
+    }
+
+    // ---- abaixo de 24 MHz: aquece em VHF e so entao desce -----------------
+    //
+    // Medido no ar em 19/08/2026, nas duas caixas: ligar o radio JA em HF
+    // produz de 4 a 8 estalos nos primeiros segundos; ligar acima de 24 MHz
+    // nao produz nenhum. O modo Q escolhido nao muda isso - o que pesa e a
+    // frequencia em que o fluxo COMECA, porque abaixo de 24 MHz o dongle parte
+    // direto em amostragem direta, com o tuner fora do caminho e o AGC interno
+    // do RTL2832U ainda procurando o ponto.
+    //
+    // A saida e dar ao dongle o comeco de que ele gosta: o fluxo sobe em modo
+    // tuner, numa frequencia segura, e um segundo depois desce para onde o
+    // operador quer. O audio fica mudo durante toda a manobra, entao nada
+    // disso se ouve - so se percebe que o som entra um segundo mais tarde.
+    const uint64_t seguro = 27000000ULL;
+
+    audioLiberadoEm_.store(agora + 1400);   // silencio por toda a manobra
+    reiniciarRitmoAudio();
+
+    device_->setQuadrature(false);          // caminho do tuner
+    device_->setCenterFreq(seguro);
+    device_->start();
+    Logger::info(QString("Aquecimento: fluxo iniciado em %1 Hz; desce para %2 Hz em 900 ms")
+                     .arg(seguro).arg(alvo));
+
+    QTimer::singleShot(900, this, [this, alvo]() {
+        if (!device_) return;
+        auto& c = Config::instance();
+        device_->setQuadrature(c.quadratureEm(alvo));
+        device_->setCenterFreq(alvo);
+        // O driver reseta o ganho ao mudar a frequencia central.
+        if (deviceType_ != QStringLiteral("sdrplay"))
+            device_->setGain(c.agc() ? -1 : c.gainTenths());
+        reiniciarRitmoAudio();              // joga fora o que saiu do aquecimento
+        Logger::info(QString("Aquecimento concluido: sintonizado em %1 Hz").arg(alvo));
+    });
+}
+
+void Application::reiniciarRitmoAudio()
+{
+    audioPaceUltimo_.store(0);
+    audioT0_.store(0);
+    audioUltimo_.store(0);
+    std::lock_guard<std::mutex> lk(audioFilaMutex_);
+    audioFila48k_.clear();
+}
+
 void Application::entregarAudioRitmado()
 {
     if (!ws_) return;
     const int64_t agora = QDateTime::currentMSecsSinceEpoch();
-    if (audioPaceUltimo_ == 0) { audioPaceUltimo_ = agora; return; }
+    if (audioPaceUltimo_.load() == 0) { audioPaceUltimo_.store(agora); return; }
 
-    int64_t dt = agora - audioPaceUltimo_;
-    audioPaceUltimo_ = agora;
+    int64_t dt = agora - audioPaceUltimo_.exchange(agora);
     if (dt <= 0) return;
     // Se o programa ficou parado (janela minimizada, travada longa), nao
     // despeja tudo de uma vez - seria trocar uma rajada por outra.
@@ -1567,7 +1655,11 @@ void Application::entregarAudioRitmado()
         size_t querem = size_t(dt * 48);          // 48 amostras por ms
         // Fila crescendo: anda 50% mais rapido para devolver o atraso. Meio
         // por cento de diferenca de ritmo e inaudivel; o atraso acumulado nao.
-        if (audioFila48k_.size() > 48000) querem += querem / 2;
+        // Limiar coerente com o teto acima: se a fila passar de um quarto de
+        // segundo, anda 50% mais rapido para devolver o atraso. Com o teto
+        // antigo de 3 s este limiar de 1 s quase nunca era alcancado antes do
+        // descarte - ou seja, o descarte agia primeiro, que era o pior dos dois.
+        if (audioFila48k_.size() > 48000 / 4) querem += querem / 2;
         if (querem > audioFila48k_.size()) querem = audioFila48k_.size();
         if (querem == 0) return;
 
@@ -1580,6 +1672,15 @@ void Application::entregarAudioRitmado()
 void Application::handleAudioCallback(const std::vector<int16_t>& pcm, uint32_t sps)
 {
     if (pcm.empty()) return;
+
+    // Aquecimento: nos primeiros 500 ms depois de ligar, o audio e descartado
+    // em silencio. Zera-se tambem a contabilidade de vaos, senao o proprio
+    // periodo de aquecimento apareceria no rodape como se fosse defeito.
+    if (QDateTime::currentMSecsSinceEpoch() < audioLiberadoEm_.load()) {
+        audioT0_.store(0);
+        audioUltimo_.store(0);
+        return;
+    }
 
     std::lock_guard<std::mutex> lk(audioBufferMutex_);
     audioBuffer_.insert(audioBuffer_.end(), pcm.begin(), pcm.end());

@@ -106,7 +106,9 @@ private:
     QTimer*                 audioPaceTimer_ = nullptr;
     std::mutex              audioFilaMutex_;
     std::deque<int16_t>     audioFila48k_;
-    int64_t                 audioPaceUltimo_ = 0;
+    // Atomico porque e escrito na thread do temporizador de audio e zerado
+    // pela thread que atende o liga/desliga.
+    std::atomic<int64_t>    audioPaceUltimo_{0};
 
     // Contabilidade da PRODUCAO de audio. O navegador ja foi inocentado -
     // worklet ligado, zero faltas, zero mutes, zero descartes - e mesmo assim
@@ -130,6 +132,21 @@ private:
     // freqA_ é lido na thread do callback librtlsdr E escrito na thread HTTP
     // (onTune). Deve ser atômico para evitar data race.
     std::atomic<uint64_t> freqA_{14250000ULL};
+    // Instante a partir do qual o audio pode sair. Serve para engolir o
+    // comeco do fluxo do dongle, que chega irregular - ver aquecimentoMs().
+    std::atomic<int64_t> audioLiberadoEm_{0};
+
+    // Zera o ritmo e joga fora o audio da sessao anterior. Sem isto, o primeiro
+    // tique do temporizador depois de ligar calcula um intervalo enorme (o
+    // tempo em que o radio ficou desligado), corta em 500 ms e despeja meio
+    // segundo de audio VELHO de uma vez - no exato instante em que tudo esta
+    // comecando.
+    void reiniciarRitmoAudio();
+
+    // Liga o fluxo do dongle sempre pelo caminho do tuner (acima de 24 MHz) e,
+    // so depois que ele estabiliza, desce para a frequencia real. Ver a
+    // implementacao para o porque.
+    void ligarComAquecimento();
     std::atomic<uint32_t> bwHz_{3000};
     QString deviceType_ = "none";
     QString deviceSerial_;

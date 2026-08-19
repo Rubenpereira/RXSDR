@@ -1,5 +1,22 @@
 # Histórico de mudanças
 
+## 1.0.44
+
+- **Botão AUTO da cachoeira agora reproduz o seu padrão em qualquer banda.**
+  Antes ele media o espectro do momento e devolvia um resultado diferente a
+  cada clique, conforme o ruído e os sinais do instante. Agora ele mede o piso
+  de ruído da banda em que você está e recalcula Range e Brilho para que a
+  imagem fique com a **mesma aparência** do padrão guardado — os números nos
+  controles serão outros, e é isso mesmo que se quer, porque cada banda tem um
+  piso de ruído diferente. Em 40 m a cor fica boa e em 20 m a mesma escala
+  clareia; agora não clareia mais.
+- **Botão PADRÃO**, ao lado do AUTO. Deixe a cachoeira do jeito que você gosta
+  e clique uma vez: aquela aparência passa a ser o alvo do AUTO em todas as
+  bandas. O que se guarda é a *relação* entre o piso de ruído e a escala de
+  cores, não os números — por isso funciona onde o ruído é outro.
+- A cachoeira abre com Range 53 e Brilho 106, e o AUTO leva ao mesmo lugar:
+  abrir o programa e clicar no AUTO passam a ter o mesmo resultado.
+
 ## 1.0.41
 
 - **Idioma português e inglês**, com botão no cabeçalho. Na primeira abertura

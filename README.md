@@ -13,6 +13,12 @@ Feito por **PU1XTB — Ruben**, radioamador e radioescuta, em Araruama/RJ.
 - Recepção em **AM, FM, NFM, WFM, USB, LSB e CW**
 - **Espectro e cachoeira** com paleta Eclipse e média de espectros, o mesmo
   tratamento usado pelo OpenWebRX+ (o piso de ruído fica liso em vez de tremer)
+- **Cor da cachoeira que se ajusta sozinha a cada banda.** Deixe a imagem do
+  jeito que você gosta e clique em **PADRÃO**; a partir daí o botão **AUTO**
+  reproduz aquela mesma aparência em qualquer frequência. Ele mede o piso de
+  ruído local e recalcula os controles — os números mudam, a imagem não. É a
+  diferença entre uma cor que serve para a banda em que foi ajustada e uma cor
+  que serve para todas.
 - **S-meter analógico**, controle de ganho de RF, squelch, AGC e filtro de tom
 - **Decodificadores digitais**: DMR, P25, NXDN, D-Star, TETRA, ACARS, APRS
   e **AIS** (embarcações, com MMSI clicável para VesselFinder/MarineTraffic)

@@ -1100,7 +1100,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       </div>
     </div>
     <div style="flex:1"></div>
-    <div class="item" style="color:var(--accent-lcd)">RXSDR v1.0.41</div>
+    <div class="item" style="color:var(--accent-lcd)">RXSDR v1.0.44</div>
   </div>
 
   <!-- =============================== TOPO =============================== -->
@@ -1143,7 +1143,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
             <div class="step-opt" data-hz="1000000">1 MHz</div>
           </div>
         </div>
-        <button id="centerBtn" title="Centralizar sinal e VFO no centro do espectro">&gt;.&lt;</button><button id="autoBtn">AUTO</button>
+        <button id="centerBtn" title="Centralizar sinal e VFO no centro do espectro">&gt;.&lt;</button><button id="autoBtn" title="Ajusta a cor desta banda para ficar igual ao padrao guardado">AUTO</button><button id="padraoBtn" title="Guarda a cor que esta na tela agora como padrao para todas as bandas">PADR&Atilde;O</button>
       </div>
     </div>
 
@@ -1359,7 +1359,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       <span class="cell" id="wfInfoAudio" style="color:#7fb0ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1"
             title="Saude do audio: folga do buffer, maior intervalo entre pacotes e quantas vezes faltou audio para tocar.">Audio: —</span>
       <span class="spacer"></span>
-      <span class="cell key">RXSDR V1.0.41</span>
+      <span class="cell key">RXSDR V1.0.44</span>
     </div>
   </div>
 
@@ -2525,8 +2525,8 @@ function qEfetivoAgora() {
 
 let qModeActive = false;  // true = amostragem direta valendo agora
 // Estado dinâmico da cachoeira — Eclipse / OpenWebRX+
-let wfRefLevel = (86 - 100) * 0.5;  // = -7.0  (brilho padrão AUTO = 86)
-let wfRange    = 58.0;               // range padrão AUTO = 58 dB
+let wfRefLevel = (106 - 100) * 0.5;  // = 3.0  (brilho de abertura = 106)
+let wfRange    = 53.0;               // range de abertura = 53 dB
 let wfContrast = 40;    // valor bruto -50..100 (0=neutro, 100=max contraste); padrão AUTO=40
 let wfSmooth   = null;
 
@@ -2564,7 +2564,7 @@ function updateAutoBtnVisual() {
 // AQUI, antes de qualquer uso: 'const' nao e icado como 'function', e usar a
 // constante antes da declaracao lanca ReferenceError - o que derrubava todo o
 // script e deixava o radio sem ligar.
-const WF_ABRIR_RANGE  = 50;
+const WF_ABRIR_RANGE  = 53;
 const WF_ABRIR_BRILHO = 106;
 
 function aplicarAberturaCachoeira(){
@@ -2642,6 +2642,102 @@ function autoAjustarNiveis(){
   wfSmooth   = null;
   waterfallAutoEnabled = true;
   updateAutoBtnVisual();
+  return true;
+}
+
+// ── AUTO relativo ao piso de ruido ──────────────────────────────────────────
+//
+// O problema: numeros fixos de Range e Brilho so ficam bons na banda em que
+// foram ajustados. Em 40m o piso de ruido esta num nivel, em 20m noutro, e a
+// mesma escala de cores clareia ou escurece a cachoeira sozinha.
+//
+// A solucao e guardar a RELACAO em vez dos numeros. O que faz a imagem parecer
+// a mesma sao duas grandezas: a largura da janela (Range) e a distancia entre
+// o piso de ruido e o topo da escala. Guardadas essas duas, o AUTO mede o piso
+// na banda em que voce esta e recalcula Range e Brilho para reproduzir a MESMA
+// aparencia - com numeros diferentes.
+
+const WF_CAL_CHAVE_ACIMA = 'rxsdr_wf_acima_piso';
+const WF_CAL_CHAVE_RANGE = 'rxsdr_wf_range_cal';
+
+// Ate calibrar, um ponto de partida: topo 45 dB acima do piso, com a janela de
+// abertura. Deixa o ruido no terco de baixo da escala e os sinais no ambar.
+let wfAcimaPiso = Number(localStorage.getItem(WF_CAL_CHAVE_ACIMA));
+if (!isFinite(wfAcimaPiso) || wfAcimaPiso === 0) wfAcimaPiso = 45;
+let wfRangeCal = Number(localStorage.getItem(WF_CAL_CHAVE_RANGE));
+if (!isFinite(wfRangeCal) || wfRangeCal <= 0) wfRangeCal = WF_ABRIR_RANGE;
+
+/**
+ * Piso de ruido do que esta na tela, em dB.
+ *
+ * Usa o percentil 25 e nao o minimo: o minimo se apoia num unico ponto e
+ * qualquer buraco do espectro o puxa para baixo. E nao usa o maximo em lugar
+ * nenhum - uma unica portadora forte mudaria toda a escala, que era por que o
+ * AUTO antigo dava um resultado diferente a cada clique.
+ */
+function medirPisoRuido(){
+  const bins = (typeof fftData !== 'undefined' && fftData) ? fftData.length : 0;
+  if (!bins) return null;
+
+  // Mesma janela de medicao do AUTO antigo: o que esta visivel (respeita o
+  // zoom), cortando 10% de cada ponta, onde fica a queda do filtro do dongle.
+  const zoomVal = Number(document.getElementById('zoomSlider')?.value || 0);
+  const zoomFactor = 1.0 + zoomVal;
+  const visibleBins = Math.max(2, Math.round(bins / zoomFactor));
+  const visIni = Math.max(0, Math.floor((bins - visibleBins) / 2));
+  const visFim = Math.min(bins, visIni + visibleBins);
+  const ini = Math.max(visIni, Math.floor(bins * 0.10));
+  const fim = Math.min(visFim, Math.ceil(bins * 0.90));
+  if (fim - ini < 8) return null;
+
+  const v = [];
+  for (let i = ini; i < fim; i++){
+    const x = fftData[i];
+    if (isFinite(x)) v.push(x);
+  }
+  if (v.length < 8) return null;
+  v.sort((a, b) => a - b);
+  return v[Math.floor(v.length * 0.25)];
+}
+
+/** AUTO: reproduz na banda atual a aparencia que foi guardada. */
+function aplicarAutoRelativo(){
+  const piso = medirPisoRuido();
+  if (piso === null) return false;
+
+  const topo   = piso + wfAcimaPiso;
+  const brilho = Math.max(0, Math.min(200, Math.round(topo * 2 + 100)));
+  const range  = Math.max(20, Math.min(120, Math.round(wfRangeCal)));
+
+  applyingWaterfallAuto = true;
+  setSliderAutoValue('rangeSlider', range);
+  setSliderAutoValue('brightnessSlider', brilho);
+  applyingWaterfallAuto = false;
+
+  wfRange    = range;
+  wfRefLevel = (brilho - 100) * 0.5;
+  wfSmooth   = null;
+  waterfallAutoEnabled = true;
+  updateAutoBtnVisual();
+  return true;
+}
+
+/**
+ * PADRAO: aprende a imagem que esta na tela agora como referencia.
+ *
+ * Guarda a distancia do topo ao piso e a largura da janela. Dai em diante o
+ * AUTO reproduz esta mesma aparencia em qualquer banda. Fica no localStorage,
+ * entao sobrevive a recarregar a pagina.
+ */
+function calibrarCachoeira(){
+  const piso = medirPisoRuido();
+  if (piso === null) return false;
+  wfAcimaPiso = wfRefLevel - piso;
+  wfRangeCal  = wfRange;
+  try {
+    localStorage.setItem(WF_CAL_CHAVE_ACIMA, String(wfAcimaPiso));
+    localStorage.setItem(WF_CAL_CHAVE_RANGE, String(wfRangeCal));
+  } catch(e){}
   return true;
 }
 
@@ -3144,7 +3240,14 @@ registerProcessor('rxsdr-player', RxsdrPlayer);
         URL.revokeObjectURL(url);
         this.worklet = new AudioWorkletNode(this.ctx, 'rxsdr-player', {
           numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [1],
-          processorOptions: { latencia: 0.18 }
+          // Nasce com folga LARGA (600 ms), nao com 180. A abertura e o pior
+          // momento do programa: a thread principal esta carregando memorias e
+          // desenhando tudo pela primeira vez, e e ela que entrega o audio. Um
+          // amortecedor de 180 ms nao sobrevive a isso - e como a folga so
+          // crescia depois de levar o solavanco, cada aumento custava um
+          // estalo. Eram os 17 picotes da abertura: o preco de aprender
+          // falhando. Comeca larga e desce depois, quando a medicao permitir.
+          processorOptions: { latencia: 0.60 }
         });
         this.worklet.port.onmessage = (ev) => {
           const d = ev.data; if (!d) return;
@@ -3372,13 +3475,31 @@ registerProcessor('rxsdr-player', RxsdrPlayer);
       // Agora a folga acompanha o maior intervalo ja observado, com 60% de
       // margem. Ela so SOBE - baixar seria convidar a falta de volta - e para
       // em 700 ms, que ainda e resposta aceitavel ao girar o VFO.
+      if (this._alvoMs === undefined) this._alvoMs = 600;
+
+      // A folga so SOBE durante o funcionamento: baixar por conta propria seria
+      // convidar a falta de volta.
       if (this.worklet && d.maiorGap > 0) {
         const alvoMs = Math.min(700, Math.max(180, Math.round(d.maiorGap * 1.6)));
-        if (alvoMs > (this._alvoMs || 180) + 20) {
+        if (alvoMs > this._alvoMs + 20) {
           this._alvoMs = alvoMs;
           this.worklet.port.postMessage({ cmd: 'latencia', valor: alvoMs / 1000 });
         }
       }
+
+      // NAO EXISTE DESCIDA, e isso e deliberado.
+      //
+      // Eu tinha programado uma: aos 12 s a folga cairia para o que a medicao
+      // calma justificasse, para o VFO responder mais rapido. Era receio meu,
+      // sem medida. As duas caixas mostraram o contrario no mesmo dia:
+      //
+      //   VHF  folga 600, ocupacao 584-620 ms (estavel)  ->  7 estalos
+      //   HF   folga 180, ocupacao 141-641 ms (oscilando) -> 18 estalos
+      //
+      // A entrega de audio chega em rajadas, e a ocupacao balanca centenas de
+      // milissegundos. Uma folga de 180 ms vive raspando o fundo. Melhor meio
+      // segundo de atraso constante do que estalo - ninguem sintoniza contando
+      // milissegundos, mas todo mundo escuta um corte.
     }
     this.init().then(()=>{
       if (!this.ctx || !this.gain) return;
@@ -5225,11 +5346,30 @@ document.getElementById('brightnessSlider')?.addEventListener('input', e=>{
     updateAutoBtnVisual();
   }
 
-  // clique: mede o espectro atual e encaixa as cores nele (igual ao
-  // OpenWebRX+). Se ainda nao chegou espectro, cai nos padroes da banda.
+  // Clique: reproduz o padrao guardado NESTA banda.
+  //
+  // Nao aplica numeros fixos. Mede o piso de ruido do momento e recalcula
+  // Range e Brilho para que a imagem fique com a mesma aparencia do padrao -
+  // os numeros nos sliders serao outros, e e isso mesmo que se quer, porque
+  // cada banda tem um piso de ruido diferente.
+  //
+  // O padrao vem do botao PADRAO ao lado. A funcao autoAjustarNiveis(), do
+  // comportamento antigo, continua definida acima mas nao e mais chamada.
   autoBtn.addEventListener('click', ()=>{
-    if (!autoAjustarNiveis()) applyWaterfallAutoDefaults();
+    // Se ainda nao chegou espectro para medir, cai nos valores de abertura.
+    if (!aplicarAutoRelativo()) aplicarAberturaCachoeira();
   });
+
+  // Botao PADRAO: fotografa a imagem atual e passa a ser o alvo do AUTO.
+  const padraoBtn = document.getElementById('padraoBtn');
+  if (padraoBtn) {
+    padraoBtn.addEventListener('click', ()=>{
+      const texto = padraoBtn.textContent;
+      const ok = calibrarCachoeira();
+      padraoBtn.textContent = ok ? 'OK' : 'SEM SINAL';
+      setTimeout(()=>{ padraoBtn.textContent = texto; }, 1200);
+    });
+  }
 
   // qualquer alteracao manual apaga a luz; o clique AUTO reativa.
   Object.keys(getWaterfallAutoDefaults()).forEach(id=>{
@@ -5245,9 +5385,8 @@ document.getElementById('brightnessSlider')?.addEventListener('input', e=>{
   // Brilho 96. Estes 50 e 106 foram ajustados na mao, no ar, ate a imagem
   // ficar como o operador quer - entao sao eles que valem na abertura.
   //
-  // Isto NAO mexe no botao AUTO: ele continua medindo o espectro do momento,
-  // que e o comportamento certo para encaixar a escala num sinal especifico.
-  // Aqui e so o ponto de partida de quem acabou de abrir o software.
+  // Estes mesmos valores sao o que o botao AUTO aplica, de proposito: abrir o
+  // software e clicar no AUTO levam exatamente ao mesmo lugar.
   aplicarAberturaCachoeira();
 })();
 
