@@ -1,6 +1,6 @@
 # Histórico de mudanças
 
-## 1.0.44
+## 1.0.45
 
 - **Botão AUTO da cachoeira agora reproduz o seu padrão em qualquer banda.**
   Antes ele media o espectro do momento e devolvia um resultado diferente a

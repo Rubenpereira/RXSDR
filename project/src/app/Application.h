@@ -143,10 +143,6 @@ private:
     // comecando.
     void reiniciarRitmoAudio();
 
-    // Liga o fluxo do dongle sempre pelo caminho do tuner (acima de 24 MHz) e,
-    // so depois que ele estabiliza, desce para a frequencia real. Ver a
-    // implementacao para o porque.
-    void ligarComAquecimento();
     std::atomic<uint32_t> bwHz_{3000};
     QString deviceType_ = "none";
     QString deviceSerial_;

@@ -291,7 +291,16 @@ bool Application::start()
     // Descartar o inicio e o que fazem os programas de SDR maduros. Meio
     // segundo nao se percebe ao ligar o radio; os estalos, sim.
         if (powerOn_) {
-            ligarComAquecimento();
+            // Aquecimento curto: descarta o comeco do fluxo, que chega
+            // irregular enquanto o dongle pega ritmo. Nao mexe na sintonia -
+            // a versao que trocava de frequencia para "nascer" acima de 24 MHz
+            // foi retirada em 19/08/2026: ela deixava o dispositivo numa
+            // frequencia diferente da que a tela mostrava por quase um
+            // segundo, e a interface reagia a essa divergencia desligando o
+            // radio ao abrir um decodificador.
+            audioLiberadoEm_.store(QDateTime::currentMSecsSinceEpoch() + 500);
+            reiniciarRitmoAudio();
+            device_->start();
         }
         Logger::info(QString("Dispositivo selecionado: %1 (%2)").arg(type, deviceSerial_));
         out.insert("ok", true);
@@ -442,7 +451,16 @@ bool Application::start()
             }
             // Mesmo aquecimento do caminho de selecao de dispositivo: o comeco
             // do fluxo vem irregular e nao deve virar som.
-            ligarComAquecimento();
+            // Aquecimento curto: descarta o comeco do fluxo, que chega
+            // irregular enquanto o dongle pega ritmo. Nao mexe na sintonia -
+            // a versao que trocava de frequencia para "nascer" acima de 24 MHz
+            // foi retirada em 19/08/2026: ela deixava o dispositivo numa
+            // frequencia diferente da que a tela mostrava por quase um
+            // segundo, e a interface reagia a essa divergencia desligando o
+            // radio ao abrir um decodificador.
+            audioLiberadoEm_.store(QDateTime::currentMSecsSinceEpoch() + 500);
+            reiniciarRitmoAudio();
+            device_->start();
         } else {
             device_->stop();
             {
@@ -1573,59 +1591,6 @@ void Application::enviarAudioAoNavegador(const std::vector<int16_t>& pcm, uint32
 //  rajada de IQ que produza 200 ms de audio de uma vez sai espalhada por 200
 //  ms de relogio, e o navegador recebe um fluxo em vez de solavancos.
 // ---------------------------------------------------------------------------
-void Application::ligarComAquecimento()
-{
-    if (!device_) return;
-
-    const int64_t agora = QDateTime::currentMSecsSinceEpoch();
-    const uint64_t alvo = freqA_.load();
-    auto& cfg = Config::instance();
-
-    // ---- caso simples: acima de 24 MHz o tuner faz o caminho normal --------
-    if (alvo >= 24000000ULL) {
-        audioLiberadoEm_.store(agora + 500);
-        reiniciarRitmoAudio();
-        device_->start();
-        return;
-    }
-
-    // ---- abaixo de 24 MHz: aquece em VHF e so entao desce -----------------
-    //
-    // Medido no ar em 19/08/2026, nas duas caixas: ligar o radio JA em HF
-    // produz de 4 a 8 estalos nos primeiros segundos; ligar acima de 24 MHz
-    // nao produz nenhum. O modo Q escolhido nao muda isso - o que pesa e a
-    // frequencia em que o fluxo COMECA, porque abaixo de 24 MHz o dongle parte
-    // direto em amostragem direta, com o tuner fora do caminho e o AGC interno
-    // do RTL2832U ainda procurando o ponto.
-    //
-    // A saida e dar ao dongle o comeco de que ele gosta: o fluxo sobe em modo
-    // tuner, numa frequencia segura, e um segundo depois desce para onde o
-    // operador quer. O audio fica mudo durante toda a manobra, entao nada
-    // disso se ouve - so se percebe que o som entra um segundo mais tarde.
-    const uint64_t seguro = 27000000ULL;
-
-    audioLiberadoEm_.store(agora + 1400);   // silencio por toda a manobra
-    reiniciarRitmoAudio();
-
-    device_->setQuadrature(false);          // caminho do tuner
-    device_->setCenterFreq(seguro);
-    device_->start();
-    Logger::info(QString("Aquecimento: fluxo iniciado em %1 Hz; desce para %2 Hz em 900 ms")
-                     .arg(seguro).arg(alvo));
-
-    QTimer::singleShot(900, this, [this, alvo]() {
-        if (!device_) return;
-        auto& c = Config::instance();
-        device_->setQuadrature(c.quadratureEm(alvo));
-        device_->setCenterFreq(alvo);
-        // O driver reseta o ganho ao mudar a frequencia central.
-        if (deviceType_ != QStringLiteral("sdrplay"))
-            device_->setGain(c.agc() ? -1 : c.gainTenths());
-        reiniciarRitmoAudio();              // joga fora o que saiu do aquecimento
-        Logger::info(QString("Aquecimento concluido: sintonizado em %1 Hz").arg(alvo));
-    });
-}
-
 void Application::reiniciarRitmoAudio()
 {
     audioPaceUltimo_.store(0);

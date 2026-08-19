@@ -1,4 +1,4 @@
-# ============================================================================
+﻿# ============================================================================
 #  publicar_release.ps1 - cria (ou corrige) a release do RXSDR no GitHub
 #
 #  Nada aqui e digitado a mao. O numero da versao vem do NOME do instalador que
@@ -148,8 +148,20 @@ $ok = Read-Host "  Publicar a release $tag ? [s/N]"
 if ($ok -ne 's' -and $ok -ne 'S') { Write-Host "  Cancelado. Nada foi enviado."; exit 0 }
 
 # ---- 4) cria ou atualiza -----------------------------------------------------
-gh release view $tag *> $null
+# Esta consulta FALHA de proposito quando a release ainda nao existe - e o que
+# se quer saber. Mas o script roda com ErrorActionPreference = 'Stop', e no
+# PowerShell 5.1 redirecionar a saida de erro de um programa externo faz o texto
+# virar um registro de erro; com 'Stop', o script morre ali. Resultado: a
+# primeira publicacao de cada versao quebrava com "release not found", que na
+# verdade era a resposta certa.
+#
+# Por isso a preferencia e afrouxada apenas nesta linha, e a existencia e
+# decidida pelo codigo de saida, nao pelo texto.
+$prefAnterior = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+gh release view $tag 2>&1 | Out-Null
 $existe = ($LASTEXITCODE -eq 0)
+$ErrorActionPreference = $prefAnterior
 
 if ($existe) {
     Info "A release $tag ja existe - atualizando o texto e os anexos."
