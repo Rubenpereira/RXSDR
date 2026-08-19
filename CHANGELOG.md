@@ -1,6 +1,6 @@
 # Histórico de mudanças
 
-## 1.0.45
+## 1.0.46
 
 - **Botão AUTO da cachoeira agora reproduz o seu padrão em qualquer banda.**
   Antes ele media o espectro do momento e devolvia um resultado diferente a
@@ -16,6 +16,12 @@
   cores, não os números — por isso funciona onde o ruído é outro.
 - A cachoeira abre com Range 53 e Brilho 106, e o AUTO leva ao mesmo lugar:
   abrir o programa e clicar no AUTO passam a ter o mesmo resultado.
+- **Correção importante: abrir um decodificador podia derrubar a conexão com o
+  rádio.** A tela mostrava o rádio desligado, mas ele continuava ligado e
+  sintonizado — o que caía era a ligação entre o navegador e o programa. Bastava
+  o decodificador escrever uma linha de texto na tela. Afetava os doze:
+  SITOR-B, DSC, CW, APRS, ACARS, AIS, TETRA, P25, Pactor, SELCAL, o analisador
+  de sinal desconhecido e o DMR.
 
 ## 1.0.41
 

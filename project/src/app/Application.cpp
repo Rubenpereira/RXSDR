@@ -477,7 +477,19 @@ bool Application::start()
     // ── AIS-catcher — AIS Decoder ──────────────────────────────────────────────
     aisCatcher_ = std::make_unique<AisCatcherManager>(this);
 
-    connect(aisCatcher_.get(), &AisCatcherManager::logLine, [this](const QString& line) {
+    // O 'this' antes da lambda NAO e decoracao: e o objeto de contexto.
+    //
+    // Sem ele, o Qt executa a lambda na thread de QUEM EMITIU o sinal. Os
+    // decodificadores emitem de dentro do feedAudio(), que roda na thread de
+    // leitura do dongle - e ali dentro se mexia no WebSocket, que pertence a
+    // thread principal. O Qt avisava com "QSocketNotifier: Socket notifiers
+    // cannot be enabled or disabled from another thread" e a conexao do
+    // navegador caia; a tela mostrava o radio desligado, embora ele estivesse
+    // ligado e sintonizado (visto em 19/08/2026 ao abrir o SITOR-B).
+    //
+    // Com o contexto, a chamada e enfileirada para a thread principal. Vale
+    // para os doze decodificadores abaixo, pelo mesmo motivo.
+    connect(aisCatcher_.get(), &AisCatcherManager::logLine, this, [this](const QString& line) {
         Logger::info(line);
         ws_->broadcastJson(QJsonObject{
             {"t", "dec_line"},
@@ -524,7 +536,7 @@ bool Application::start()
     // ── acarsdeco2 — ACARS Decoder ─────────────────────────────────────────────
     acarsDeco_ = std::make_unique<AcarsDecoManager>(this);
 
-    connect(acarsDeco_.get(), &AcarsDecoManager::logLine, [this](const QString& line) {
+    connect(acarsDeco_.get(), &AcarsDecoManager::logLine, this, [this](const QString& line) {
         Logger::info(line);
         ws_->broadcastJson(QJsonObject{
             {"t", "dec_line"},
@@ -636,7 +648,7 @@ bool Application::start()
     // ── APRS Decoder (Direwolf) ────────────────────────────────────────────────
     aprsDeco_ = std::make_unique<AprsManager>(this);
 
-    connect(aprsDeco_.get(), &AprsManager::logLine, [this](const QString& line) {
+    connect(aprsDeco_.get(), &AprsManager::logLine, this, [this](const QString& line) {
         // Grava tambem no run.log. Sem isto, quando o APRS parava de decodificar
         // nao havia rastro nenhum: nem o "[Direwolf] iniciado" aparecia, e era
         // impossivel saber se o processo tinha subido ou nem chegou a tentar.
@@ -668,7 +680,7 @@ bool Application::start()
     // O RTL-SDR nao transmite; o caminho e injetar na rede APRS-IS. Se houver
     // um IGate transmissor perto do destinatario, chega no radio dele.
     aprsIs_ = std::make_unique<AprsIsClient>(this);
-    connect(aprsIs_.get(), &AprsIsClient::logLine, [this](const QString& line) {
+    connect(aprsIs_.get(), &AprsIsClient::logLine, this, [this](const QString& line) {
         Logger::info(line);
         ws_->broadcastJson(QJsonObject{
             {"t", "dec_line"}, {"decoder", "APRS"}, {"text", line}
@@ -697,7 +709,7 @@ bool Application::start()
     // ── SITOR-B Decoder (Transmissões Marinhas) ───────────────────────────
     sitorBDeco_ = std::make_unique<SitorBManager>(this);
 
-    connect(sitorBDeco_.get(), &SitorBManager::logLine, [this](const QString& line) {
+    connect(sitorBDeco_.get(), &SitorBManager::logLine, this, [this](const QString& line) {
         Logger::info(line);
         ws_->broadcastJson(QJsonObject{
             {"t",       "dec_line"},
@@ -737,7 +749,7 @@ bool Application::start()
     // ── CW / Morse ─────────────────────────────────────────────────────────
     cwDeco_ = std::make_unique<CwManager>(this);
 
-    connect(cwDeco_.get(), &CwManager::logLine, [this](const QString& line) {
+    connect(cwDeco_.get(), &CwManager::logLine, this, [this](const QString& line) {
         Logger::info(line);
         ws_->broadcastJson(QJsonObject{
             {"t",       "dec_line"},
@@ -750,7 +762,7 @@ bool Application::start()
     // A tela emenda esses pedacos na linha que ja esta la, em vez de comecar
     // uma linha nova a cada um - e assim a letra aparece no momento em que e
     // lida, como num terminal de telegrafia de verdade.
-    connect(cwDeco_.get(), &CwManager::textoFluxo, [this](const QString& pedaco) {
+    connect(cwDeco_.get(), &CwManager::textoFluxo, this, [this](const QString& pedaco) {
         ws_->broadcastJson(QJsonObject{
             {"t",       "dec_line"},
             {"decoder", "CW"},
@@ -784,7 +796,7 @@ bool Application::start()
     // ── PACTOR Decoder (Pactor-I FSK) ──────────────────────────────────────
     pactorDeco_ = std::make_unique<PactorManager>(this);
 
-    connect(pactorDeco_.get(), &PactorManager::logLine, [this](const QString& line) {
+    connect(pactorDeco_.get(), &PactorManager::logLine, this, [this](const QString& line) {
         ws_->broadcastJson(QJsonObject{
             {"t",       "dec_line"},
             {"decoder", "PACTOR"},
@@ -824,7 +836,7 @@ bool Application::start()
     // ── DSC Decoder (ITU-R M.493) ──────────────────────────────────────────
     dscDeco_ = std::make_unique<DscManager>(this);
 
-    connect(dscDeco_.get(), &DscManager::logLine, [this](const QString& line) {
+    connect(dscDeco_.get(), &DscManager::logLine, this, [this](const QString& line) {
         ws_->broadcastJson(QJsonObject{
             {"t",       "dec_line"},
             {"decoder", "DSC"},
@@ -884,7 +896,7 @@ bool Application::start()
 
     // ── Analisador de sinal desconhecido ───────────────────────────────────
     analiseDeco_ = std::make_unique<AnaliseManager>(this);
-    connect(analiseDeco_.get(), &AnaliseManager::logLine, [this](const QString& line) {
+    connect(analiseDeco_.get(), &AnaliseManager::logLine, this, [this](const QString& line) {
         ws_->broadcastJson(QJsonObject{
             {"t",       "dec_line"},
             {"decoder", "ANALISE"},
@@ -919,7 +931,7 @@ bool Application::start()
     // ── SELCAL Decoder ─────────────────────────────────────────────────────────
     selcalDeco_ = std::make_unique<SelcalManager>(this);
 
-    connect(selcalDeco_.get(), &SelcalManager::logLine, [this](const QString& line) {
+    connect(selcalDeco_.get(), &SelcalManager::logLine, this, [this](const QString& line) {
         ws_->broadcastJson(QJsonObject{
             {"t",       "dec_line"},
             {"decoder", "SELCAL"},
@@ -954,7 +966,7 @@ bool Application::start()
     // ── TETRA Decoder ──────────────────────────────────────────────────────────
     tetraDeco_ = std::make_unique<TetraManager>(this);
 
-    connect(tetraDeco_.get(), &TetraManager::logLine, [this](const QString& line) {
+    connect(tetraDeco_.get(), &TetraManager::logLine, this, [this](const QString& line) {
         ws_->broadcastJson(QJsonObject{
             {"t",       "dec_line"},
             {"decoder", "TETRA"},
