@@ -1,4 +1,5 @@
 #include "AprsManager.h"
+#include <QMutex>
 
 #include <QCoreApplication>
 #include <QDir>
@@ -194,7 +195,7 @@ void AprsManager::feedAudio(const int16_t* samples, int count, uint32_t sps)
         QByteArray pcm;
         pcm.resize(count * 2);
         memcpy(pcm.data(), samples, count * 2);
-        m_stdinPending.append(pcm);
+        { QMutexLocker lk(&m_stdinMutex); m_stdinPending.append(pcm); }
     } else {
         m_feedResampleTail.insert(m_feedResampleTail.end(), samples, samples + count);
 
@@ -230,9 +231,21 @@ void AprsManager::feedAudio(const int16_t* samples, int count, uint32_t sps)
             QByteArray pcm;
             pcm.resize(static_cast<int>(resampledBlock.size() * 2));
             memcpy(pcm.data(), resampledBlock.data(), resampledBlock.size() * 2);
-            m_stdinPending.append(pcm);
+            { QMutexLocker lk(&m_stdinMutex); m_stdinPending.append(pcm); }
         }
     }
+
+    // A escrita NAO acontece aqui. Este metodo roda na thread de leitura do
+    // dongle, e o QProcess pertence a thread principal - escrever nele daqui
+    // enfileira bytes que o laco de eventos da outra thread nunca envia.
+    // Pede-se a drenagem por conexao enfileirada, e ela ocorre na thread certa.
+    QMetaObject::invokeMethod(this, "drenarStdin", Qt::QueuedConnection);
+}
+
+void AprsManager::drenarStdin()
+{
+    if (!process_ || state_ != State::Running) return;
+    QMutexLocker lk(&m_stdinMutex);
 
     static constexpr int kMaxStdinBacklog = 8 * 1024 * 1024;
     if (m_stdinPending.size() > kMaxStdinBacklog) {

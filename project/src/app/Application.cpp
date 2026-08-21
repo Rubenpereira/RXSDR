@@ -34,6 +34,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QDateTime>
+#include <QRegularExpression>
 #include <QCoreApplication>
 #include <QTimer>
 #include <algorithm>
@@ -585,12 +586,35 @@ bool Application::start()
     // ── DSD Decoder (DSDPlus/dsd) ───────────────────────────────────────────────
     dsdDeco_ = std::make_unique<DsdManager>(this);
 
-    // LOG DO DSD DESATIVADO de proposito: NAO retransmitir cada linha do dsd-fme
-    // pelo WebSocket. Durante a voz o dsd-fme emite varias linhas por segundo, e
-    // esse fluxo competia com o audio na mesma conexao WebSocket, causando falhas
-    // no som (especialmente em box mais fraco / cartao SD). Sem isto o audio fica limpo.
-    connect(dsdDeco_.get(), &DsdManager::logLine, [](const QString& /*line*/) {
-        /* desativado */
+    // Repasse das linhas do dsd-fme ao navegador: FILTRADO e ESTRANGULADO.
+    //
+    // Antes isto ficava totalmente desligado. O motivo era legitimo: durante a
+    // voz o dsd-fme emite dezenas de linhas por segundo, e esse fluxo competia
+    // com o audio na mesma conexao WebSocket, picotando o som nas caixas
+    // fracas. Mas desligar tudo tem um preco que so apareceu no uso: o painel
+    // do DMR fica eternamente em "aguardando audio", sem indicar time-slot,
+    // origem, destino nem color code, mesmo com a voz saindo perfeita.
+    //
+    // O meio-termo: o painel so LE algumas informacoes, entao so elas sao
+    // enviadas, no maximo doze vezes por segundo. Isso e uma fracao minuscula
+    // do fluxo original e mantem o painel vivo.
+    connect(dsdDeco_.get(), &DsdManager::logLine, this, [this](const QString& line) {
+        static const QRegularExpression interessa(
+            QStringLiteral("(Color\\s*Code|\\bCC\\b|SRC|RID|Source|TGT|\\bTG\\b|Target|"
+                           "Group\\s*Call|Priv\\w*\\s*Call|Private|Voice|Data|Slot|TS[12])"),
+            QRegularExpression::CaseInsensitiveOption);
+        if (!interessa.match(line).hasMatch()) return;
+
+        const qint64 agora = QDateTime::currentMSecsSinceEpoch();
+        if (agora - dsdUltimaLinhaMs_ < 80) return;      // no maximo ~12 por segundo
+        dsdUltimaLinhaMs_ = agora;
+
+        if (!ws_) return;
+        ws_->broadcastJson(QJsonObject{
+            {"t",       "dec_line"},
+            {"decoder", "DSD"},
+            {"text",    line}
+        });
     });
     connect(dsdDeco_.get(), &DsdManager::error, [](const QString& msg) {
         Logger::error(msg);

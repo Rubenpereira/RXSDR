@@ -178,7 +178,7 @@ void PactorManager::feedAudio(const int16_t* samples, int count, uint32_t sps)
         QByteArray pcm;
         pcm.resize(count * 2);
         memcpy(pcm.data(), samples, count * 2);
-        m_stdinPending.append(pcm);
+        { QMutexLocker lk(&m_stdinMutex); m_stdinPending.append(pcm); }
     } else {
         m_feedResampleTail.insert(m_feedResampleTail.end(), samples, samples + count);
 
@@ -214,9 +214,24 @@ void PactorManager::feedAudio(const int16_t* samples, int count, uint32_t sps)
             QByteArray pcm;
             pcm.resize(static_cast<int>(resampledBlock.size() * 2));
             memcpy(pcm.data(), resampledBlock.data(), resampledBlock.size() * 2);
-            m_stdinPending.append(pcm);
+            { QMutexLocker lk(&m_stdinMutex); m_stdinPending.append(pcm); }
         }
     }
+    // O 'this' de contexto e a drenagem por conexao enfileirada NAO sao
+    // enfeite: o feedAudio() vem da thread de leitura do dongle e o QProcess
+    // pertence a thread principal. Escrever nele daqui apenas enfileira bytes
+    // num lugar que o laco de eventos da thread dona nunca visita, e o
+    // decodificador espera para sempre. Diagnosticado no APRS em 20/08/2026:
+    // o RXSDR escrevia 924 KB a cada 5 s e o Direwolf lia ZERO, com o cano
+    // correto no lugar.
+    QMetaObject::invokeMethod(this, "drenarStdin", Qt::QueuedConnection);
+}
+
+void PactorManager::drenarStdin()
+{
+    if (!process_ || state_ != State::Running) return;
+    QMutexLocker lk(&m_stdinMutex);
+
 
     static constexpr int kMaxStdinBacklog = 8 * 1024 * 1024;
     if (m_stdinPending.size() > kMaxStdinBacklog) {

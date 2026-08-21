@@ -343,7 +343,17 @@ void TetraManager::feedIQ(const std::complex<float>* iq, size_t count, uint32_t 
 
     // Append PCM (complex float32) to stdin backlog
     const int bytes = int(out.size() * sizeof(std::complex<float>));
-    m_iqStdinPending.append(reinterpret_cast<const char*>(out.data()), bytes);
+    { QMutexLocker lk(&m_iqStdinMutex); m_iqStdinPending.append(reinterpret_cast<const char*>(out.data()), bytes); }
+
+    // A escrita acontece no slot, na thread dona do QProcess.
+    QMetaObject::invokeMethod(this, "drenarStdinIq", Qt::QueuedConnection);
+}
+
+void TetraManager::drenarStdinIq()
+{
+    if (!process_ || state_ != State::Running) return;
+    QMutexLocker lk(&m_iqStdinMutex);
+
 
     // Cap backlog (~16 MB de IQ)
     static constexpr int kMaxIqBacklog = 16 * 1024 * 1024;

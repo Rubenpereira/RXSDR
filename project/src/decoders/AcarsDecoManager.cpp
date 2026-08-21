@@ -265,23 +265,37 @@ void AcarsDecoManager::feedAudio(const int16_t* samples, int count, uint32_t sam
         std::copy_n(reinterpret_cast<const char*>(out.data()), pcm.size(), pcm.data());
     }
 
-    qint64 written = 0;
-    const char* data = pcm.constData();
-    const qint64 size = pcm.size();
-    while (written < size) {
-        if (!process_ || state_ != State::Running) return;
-        const qint64 w = process_->write(data + written, size - written);
+    // Enfileira e pede a drenagem na thread dona do QProcess - ver o comentario
+    // do slot no cabecalho.
+    {
+        QMutexLocker lk(&m_stdinMutex);
+        m_stdinPending.append(pcm);
+        static constexpr int kMaxBacklog = 8 * 1024 * 1024;
+        if (m_stdinPending.size() > kMaxBacklog)
+            m_stdinPending.remove(0, m_stdinPending.size() - kMaxBacklog);
+    }
+    QMetaObject::invokeMethod(this, "drenarStdin", Qt::QueuedConnection);
+}
+
+void AcarsDecoManager::drenarStdin()
+{
+    if (!process_ || state_ != State::Running) return;
+    QMutexLocker lk(&m_stdinMutex);
+
+    while (!m_stdinPending.isEmpty()) {
+        const qint64 w = process_->write(m_stdinPending.constData(), m_stdinPending.size());
         if (w < 0) {
             lastError_ = QStringLiteral("Escrita stdin acarsdec falhou: %1").arg(process_->errorString());
             emit error(lastError_);
+            m_stdinPending.clear();
             QMetaObject::invokeMethod(this, "stop", Qt::QueuedConnection);
             return;
         }
         if (w == 0) {
-            if (!process_->waitForBytesWritten(1000)) return;
+            if (!process_->waitForBytesWritten(10)) return;
             continue;
         }
-        written += w;
+        m_stdinPending.remove(0, int(w));
     }
 }
 

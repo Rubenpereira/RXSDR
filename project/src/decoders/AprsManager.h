@@ -6,6 +6,7 @@
 #include <QJsonObject>
 #include <QTcpSocket>
 #include <QTimer>
+#include <QMutex>
 #include <vector>
 #include <memory>
 
@@ -45,6 +46,14 @@ signals:
     void error(const QString& message);
 
 private slots:
+    // Esvazia a fila de audio para dentro do Direwolf. E um SLOT de proposito:
+    // o feedAudio() e chamado pela thread de leitura do dongle, e o
+    // QProcess pertence a thread principal. Escrever nele de fora enfileira os
+    // bytes num lugar que o laco de eventos da thread dona nunca visita - o
+    // Direwolf ficava esperando e lia zero. Invocando este slot por conexao
+    // enfileirada, a escrita acontece na thread certa.
+    void drenarStdin();
+
     void onProcessStarted();
     void onProcessFinished(int exitCode, QProcess::ExitStatus status);
     void onProcessError(QProcess::ProcessError err);
@@ -72,6 +81,8 @@ private:
     QString lastError_;
 
     QByteArray m_stdinPending;
+    // A fila e escrita pela thread de audio e lida pela thread principal.
+    QMutex     m_stdinMutex;
     std::vector<int16_t> m_feedResampleTail;
     double m_feedResamplePos = 0.0;
 

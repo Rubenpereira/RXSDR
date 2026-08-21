@@ -1100,7 +1100,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       </div>
     </div>
     <div style="flex:1"></div>
-    <div class="item" style="color:var(--accent-lcd)">RXSDR v1.0.46</div>
+    <div class="item" style="color:var(--accent-lcd)">RXSDR v1.0.47</div>
   </div>
 
   <!-- =============================== TOPO =============================== -->
@@ -1192,7 +1192,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       </div>
       <div class="vfo-eye">
         <div class="eye-wrap">
-          <svg viewBox="0 0 600 600"><circle cx="300" cy="300" r="250" fill="#072a0e"></circle><circle cx="300" cy="300" r="250" fill="#2fd24a" opacity="0.9"></circle><path id="eyeShadow" d="" fill="#04200a"></path></svg>
+          <svg viewBox="0 0 600 600"><circle cx="300" cy="300" r="250" fill="#331f06"></circle><circle cx="300" cy="300" r="250" fill="#ff9a1f" opacity="0.9"></circle><path id="eyeShadow" d="" fill="#261705"></path></svg>
           <img src="eye_bezel.png" alt="">
         </div>
         <div class="eye-arrows">
@@ -1359,7 +1359,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       <span class="cell" id="wfInfoAudio" style="color:#7fb0ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1"
             title="Saude do audio: folga do buffer, maior intervalo entre pacotes e quantas vezes faltou audio para tocar.">Audio: —</span>
       <span class="spacer"></span>
-      <span class="cell key">RXSDR V1.0.46</span>
+      <span class="cell key">RXSDR V1.0.47</span>
     </div>
   </div>
 
@@ -1741,7 +1741,30 @@ const Smeter = {
         }
       }
     }
-    
+
+    return Math.max(-120, Math.min(0, dbCal));
+  },
+
+  // Igual a calibrateDb, MAS SEM o achatamento no piso de ruido.
+  //
+  // O achatamento acima transforma tudo o que esta abaixo do piso no mesmo
+  // numero. Isso e certo para o PONTEIRO: deixa a agulha descansando em S3
+  // num canal vazio em vez de tremer no fundo da escala.
+  //
+  // Mas o squelch reaproveitava esse valor, e ai um sinal fraco - visivel na
+  // cachoeira uns poucos dB acima do ruido - chegava com o valor IDENTICO ao
+  // do silencio. Impossivel de distinguir. Era por isso que so abria em
+  // sinais ja bem estabelecidos.
+  //
+  // A escala aqui e A MESMA (mesmo offset e mesmo desvio de S9), entao o
+  // limiar do controle continua significando o que sempre significou; o que
+  // volta a existir e a resolucao abaixo do piso.
+  calibrateDbSemPiso(pk) {
+    const isHF = this.cfg.quadrature || qModeActive || (currentFreqHz < 30000000);
+    const offset = isHF ? (this.cfg.hfOffset || 0) : (this.cfg.vhfOffset || 0);
+    const s9Ref = isHF ? (this.cfg.s9Hf ?? -94) : (this.cfg.s9Vhf ?? -93);
+    const s9Default = isHF ? -94 : -93;
+    const dbCal = pk + offset - (s9Ref - s9Default);
     return Math.max(-120, Math.min(0, dbCal));
   },
   init(){
@@ -2234,7 +2257,9 @@ const Smeter = {
     // Retorna true se o squelch estiver aberto (peakDb >= limiar do slider)
     const sql = Number(document.getElementById('sqlSlider')?.value ?? -90);
     if (sql === -90) return true; // todo aberto
-    return this.peakDb >= sql;
+    // Sem o achatamento do piso - ver calibrateDbSemPiso.
+    const leitura = (typeof this.peakDbSql === 'number') ? this.peakDbSql : this.peakDb;
+    return leitura >= sql;
   },
   _applyTarget(db){
     // Rádio desligado → zero absoluto (ponteiro totalmente em repouso)
@@ -2254,7 +2279,8 @@ const Smeter = {
     this.rfLive = st && st.rfMode === 'live';
     if (typeof st?.peakDb === 'number') {
       const pk = st.peakDb - this.getGainCorrection();
-      this.peakDb = this.calibrateDb(pk);
+      this.peakDb = this.calibrateDb(pk);           // para o ponteiro
+      this.peakDbSql = this.calibrateDbSemPiso(pk); // para o squelch
     }
     this._applyTarget(this.peakDb);
   },
@@ -2310,6 +2336,12 @@ const Smeter = {
     }
     
     this.peakDb = this.calibrateDb(pk);
+    // Este e o caminho que de fato alimenta o S-meter (a FFT chega varias
+    // vezes por segundo; o status quase nao e usado para isto). A primeira
+    // versao da correcao do squelch so tratou o updateFromStatus, entao o
+    // peakDbSql ficava indefinido: o squelch caia na leitura antiga e o botao
+    // SQL passou a medir "undefined" e parou de calcular.
+    this.peakDbSql = this.calibrateDbSemPiso(pk);
     this._applyTarget(this.peakDb);
   }
 };
@@ -2753,6 +2785,48 @@ let audioEnabled = false;
 
 function activeMode(){
   return (document.querySelector('.mode-btn.on')?.textContent || 'USB').trim();
+}
+
+/* ===== Sintonia guardada enquanto um painel de decodificador esta aberto ===
+   Os paineis impoem a propria largura: o TETRA entra em 25 kHz e o DMR em
+   12,5 kHz. Ao fechar, o applyStopSettings devolvia o squelch e o mute, mas
+   nao a largura - o radio continuava em 25 kHz depois de sair do TETRA, e o
+   proximo canal em NFM soava errado sem motivo aparente.
+   Guarda modo e largura na abertura e devolve na saida.                    */
+window._sintoniaDecoder = null;
+
+function salvarSintoniaDecoder(){
+  // Se ja ha algo guardado, e porque outro painel abriu antes: preserva o
+  // estado ORIGINAL do radio, nao o que o painel anterior deixou.
+  if (window._sintoniaDecoder) return;
+  window._sintoniaDecoder = {
+    modo: (typeof activeMode === 'function') ? activeMode() : null,
+    bw:   (typeof currentBwHz !== 'undefined') ? currentBwHz : null
+  };
+}
+
+function restaurarSintoniaDecoder(){
+  const s = window._sintoniaDecoder;
+  window._sintoniaDecoder = null;
+  if (!s || !s.modo || !s.bw) return;
+  const freq = (typeof currentFreqHz !== 'undefined') ? currentFreqHz : null;
+  if (freq && typeof Backend !== 'undefined' && Backend.tune) {
+    Backend.tune(freq, s.modo, s.bw).catch(function(){});
+  }
+  document.querySelectorAll('.mode-btn').forEach(function(b){
+    b.classList.toggle('on', b.textContent.trim() === s.modo);
+  });
+  document.querySelectorAll('.bw-opt').forEach(function(b){
+    b.classList.toggle('active', parseInt(b.dataset.bw, 10) === s.bw);
+  });
+  const bwBtn = document.getElementById('bwBtn');
+  if (bwBtn) {
+    const rotulo = (s.bw >= 1000) ? (s.bw / 1000) + ' kHz' : s.bw + ' Hz';
+    bwBtn.innerHTML = rotulo + '<br><span style="font-size:8.5px;opacity:0.65;font-weight:normal;">BW</span>';
+  }
+  currentBwHz = s.bw;
+  // A marca do VFO tem de ser redesenhada com a largura devolvida.
+  if (typeof updateMarkerPosition === 'function' && freq) updateMarkerPosition(freq);
 }
 
 function clampFreq(hz){
@@ -3684,8 +3758,22 @@ const Backend = {
     if (window._radioMuted)   { mudo = true; motivo = 'radio'; }
     if (performance.now() < muteUntil) { mudo = true; motivo = 'tune'; }
     if (!mudo && !window._digitalDecoding) {
-      const sql = Number(document.getElementById('sqlSlider')?.value ?? -90);
-      if (sql > -90 && Smeter.rfLive && Smeter.peakDb < sql) { mudo = true; motivo = 'sql'; }
+      // UMA UNICA decisao de squelch no programa inteiro.
+      //
+      // Aqui havia uma SEGUNDA decisao, independente do _sqlOpen(), e ela
+      // comparava o limiar do slider com Smeter.peakDb - o valor COMPRIMIDO,
+      // cujo piso fica travado em dbTarget (perto de -20 no VHF). O ponteiro,
+      // a luz ambar do botao e o SQL automatico ja usavam a medida real
+      // (peakDbSql), cujo piso fica perto de -36.
+      //
+      // Duas escalas diferentes decidindo a mesma coisa: sempre que o SQL
+      // automatico calculava um limiar ABAIXO de dbTarget - o que acontece em
+      // qualquer frequencia de ruido baixo - o audio nunca era cortado, ainda
+      // que o ponteiro e a luz mostrassem o squelch fechado. Foi exatamente o
+      // que apareceu em 263 e 156 MHz (limiar -23, nao fechava) enquanto em
+      // 145 MHz, de ruido mais alto, o limiar caia acima de dbTarget e
+      // funcionava. Medido em 21/08/2026.
+      if (Smeter.rfLive && !Smeter._sqlOpen()) { mudo = true; motivo = 'sql'; }
     }
     // Conta as TRANSICOES, nao os pacotes: o que se ouve como picote e a
     // entrada e a saida do silenciamento, nao o tempo mudo em si.
@@ -5463,8 +5551,18 @@ setInterval(function(){
   // Amostra o pico por 1,5 s. O maior valor visto e o topo do ruido; o
   // squelch fica 2 dB acima disso, ou seja, fechado no silencio e abrindo
   // em qualquer coisa mais forte que o proprio ruido.
-  const MARGEM_DB = 2;
-  const DURACAO_MS = 1500;
+  // Margem sobre o topo do ruido.
+  //
+  // Eram 2 dB, herdados de quando o squelch lia o valor COMPRIMIDO, em que o
+  // piso ficava artificialmente estavel. Lendo a medida real (ver
+  // calibrateDbSemPiso), o ruido oscila varios dB de instante a instante, e
+  // 2 dB deixavam o squelch permanentemente aberto - medido em 21/08/2026:
+  // piso em ~-36 dB, limiar em -34, sempre aberto.
+  //
+  // 5 dB acima do MAIOR pico de ruido visto em 3 s: fecha no silencio e ainda
+  // abre em sinal fraco, que e o objetivo.
+  const MARGEM_DB = 5;
+  const DURACAO_MS = 3000;
   const INTERVALO_MS = 100;
   let medindo = false;
 
@@ -5473,14 +5571,16 @@ setInterval(function(){
     if (typeof Smeter === 'undefined') return;
     medindo = true;
     btn.classList.add('medindo');
-    const rotuloOriginal = btn.textContent;
+    const rotuloOriginal = 'SQL';   // nunca o numero da medicao anterior
 
     const amostras = [];
     let passos = 0;
     const total = Math.round(DURACAO_MS / INTERVALO_MS);
 
     const t = setInterval(function(){
-      const v = Number(Smeter.peakDb);
+      // A MESMA grandeza que o _sqlOpen compara: medir uma e comparar outra
+      // faria o limiar calculado aqui nao corresponder ao que decide abrir.
+      const v = Number(Smeter.peakDbSql ?? Smeter.peakDb);
       if (isFinite(v)) amostras.push(v);
       passos++;
       btn.textContent = (passos % 2) ? '\u00b7\u00b7\u00b7' : 'SQL';
@@ -5493,11 +5593,21 @@ setInterval(function(){
         if (!amostras.length) return;
 
         const topoRuido = Math.max.apply(null, amostras);
+        const medio = amostras.reduce(function(a,b){ return a+b; }, 0) / amostras.length;
         const min = Number(sld.min), max = Number(sld.max);
         const alvo = Math.max(min, Math.min(max, Math.round(topoRuido + MARGEM_DB)));
 
         sld.value = alvo;
         sld.dispatchEvent(new Event('input', { bubbles: true }));
+
+        // Mostra o que foi medido, no proprio rotulo e na dica do botao.
+        // Sem isto, quando o squelch nao se comporta como esperado nao ha como
+        // saber se o problema e o piso, a margem ou o sinal - e a conversa
+        // vira adivinhacao.
+        btn.title = 'Ruido: medio ' + medio.toFixed(1) + ' dB, pico '
+                  + topoRuido.toFixed(1) + ' dB  ->  squelch em ' + alvo + ' dB';
+        btn.textContent = String(alvo);
+        setTimeout(function(){ btn.textContent = 'SQL'; }, 4000);
       }
     }, INTERVALO_MS);
   });
@@ -8121,6 +8231,9 @@ const DsdDecoder = (() => {
     }
     if (sqlVal) sqlVal.textContent = '-90';
 
+    // Guarda modo e largura ANTES do painel impor os seus.
+    salvarSintoniaDecoder();
+
     window._digitalDecoding = true;
 
     _prevMuted = !!window._radioMuted;
@@ -8156,6 +8269,9 @@ const DsdDecoder = (() => {
     if (typeof AudioOut !== 'undefined') {
       AudioOut.setVolume();
     }
+
+    // Devolve o modo e a largura que o radio tinha antes do painel.
+    restaurarSintoniaDecoder();
   }
 
   function init() {
@@ -8688,6 +8804,11 @@ const TetraDecoder = (() => {
 
       <!-- Botoes de Acao no Rodape -->
       <div style="display:flex; gap:6px; padding:0 8px 8px 8px; background:#06010a; box-sizing:border-box; flex-shrink:0;">
+        <div style="margin:6px 0 4px 0; display:flex; justify-content:space-between; align-items:center;">
+          <span style="color:#c780e8; font-size:10px; font-weight:bold; letter-spacing:.5px;">HISTORICO (fica gravado)</span>
+          <button onclick="TetraDecoder.limparHistorico()" class="gt-btn" style="padding:2px 8px; background:#1a0520; border:1px solid #6c1e80; color:#e090ff; font-size:9px; cursor:pointer; border-radius:3px;">apagar</button>
+        </div>
+        <div id="tetra-hist" style="max-height:110px; overflow-y:auto; background:#0a0410; border:1px solid #3a1050; border-radius:4px; padding:5px 7px; font-family:monospace; font-size:10px; line-height:1.5; color:#ccc; margin-bottom:6px;"></div>
         <button onclick="TetraDecoder.clearTerminal()" class="gt-btn" style="flex: 1; padding: 6px; background: #1a0520; border-color: #6c1e80; color: #e090ff; font-size: 11px; font-weight: bold; cursor: pointer; border-radius: 4px;">Limpar</button>
         <button onclick="TetraDecoder.restart()" class="gt-btn" style="flex: 1; padding: 6px; background: #1a0520; border-color: #6c1e80; color: #e090ff; font-size: 11px; font-weight: bold; cursor: pointer; border-radius: 4px;">Reiniciar</button>
       </div>
@@ -8703,6 +8824,9 @@ const TetraDecoder = (() => {
       sqlEl.dispatchEvent(new Event('input'));
     }
     if (sqlVal) sqlVal.textContent = '-90';
+
+    // Guarda modo e largura ANTES do painel impor os seus.
+    salvarSintoniaDecoder();
 
     window._digitalDecoding = true;
 
@@ -8731,9 +8855,14 @@ const TetraDecoder = (() => {
     const muteBtn = document.getElementById('muteBtn');
     if (muteBtn) muteBtn.classList.toggle('on', _prevMuted);
     if (typeof AudioOut !== 'undefined') AudioOut.setVolume();
+
+    // Devolve o modo e a largura que o radio tinha antes do painel.
+    restaurarSintoniaDecoder();
   }
 
   function init() {
+    // Mostra o que ficou registrado desde a ultima vez.
+    tetraHistRender();
     applyStartSettings();
 
     _lines = [
@@ -8887,6 +9016,73 @@ const TetraDecoder = (() => {
   }
 
   // Parser: linhas do runner podem trazer pares chave=valor para o status
+  // ── HISTORICO DE EVENTOS ────────────────────────────────────────────────
+  //
+  // O TETRA fala pouco e a qualquer hora. Ficar olhando o painel nao e
+  // realista, e os campos ao vivo so mostram o AGORA - quando se volta ao
+  // computador, o instante interessante ja passou.
+  //
+  // Aqui ficam registrados apenas os MOMENTOS DE VIRADA, com hora: travou,
+  // perdeu, a criptografia mudou, chegou voz, o scanner achou celula. Guardar
+  // cada atualizacao de SNR encheria a lista de ruido e esconderia o que
+  // importa.
+  //
+  // Fica no localStorage: recarregar a pagina ou fechar o painel nao apaga.
+  const TETRA_HIST_CHAVE = 'rxsdr_tetra_hist';
+  const TETRA_HIST_MAX   = 200;
+
+  function tetraHistLer() {
+    try { return JSON.parse(localStorage.getItem(TETRA_HIST_CHAVE) || '[]'); }
+    catch (e) { return []; }
+  }
+
+  function tetraHistGravar(lista) {
+    try { localStorage.setItem(TETRA_HIST_CHAVE, JSON.stringify(lista.slice(-TETRA_HIST_MAX))); }
+    catch (e) {}
+  }
+
+  function tetraHistAdd(tipo, texto) {
+    const agora = new Date();
+    const hh = String(agora.getHours()).padStart(2,'0');
+    const mm = String(agora.getMinutes()).padStart(2,'0');
+    const ss = String(agora.getSeconds()).padStart(2,'0');
+    const dd = String(agora.getDate()).padStart(2,'0');
+    const mo = String(agora.getMonth()+1).padStart(2,'0');
+    const lista = tetraHistLer();
+    lista.push({ t: dd+'/'+mo+' '+hh+':'+mm+':'+ss, k: tipo, m: texto });
+    tetraHistGravar(lista);
+    tetraHistRender();
+  }
+
+  function tetraHistRender() {
+    const cx = el('tetra-hist');
+    if (!cx) return;
+    const lista = tetraHistLer();
+    if (!lista.length) {
+      cx.innerHTML = '<span style="opacity:.55">Sem eventos ainda. Deixe o painel aberto: o que acontecer fica registrado aqui com a hora.</span>';
+      return;
+    }
+    const cor = { voz:'#7cff7c', aberto:'#7cff7c', lock:'#80d0ff', perdeu:'#ffb74d', cripto:'#ff9090', celula:'#e0a0ff' };
+    cx.innerHTML = lista.slice().reverse().map(function(e){
+      return '<div><span style="opacity:.6">' + e.t + '</span> '
+           + '<span style="color:' + (cor[e.k] || '#ccc') + '">' + e.m + '</span></div>';
+    }).join('');
+  }
+
+  function tetraHistLimpar() {
+    try { localStorage.removeItem(TETRA_HIST_CHAVE); } catch (e) {}
+    tetraHistRender();
+  }
+
+  // Estado anterior, para detectar viradas em vez de repetir o mesmo evento.
+  let _histSync = null, _histTea = null, _histVoz = 0, _histFreq = null;
+  // Confirmacao do sincronismo: _histSyncFirme e o estado ja anunciado,
+  // _histSyncPend o candidato em observacao, _histOscila conta as idas e
+  // vindas que nao chegaram a se firmar.
+  let _histSyncFirme = null, _histSyncPend = null, _histOscila = 0;
+  // Mesma ideia para a criptografia: so anuncia o que se manteve estavel.
+  let _histTeaFirme = null, _histTeaPend = null;
+
   function parseTetraLine(line) {
     const setText = (id, v) => { const e = el(id); if (e) e.textContent = v; };
     const m = {};
@@ -8894,6 +9090,76 @@ const TetraDecoder = (() => {
     if (m.sync !== undefined) { _lastSync = m.sync; _lastUpdate = Date.now(); }
     if (m.cell_tea !== undefined) { _lastCellTea = m.cell_tea; _lastUpdate = Date.now(); }
     if (m.voice !== undefined) { _lastVoice = parseInt(m.voice, 10) || 0; }
+    // ── registro de viradas no historico ──────────────────────────────
+    // O sincronismo so vira evento se PERSISTIR.
+    //
+    // A primeira versao registrava toda mudanca. Com sinal fraco - medido em
+    // 21/08/2026 com SNR de 4,8 a 5,3 dB e vento na antena - ele trava e perde
+    // a cada poucos segundos, e o historico virava uma parede de
+    // "sincronizou / perdeu" que escondia justamente a voz e a abertura da
+    // criptografia, que sao o motivo de existir esta lista.
+    //
+    // Agora: um estado precisa se manter por alguns segundos para ser
+    // anunciado, e a oscilacao vira UMA linha de resumo em vez de dezenas.
+    if (m.sync) {
+      const travou = (m.sync === 'lock' || m.sync === 'locked' || m.sync === 'sb');
+      const agoraMs = Date.now();
+      if (_histSyncPend === null || _histSyncPend.travou !== travou) {
+        _histSyncPend = { travou: travou, desde: agoraMs, snr: m.snr || null };
+      }
+      const estavelPor = agoraMs - _histSyncPend.desde;
+      const precisa = travou ? 4000 : 8000;   // travar confirma em 4 s; perder, em 8
+      if (estavelPor >= precisa && _histSyncFirme !== travou) {
+        if (_histSyncFirme !== null || travou) {
+          if (_histOscila > 2) {
+            tetraHistAdd('perdeu', 'sincronismo instavel: ' + _histOscila
+                         + ' oscilacoes (sinal fraco)');
+          }
+          tetraHistAdd(travou ? 'lock' : 'perdeu',
+                       travou ? ('SINCRONIZOU' + (_histSyncPend.snr ? ' — SNR ' + _histSyncPend.snr + ' dB' : ''))
+                              : 'perdeu o sincronismo');
+        }
+        _histSyncFirme = travou;
+        _histOscila = 0;
+      } else if (_histSyncFirme !== null && travou !== _histSyncFirme) {
+        _histOscila++;      // oscilou sem confirmar: so conta
+      }
+      _histSync = m.sync;
+    }
+    // A criptografia tambem precisa PERSISTIR para virar evento.
+    //
+    // Observado em 21/08/2026, com SNR de 4,9 dB: o campo alternava entre
+    // none, TEA1 e TEA2 duas vezes no MESMO segundo. Nenhuma rede troca de
+    // algoritmo nesse ritmo - sao blocos fechados com erro, e o campo sai
+    // corrompido. Anunciar cada troca transformava lixo em noticia, e pior:
+    // dava falsos "criptografia aberta", que e justamente o evento que se
+    // quer poder confiar.
+    //
+    // Tres segundos de leitura estavel bastam: uma abertura real para voz
+    // dura o tempo da conversa, muito mais que isso.
+    if (m.cell_tea !== undefined) {
+      const agoraMs = Date.now();
+      if (_histTeaPend === null || _histTeaPend.v !== m.cell_tea) {
+        _histTeaPend = { v: m.cell_tea, desde: agoraMs };
+      }
+      if (agoraMs - _histTeaPend.desde >= 3000 && _histTeaFirme !== m.cell_tea) {
+        if (m.cell_tea === 'none') {
+          tetraHistAdd('aberto', '*** CRIPTOGRAFIA ABERTA (clear) — voz decodificavel ***');
+        } else if (_histTeaFirme !== null) {
+          tetraHistAdd('cripto', 'voltou a cifrar: ' + m.cell_tea);
+        }
+        _histTeaFirme = m.cell_tea;
+      }
+      _histTea = m.cell_tea;
+    }
+    if (m.voice !== undefined) {
+      const nv = parseInt(m.voice, 10) || 0;
+      if (nv > _histVoz) {
+        tetraHistAdd('voz', 'VOZ RECEBIDA — ' + (nv - _histVoz) + ' trecho(s), total ' + nv);
+        _histVoz = nv;
+      }
+    }
+
     if (m.sync) {
       setText('tetra-sync', m.sync);
       const led = el('tetra-led');
@@ -9009,8 +9275,13 @@ const TetraDecoder = (() => {
     row.title = 'Clique para sintonizar o VFO aqui';
     row.onmouseenter = () => { row.style.boxShadow = '0 0 6px ' + (withVoice ? '#7cff7c' : '#c060e0'); };
     row.onmouseleave = () => { row.style.boxShadow = 'none'; };
-    row.onclick = () => gotoFreq(hz);
+      row.onclick = () => gotoFreq(hz);
     box.appendChild(row);
+    // Registra tambem no historico: a lista visual se perde ao fechar o
+    // painel, e o objetivo e justamente saber o que aconteceu enquanto voce
+    // nao estava olhando.
+    tetraHistAdd('celula', 'CELULA SEM CRIPTO em ' + _fmtMHz(hz) + ' MHz'
+                 + (voice > 0 ? ' — COM VOZ' : ''));
   }
 
   // Maior meia-largura que cabe na banda visivel sem o backend mover o centro (limiar 0.48; usamos 0.47 de margem)
@@ -9095,7 +9366,8 @@ const TetraDecoder = (() => {
     _setScanStatus('Sintonizado em ' + _fmtMHz(hz) + ' MHz.');
   }
 
-  return { buildPanelHTML, init, onClose, stop, restart, clearTerminal, appendLine, toggleScan, stopScan, gotoFreq };
+  return { buildPanelHTML, init, onClose, stop, restart, clearTerminal, appendLine, toggleScan, stopScan, gotoFreq,
+           limparHistorico: tetraHistLimpar };
 })();
 
 /* =========================================================
@@ -10372,7 +10644,25 @@ const AisDecoder = (() => {
   }
 
   function abrirConsole() {
-    const url = _webUrl || ('http://' + location.hostname + ':' + _webPort + '/');
+    // O endereco que o backend informa vem do ponto de vista DELE, e por isso
+    // costuma ser 127.0.0.1. No Windows isso funciona, porque o programa e o
+    // navegador estao na mesma maquina. Num TV Box, nao: 127.0.0.1 seria o
+    // computador de quem esta olhando, e o console web esta na caixa.
+    //
+    // Entao aproveita-se apenas a PORTA do que o backend disse, e o endereco
+    // vem de onde a pagina esta sendo servida - que e, por definicao, a caixa
+    // certa, seja ela local, na rede ou pelo DDNS.
+    let url = _webUrl || '';
+    let porta = _webPort;
+    if (url) {
+      try {
+        const u = new URL(url);
+        if (u.port) porta = u.port;
+        const local = (u.hostname === '127.0.0.1' || u.hostname === 'localhost' || u.hostname === '::1');
+        if (local) url = '';        // descarta: nao serve para quem esta de fora
+      } catch (e) { url = ''; }
+    }
+    if (!url) url = 'http://' + location.hostname + ':' + porta + '/';
     window.open(url, '_blank');
   }
 

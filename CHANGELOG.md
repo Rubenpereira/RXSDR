@@ -1,5 +1,20 @@
 # Histórico de mudanças
 
+## 1.0.47
+
+- **O silenciador (squelch) ficou bem mais sensível.** Antes, um sinal fraco —
+  daqueles que você vê na cachoeira mas quase não ouve — não conseguia abrir o
+  silenciador: só passava quem já chegava forte. Agora ele abre nesses sinais
+  fracos também, como fazem os outros receptores SDR. Sai com um pouco de
+  chiado junto, e é assim mesmo que tem de ser: melhor ouvir o sinal fraco com
+  chiado do que não ouvir nada.
+- **A janela do decodificador TETRA passou a guardar um registro do que
+  aconteceu.** O TETRA fica horas em silêncio e de repente sincroniza, perde o
+  sinal, muda de cifrado para aberto — e se você não estiver na frente do
+  computador na hora, não fica sabendo. Agora tudo isso fica anotado com data e
+  hora dentro da própria janela, e continua lá na próxima vez que você abrir o
+  programa. Há um botão para limpar o registro quando quiser recomeçar.
+
 ## 1.0.46
 
 - **Botão AUTO da cachoeira agora reproduz o seu padrão em qualquer banda.**

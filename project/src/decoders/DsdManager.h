@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QString>
 #include <QProcess>
+#include <QMutex>
 #include <QJsonObject>
 #include <QVector>
 #include <memory>
@@ -63,6 +64,9 @@ signals:
     void decodedAudioReady(const std::vector<int16_t>& pcm, uint32_t sps);
 
 private slots:
+    // Escreve no processo a partir da thread dona - ver o comentario no .cpp
+    void drenarStdin();
+
     void onProcessStarted();
     void onProcessFinished(int exitCode, QProcess::ExitStatus status);
     void onProcessError(QProcess::ProcessError err);
@@ -89,6 +93,7 @@ private:
     QUdpSocket* m_udpSock = nullptr;
     quint16 m_udpListenPort = 0;
     QByteArray m_stdinPending;
+    QMutex     m_stdinMutex;
     void* m_dumpFile = nullptr; // diagnostico: dump do audio enviado ao dsd-fme
     int m_udpVoicePcmHz = 16150; // DSD-FME UDP — taxa do audio decodificado (ajuste fino no painel)
     QVector<float> m_udpResampleTail;

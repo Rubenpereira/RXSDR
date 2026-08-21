@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QString>
 #include <QProcess>
+#include <QMutex>
 #include <QJsonObject>
 #include <QVector>
 #include <vector>
@@ -82,6 +83,18 @@ signals:
     void decodedAudioReady(const std::vector<int16_t>& pcm, uint32_t sps);
 
 private slots:
+    // Envia ao runner o IQ ja acumulado, a partir da thread dona do QProcess.
+    //
+    // O feedIQ() e chamado pela thread de leitura do dongle. Escrever no
+    // QProcess de la apenas ENFILEIRA bytes que o laco de eventos da thread
+    // principal nunca despacha: o demodulador nao recebia nada e a cadeia
+    // TETRA se desfazia poucos segundos depois de abrir o painel.
+    //
+    // Mesmo defeito ja corrigido no APRS, ACARS, DSD, Pactor e SELCAL. Este
+    // escapou porque usa feedIQ, e a varredura de 20/08/2026 procurou so por
+    // feedAudio - o criterio certo e "qualquer feed* que escreva num processo".
+    void drenarStdinIq();
+
     void onProcessStarted();
     void onProcessFinished(int exitCode, QProcess::ExitStatus status);
     void onProcessError(QProcess::ProcessError err);
@@ -116,6 +129,7 @@ private:
     std::vector<std::complex<float>> m_iqDecimTail;
     double  m_iqDecimPos    = 0.0;
     QByteArray m_iqStdinPending;
+    QMutex     m_iqStdinMutex;
 
     // Anti-aliasing boxcar (moving-average) filter applied before decimation.
     // Length M ≈ round(sps / kTetraIqRate). Provides sinc(f) response with

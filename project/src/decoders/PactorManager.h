@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QString>
 #include <QProcess>
+#include <QMutex>
 #include <QJsonObject>
 #include <vector>
 #include <memory>
@@ -58,6 +59,9 @@ signals:
     void error(const QString& message);
 
 private slots:
+    // Escreve no processo a partir da thread dona - ver o comentario no .cpp
+    void drenarStdin();
+
     void onProcessStarted();
     void onProcessFinished(int exitCode, QProcess::ExitStatus status);
     void onProcessError(QProcess::ProcessError err);
@@ -75,6 +79,8 @@ private:
     Params  params_;
 
     QByteArray m_stdinPending;
+
+    QMutex     m_stdinMutex;
     std::vector<int16_t> m_feedResampleTail;
     double m_feedResamplePos = 0.0;
 };

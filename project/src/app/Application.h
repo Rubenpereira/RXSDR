@@ -136,6 +136,9 @@ private:
     // comeco do fluxo do dongle, que chega irregular - ver aquecimentoMs().
     std::atomic<int64_t> audioLiberadoEm_{0};
 
+    // Ultima linha do dsd-fme repassada ao navegador, para estrangular o fluxo.
+    qint64 dsdUltimaLinhaMs_ = 0;
+
     // Zera o ritmo e joga fora o audio da sessao anterior. Sem isto, o primeiro
     // tique do temporizador depois de ligar calcula um intervalo enorme (o
     // tempo em que o radio ficou desligado), corta em 500 ms e despeja meio

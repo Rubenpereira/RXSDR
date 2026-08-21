@@ -228,9 +228,14 @@ bool AisCatcherManager::start()
              << QStringLiteral("-N") << QString::number(webPort_)
              << QStringLiteral("-X") << QStringLiteral("off");
 #else
-        // No Linux, lemos via stdin (-) diretamente
+        // No Linux, lemos via stdin.
+        //
+        // O nome da entrada padrao no AIS-catcher e PONTO, nao hifen. A propria
+        // ajuda diz: "-r [optional: yy] filename - read IQ data from file or
+        // stdin (.)". Com "-" ele procura um arquivo chamado "-", nao acha e
+        // encerra com "FILE: Cannot open input" - era o erro do painel AIS.
         args << QStringLiteral("-m") << QStringLiteral("2")
-             << QStringLiteral("-r") << QStringLiteral("CS16") << QStringLiteral("-")
+             << QStringLiteral("-r") << QStringLiteral("CS16") << QStringLiteral(".")
              << QStringLiteral("-s") << QString::number(kAisIqRate)
              << QStringLiteral("-o") << QStringLiteral("1")
              << QStringLiteral("-N") << QString::number(webPort_)

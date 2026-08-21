@@ -4,6 +4,8 @@
 #include <QString>
 #include <QStringList>
 #include <QProcess>
+#include <QMutex>
+#include <QByteArray>
 #include <QJsonObject>
 #include <cstdint>
 #include <memory>
@@ -54,6 +56,13 @@ signals:
     void error(const QString& message);
 
 private slots:
+    // Mesma razao do AprsManager: o feedAudio() vem da thread de leitura do
+    // dongle e o QProcess pertence a thread principal. Escrever nele de fora
+    // enfileira bytes que o laco de eventos da thread dona nunca envia, e o
+    // decodificador fica esperando para sempre. A drenagem e pedida por
+    // conexao enfileirada para acontecer na thread certa.
+    void drenarStdin();
+
     void onProcessStarted();
     void onProcessFinished(int exitCode, QProcess::ExitStatus status);
     void onProcessError(QProcess::ProcessError err);
@@ -68,6 +77,10 @@ private:
     void resetResampler();
 
     std::unique_ptr<QProcess> process_;
+
+    QByteArray m_stdinPending;
+
+    QMutex     m_stdinMutex;
     QString binaryPath_;
     quint16 webPort_    = 8093; // Porta padrão para acarsdeco2
     int     deviceIndex_ = 0;
