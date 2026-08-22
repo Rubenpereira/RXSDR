@@ -529,13 +529,39 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
    passou a nao caber em tela de 1366 px e o fim da linha era cortado.
    Menos 1 px de fonte e menos 5 px de folga em cada celula abrem espaco
    suficiente sem prejudicar a leitura. */
-.wf-footer{height:24px;background:#020b14;border-top:1px solid #0a2440;border-bottom:1px solid #0a2440;
+/* A regua FLUTUA sobre a faixa de baixo da cachoeira.
+   Antes ela ocupava uma fileira propria dentro do painel do espectro, e esse
+   painel tem fundo preto solido - deixar a regua "transparente" ali so mostrava
+   o preto de tras. Por cima da cachoeira, o que aparece atras das letras e o
+   proprio espectro.
+   Fica embaixo de proposito: ali estao as linhas mais ANTIGAS da cachoeira. Se
+   ficasse em cima, cobriria justamente o que acabou de chegar.
+   O escurecimento em degrade da contraste as letras sem apagar o que passa por
+   tras, e pointer-events:none deixa o clique e o arrasto atravessarem para a
+   cachoeira, como se ela nao estivesse ali. */
+.wf-footer{position:absolute;left:0;right:0;bottom:0;z-index:7;height:24px;
+  background:linear-gradient(to top, rgba(2,8,14,.72), rgba(2,8,14,.30));
+  border-top:1px solid rgba(90,150,220,.16);
   display:flex;align-items:center;gap:0;font-family:'Consolas',monospace;font-size:11px;color:#7cff9e;
-  overflow:hidden;white-space:nowrap}
-.wf-footer .cell{padding:0 7px;border-right:1px solid #1e2d3f;line-height:24px;
+  overflow:hidden;white-space:nowrap;pointer-events:none;
+  font-weight:bold;
+  /* Sombra + negrito: por cima da cachoeira o fundo muda de cor o tempo todo,
+     e texto fino desaparece quando passa um sinal claro debaixo dele. */
+  text-shadow:0 1px 2px rgba(0,0,0,.9)}
+/* Menos o que precisa ser clicavel ou ler dica. */
+.wf-footer .cell{pointer-events:auto}
+.wf-footer .cell{padding:0 7px;border-right:1px solid rgba(30,45,63,.45);line-height:24px;
   white-space:nowrap;flex-shrink:0}
 .wf-footer .cell.key{color:#67ff8b}
 .wf-footer .spacer{flex:1}
+
+/* Fita de leds do nivel de sinal.
+   E enfeite com utilidade: o numero em dB e exato mas exige ler; a fita se
+   entende de relance, que e como se acompanha um sinal enquanto se varre a
+   banda. Os dois ficam lado a lado, cada um servindo a um jeito de olhar. */
+.sinal-leds{display:inline-flex;gap:2px;vertical-align:middle;margin-left:6px}
+.sinal-leds i{width:4px;height:9px;border-radius:1px;background:#132030;
+  transition:background .12s linear}
 .tune-marker{position:absolute;top:0;bottom:0;background:var(--marker-bg, rgba(255,48,48,0.08));pointer-events:auto}
 .tune-marker::after{content:'';position:absolute;top:0;bottom:0;left:50%;transform:translateX(-50%);width:2.5px;background:var(--marker-color, var(--accent-tx))}
 /* Em banda lateral a sombra fica de UM LADO SO do risco, como no SDR#. A div
@@ -1100,7 +1126,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       </div>
     </div>
     <div style="flex:1"></div>
-    <div class="item" style="color:var(--accent-lcd)">RXSDR v1.0.47</div>
+    <div class="item" style="color:var(--accent-lcd)">RXSDR v1.0.48</div>
   </div>
 
   <!-- =============================== TOPO =============================== -->
@@ -1348,18 +1374,25 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
         <div class="bw-tooltip" id="bwTooltip">12.5 kHz</div>
       </div>
 
-    </div>
     <div class="wf-footer">
       <span class="cell key" id="wfInfoFreq">145.570.000</span>
       <span class="cell key" id="wfInfoMode">NFM</span>
-      <span class="cell key" id="wfInfoMsps">2.048 MSPS</span>
       <span class="cell key" id="wfInfoRfq">RFQ-OFF</span>
       <span class="cell key">AUTO</span>
       <span class="cell" id="wfCanvasOverlay" style="color:#7fb0ff">Span: — | Ref: — | Avg: 4 | FFT —</span>
-      <span class="cell" id="wfInfoAudio" style="color:#7fb0ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1"
+      <span class="cell key" id="wfInfoSinal"
+            title="Nivel no canal e limiar do squelch, na MESMA escala que o squelch usa para decidir. Verde = aberto."
+            >Sinal: —<span class="sinal-leds" id="sinalLeds"></span></span>
+      <!-- Diagnostico do audio: some da tela por padrao.
+           Foi indispensavel para caçar os picotes, entao nao se joga fora - mas
+           nao diz nada a quem so quer escutar radio. Para trazer de volta, no
+           console do navegador:  localStorage.rxsdr_diag = 1  e recarregar. -->
+      <span class="cell" id="wfInfoAudio" style="display:none;color:#7fb0ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1"
             title="Saude do audio: folga do buffer, maior intervalo entre pacotes e quantas vezes faltou audio para tocar.">Audio: —</span>
       <span class="spacer"></span>
-      <span class="cell key">RXSDR V1.0.47</span>
+      <span class="cell key">RXSDR V1.0.48</span>
+    </div>
+
     </div>
   </div>
 
@@ -2965,8 +2998,6 @@ function updateWfFooter(){
   if (f) f.textContent = fmtFreqFooter(currentFreqHz);
   const m = document.getElementById('wfInfoMode');
   if (m) m.textContent = activeMode();
-  const s = document.getElementById('wfInfoMsps');
-  if (s) s.textContent = `${(Number(document.getElementById('cfgSampleRate')?.value || 2048000)/1e6).toFixed(3)} MSPS`;
   const q = document.getElementById('wfInfoRfq');
   if (q) {
     const modo = qModoSelecionado();
@@ -2984,6 +3015,82 @@ function updateWfFooter(){
     qModeActive = val;
   }
 }
+
+// Nivel do canal e limiar do squelch, lado a lado, no rodape.
+//
+// Ate agora nao havia nenhum lugar onde se pudesse LER o numero que o squelch
+// compara. Regular virava tentativa e erro: sobe um pouco, escuta, desce um
+// pouco, escuta de novo. Com os dois numeros a vista, decidir onde por o
+// limiar deixa de ser adivinhacao - basta olhar quanto o sinal sobe acima do
+// ruido e escolher um valor no meio.
+//
+// O numero mostrado e o peakDbSql, o MESMO que o _sqlOpen compara. Mostrar o
+// do ponteiro seria enganoso: o do ponteiro tem o piso achatado.
+function atualizarSinalRodape(){
+  const el = document.getElementById('wfInfoSinal');
+  if (!el) return;
+
+  // O texto e reescrito cinco vezes por segundo, e os leds sao um ELEMENTO
+  // dentro da mesma celula. Escrever com textContent apagaria os leds junto -
+  // foi o que aconteceu: com o radio desligado a funcao caia no caminho curto,
+  // usava textContent, e a fita de leds sumia do documento. Quando o radio
+  // ligava, ja nao havia onde desenhar, e os leds nunca mais apareciam.
+  //
+  // Por isso aqui so se mexe no NO DE TEXTO, e a caixa dos leds e refeita se
+  // por algum motivo tiver sumido.
+  let leds = document.getElementById('sinalLeds');
+  if (!leds) {
+    el.textContent = '';
+    el.appendChild(document.createTextNode('Sinal: —'));
+    leds = document.createElement('span');
+    leds.className = 'sinal-leds';
+    leds.id = 'sinalLeds';
+    el.appendChild(leds);
+  }
+  if (!el.firstChild || el.firstChild.nodeType !== 3) {
+    el.insertBefore(document.createTextNode('Sinal: —'), el.firstChild);
+  }
+  const txt = el.firstChild;
+
+  const apagar = () => { txt.nodeValue = 'Sinal: — '; el.style.color = ''; desenharLeds(leds, -200); };
+
+  if (!powerOn || !Smeter.rfLive) { apagar(); return; }
+
+  const v = Number(Smeter.peakDbSql ?? Smeter.peakDb);
+  const lim = Number(document.getElementById('sqlSlider')?.value ?? -90);
+  if (!isFinite(v)) { apagar(); return; }
+
+  const aberto = Smeter._sqlOpen();
+  txt.nodeValue = 'Sinal: ' + v.toFixed(1) + ' dB' +
+                  (lim <= -90 ? '  (SQL aberto)' : '  SQL: ' + lim + ' dB') + ' ';
+  el.style.color = aberto ? '#67ff8b' : '#7a8a9a';
+  desenharLeds(leds, v);
+}
+
+// Fita de leds do nivel.
+//
+// A faixa vai de -70 a 0 dB porque e onde a escuta acontece: abaixo de -70 e
+// ruido de fundo e acima de 0 esta saturado. Espalhar a fita por toda a escala
+// deixaria quase tudo apagado na maior parte do tempo.
+const LEDS_N = 14, LEDS_MIN = -70, LEDS_MAX = 0;
+function desenharLeds(caixa, db){
+  if (!caixa) return;
+  if (caixa.childElementCount !== LEDS_N) {
+    caixa.innerHTML = '';
+    for (let i = 0; i < LEDS_N; i++) caixa.appendChild(document.createElement('i'));
+  }
+  const frac = Math.max(0, Math.min(1, (db - LEDS_MIN) / (LEDS_MAX - LEDS_MIN)));
+  const acesos = Math.round(frac * LEDS_N);
+  for (let i = 0; i < LEDS_N; i++) {
+    const el2 = caixa.children[i];
+    if (i >= acesos) { el2.style.background = '#132030'; continue; }
+    const p = i / (LEDS_N - 1);
+    el2.style.background = (p < 0.6)  ? '#2ecc71'      // verde ate 60%
+                         : (p < 0.82) ? '#f0c419'      // ambar
+                                      : '#e74c3c';     // vermelho no fim
+  }
+}
+setInterval(atualizarSinalRodape, 200);
 
 async function tuneTo(hz){
   specMarkerHz = null;  // acopla marcador de volta ao VFO ao afinar
@@ -3868,9 +3975,10 @@ const Backend = {
           const formattedSps = `${(sps / 1e6).toFixed(3)} MSPS`;
           if (window.lastFormattedSps !== formattedSps) {
             window.lastFormattedSps = formattedSps;
+            // A taxa aparece so na barra de status. Antes tambem estava na
+            // regua de informacoes, dizendo a mesma coisa duas vezes na mesma
+            // tela, uma logo acima da outra.
             document.getElementById('statusRate').textContent = formattedSps.replace('MSPS', 'Msps');
-            const wfMsps = document.getElementById('wfInfoMsps');
-            if (wfMsps) wfMsps.textContent = formattedSps;
           }
           
           Smeter.updateFromFft();
@@ -4388,12 +4496,47 @@ const Memorias = (() => {
 
   const el = id => document.getElementById(id);
 
-  async function carregar() {
+  // Carregar as memorias com INSISTENCIA, e reclamando alto quando falha.
+  //
+  // A versao anterior tentava uma unica vez, 400 ms depois da pagina abrir, e
+  // engolia qualquer erro em silencio: `catch (e) { _lista = []; }`. Num PC
+  // rapido a chamada da certo e ninguem nota. Numa caixa ARM, 400 ms depois de
+  // abrir a pagina o programa ainda pode estar ocupado subindo o radio - a
+  // chamada falha, a lista fica vazia PARA SEMPRE, e a regua simplesmente nao
+  // aparece. Sem mensagem nenhuma, o que torna o problema quase impossivel de
+  // entender: a mesma versao funciona no Windows e nao funciona na caixa.
+  //
+  // Agora tenta ate cinco vezes, esperando cada vez mais, e escreve no console
+  // o que aconteceu. Uma lista VAZIA tambem conta como falha - o arquivo de
+  // memorias nunca esta vazio de verdade.
+  async function carregar(tentativa) {
+    tentativa = tentativa || 1;
+    let erro = null;
     try {
-      const r = await fetch('/api/bookmarks');
+      const r = await fetch('/api/bookmarks', { cache: 'no-store' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
       const d = await r.json();
-      _lista = Array.isArray(d) ? d : [];
-    } catch (e) { _lista = []; }
+      if (!Array.isArray(d)) throw new Error('resposta nao e uma lista');
+      _lista = d;
+    } catch (e) { erro = e; }
+
+    if (!erro && _lista.length) {
+      if (tentativa > 1) console.log('[memorias] carregadas na tentativa ' + tentativa);
+      desenhar(true);
+      return;
+    }
+
+    const motivo = erro ? erro.message : 'lista vazia';
+    if (tentativa < 5) {
+      const espera = tentativa * 1500;
+      console.warn('[memorias] tentativa ' + tentativa + ' falhou (' + motivo +
+                   '); repetindo em ' + espera + ' ms');
+      setTimeout(() => carregar(tentativa + 1), espera);
+      return;
+    }
+
+    console.error('[memorias] desisti depois de 5 tentativas: ' + motivo);
+    _lista = [];
     desenhar(true);
   }
 
@@ -5559,10 +5702,25 @@ setInterval(function(){
   // 2 dB deixavam o squelch permanentemente aberto - medido em 21/08/2026:
   // piso em ~-36 dB, limiar em -34, sempre aberto.
   //
-  // 5 dB acima do MAIOR pico de ruido visto em 3 s: fecha no silencio e ainda
-  // abre em sinal fraco, que e o objetivo.
-  const MARGEM_DB = 5;
-  const DURACAO_MS = 3000;
+  // 22/08: de volta para 2 dB, e a razao importa.
+  //
+  // Eu tinha subido de 2 para 5 no dia anterior porque o squelch ficava
+  // permanentemente aberto. Mas a causa daquilo NAO era a margem: eram duas
+  // decisoes de squelch em escalas diferentes - o ponteiro lia a medida real e
+  // o corte de audio lia a comprimida. Corrigido isso, os 5 dB viraram um
+  // remedio sem doenca, e ainda por cima contado duas vezes: o alvo ja parte do
+  // MAIOR pico de ruido visto na janela inteira, que por si so cobre a
+  // oscilacao. Somar mais 5 dB em cima do maximo e exigir do sinal 5 dB de
+  // folga sobre o pior instante do ruido.
+  //
+  // Na pratica isso barrava justamente o que se queria ouvir: um TETRA em
+  // 390.575 com 5 dB de relacao sinal/ruido caia exatamente EM CIMA do limiar
+  // e nao abria.
+  //
+  // Com 2 dB sobre o maior pico de 4 segundos, o silencio continua fechado -
+  // porque o maximo ja e o pior caso - e sinal fraco passa a abrir.
+  const MARGEM_DB = 2;
+  const DURACAO_MS = 4000;
   const INTERVALO_MS = 100;
   let medindo = false;
 
@@ -6513,6 +6671,10 @@ if (stepSelectEl) {
     const b = document.getElementById('audioBtn');
 
     const rod = document.getElementById('wfInfoAudio');
+    // Escondido por padrao (ver o comentario no HTML). Continua sendo
+    // atualizado mesmo invisivel: se voce ligar o diagnostico no meio de uma
+    // escuta, os numeros ja estao prontos em vez de comecarem do zero.
+    if (rod && localStorage.getItem('rxsdr_diag') === '1') rod.style.display = '';
     if (rod && typeof AudioOut !== 'undefined') {
       const curto = AudioOut.resumoCurto();
       if (rod.textContent !== curto) rod.textContent = curto;
@@ -9286,9 +9448,15 @@ const TetraDecoder = (() => {
 
   // Maior meia-largura que cabe na banda visivel sem o backend mover o centro (limiar 0.48; usamos 0.47 de margem)
   function _visibleSpanHz(){
-    const e = el('wfInfoMsps');
-    let sr = e ? (parseFloat(e.textContent) || 0) * 1e6 : 0;
-    if (!sr || sr < 1) sr = 2048000;
+    // Le a taxa da variavel que vem com os quadros da cachoeira.
+    //
+    // Antes isto lia o TEXTO da celula "2.048 MSPS" do rodape. Ao tirar aquela
+    // celula - que repetia a barra de status - esta conta passaria a usar
+    // sempre o valor de reserva, e a largura visivel ficaria errada em
+    // qualquer taxa diferente de 2,048 Msps. Ler a variavel resolve de vez:
+    // nao depende de nenhum texto na tela.
+    let sr = (typeof wfSpsHz !== 'undefined' && wfSpsHz > 0) ? wfSpsHz : 0;
+    if (!sr) sr = Number(document.getElementById('cfgSampleRate')?.value) || 2048000;
     return sr * 0.47;
   }
 

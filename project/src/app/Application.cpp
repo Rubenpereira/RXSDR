@@ -44,6 +44,55 @@
 
 namespace masdr {
 namespace {
+
+// ---------------------------------------------------------------------------
+//  DESVIO DO OSCILADOR LOCAL (LO)
+//
+//  O dongle vaza o proprio oscilador no meio do espectro. Se o VFO ficar EM
+//  CIMA do centro, esse vazamento cai dentro da passagem e vira um apito junto
+//  com a modulacao - e o filtro que o remove apaga o bin central, que e a
+//  linha preta fina no meio da cachoeira.
+//
+//  Ja havia aqui uma correcao automatica: perto do centro, o demodulador passa
+//  a receber o sinal SEM o bloqueador de DC. Aquilo resolveu a estacao SUMIR
+//  quando centralizada, e continua valendo. Mas nao resolve o apito - o
+//  vazamento continua dentro da passagem.
+//
+//  A cura de verdade e nao deixar o DC cair na passagem: o oscilador passa a
+//  ficar 50 kHz ao lado do VFO sempre que o centro pedido cairia em cima dele.
+//
+//  A FREQUENCIA RECEBIDA NAO MUDA. Quem sintoniza e o VFO por software - o
+//  deslocamento complexo que gira o sinal de (vfo - centro). O demodulador
+//  continua recebendo exatamente a frequencia pedida; ela so deixa de estar
+//  no DC.
+//
+//  50 kHz atende as duas exigencias ao mesmo tempo: e maior que qualquer
+//  passagem de AM (10 kHz), NFM (25 kHz) ou SSB, e a 1,024 Msps representa 5%
+//  da largura da tela - o sinal continua visualmente quase no meio.
+//
+//  Amostragem direta (HF) fica de fora: la nao ha misturador, logo nao ha
+//  vazamento de oscilador, e mexer no centro so atrapalharia.
+// ---------------------------------------------------------------------------
+constexpr int64_t kDesvioLoHz = 50000;
+
+//  A zona proibida e MENOR que o desvio, e isso e proposital.
+//
+//  Se as duas fossem iguais, cada passo de sintonia dado na direcao do LO
+//  cairia dentro da zona e mandaria a cachoeira saltar de novo - varrer a
+//  banda por ali viraria um solavanco atras do outro. Com a zona em 20 kHz e o
+//  desvio em 50, depois de um salto sobram 30 kHz de folga para girar o VFO
+//  antes que outro seja preciso.
+//
+//  20 kHz tambem e o bastante: cobre a metade da passagem mais larga que
+//  interessa aqui, a de NFM (25 kHz).
+constexpr int64_t kZonaProibidaHz = 20000;
+
+int64_t centroComDesvioDoLo(int64_t centroPedido, int64_t vfo, bool comTuner)
+{
+    if (!comTuner) return centroPedido;
+    if (std::llabs(centroPedido - vfo) >= kZonaProibidaHz) return centroPedido;
+    return vfo + kDesvioLoHz;
+}
 std::unique_ptr<Demodulator> createDemodForMode(const QString& mode)
 {
     const QString m = mode.toUpper();
@@ -235,10 +284,13 @@ bool Application::start()
             dev->setSampleRate(cfg.sampleRate());
             
             const uint64_t currentFreq = freqA_.load();
-            dev->setQuadrature(cfg.quadratureEm(currentFreq));
+            const bool comTuner = !cfg.quadratureEm(currentFreq);
+            dev->setQuadrature(!comTuner);
             dev->setPpm(cfg.ppm());
             dev->setBias(cfg.biasT());
-            dev->setCenterFreq(currentFreq);
+            // O LO ja abre desviado do VFO - ver centroComDesvioDoLo.
+            dev->setCenterFreq(static_cast<quint64>(centroComDesvioDoLo(
+                static_cast<int64_t>(currentFreq), static_cast<int64_t>(currentFreq), comTuner)));
             dev->setGain(cfg.agc() ? -1 : cfg.gainTenths());
         }
 
@@ -274,7 +326,14 @@ bool Application::start()
             }
         }
         applyConfigToDevice();
-        device_->setCenterFreq(freqA_.load());
+        {
+            // Mesmo desvio de LO de sempre: religar nao pode devolver o VFO
+            // para cima do DC.
+            const uint64_t f = freqA_.load();
+            const bool comTuner = !Config::instance().quadratureEm(f);
+            device_->setCenterFreq(static_cast<quint64>(centroComDesvioDoLo(
+                static_cast<int64_t>(f), static_cast<int64_t>(f), comTuner)));
+        }
         // Reaplica o ganho APÓS setCenterFreq porque o driver RTL-SDR
         // reseta o ganho internamente ao mudar a frequência central.
         if (deviceType_ != QStringLiteral("sdrplay")) {
@@ -321,12 +380,23 @@ bool Application::start()
             const int64_t currentCenter = device_->centerFreq();
             const int64_t diff = std::abs(static_cast<int64_t>(freq) - currentCenter);
             // Se estiver dentro de 48% da largura de banda visível, sintoniza apenas via Software VFO (sem mover a cachoeira)
-            if (diff > static_cast<int64_t>(sr * 0.48)) {
+            const bool saiuDaTela = diff > static_cast<int64_t>(sr * 0.48);
+            // O VFO tambem nao pode PARAR em cima do LO. Sem esta segunda
+            // condicao bastava arrastar a sintonia ate o meio da cachoeira
+            // para o vazamento do oscilador voltar para dentro da passagem -
+            // que e exatamente o apito de 126.208.
+            const bool caiuSobreOLo = !Config::instance().quadratureEm(freq)
+                                    && diff < kZonaProibidaHz;
+            if (saiuDaTela || caiuSobreOLo) {
                 // Atualiza o modo direct sampling conforme a frequência ANTES de sintonizar.
                 // Isso evita que o sintonizador (tuner) tente sintonizar em HF e trave o dongle.
-                device_->setQuadrature(Config::instance().quadratureEm(freq));
+                const bool comTuner = !Config::instance().quadratureEm(freq);
+                device_->setQuadrature(!comTuner);
 
-                device_->setCenterFreq(freq);
+                // O LO nunca fica em cima do VFO - ver centroComDesvioDoLo.
+                device_->setCenterFreq(static_cast<quint64>(
+                    centroComDesvioDoLo(static_cast<int64_t>(freq),
+                                        static_cast<int64_t>(freq), comTuner)));
                 // Re-aplica o ganho: o driver RTL-SDR reseta o ganho de hardware
                 // internamente ao mudar a frequência central — sem isso o ganho
                 // manual some a cada mudança de frequência.
@@ -372,9 +442,17 @@ bool Application::start()
         if (device_) {
             // Atualiza o modo direct sampling conforme a frequência ANTES de sintonizar.
             // Isso evita que o sintonizador (tuner) tente sintonizar em HF e trave o dongle.
-            device_->setQuadrature(Config::instance().quadratureEm(freq));
+            const bool comTuner = !Config::instance().quadratureEm(freq);
+            device_->setQuadrature(!comTuner);
 
-            device_->setCenterFreq(freq);
+            // Arrastar a cachoeira para um centro qualquer continua igual. So o
+            // caso em que o centro pedido cai em cima do VFO - o botao >.< - e
+            // que ganha o desvio.
+            const int64_t centro = centroComDesvioDoLo(
+                static_cast<int64_t>(freq),
+                static_cast<int64_t>(freqA_.load()),
+                comTuner);
+            device_->setCenterFreq(static_cast<quint64>(centro));
             if (deviceType_ == QStringLiteral("sdrplay")) {
                 auto* sdrplay = dynamic_cast<SdrplayDevice*>(device_.get());
                 if (sdrplay) {
@@ -432,7 +510,14 @@ bool Application::start()
                 audioBuffer_.clear();
             }
             applyConfigToDevice();
-            device_->setCenterFreq(freqA_.load());
+            {
+                // Mesmo desvio de LO de sempre: religar nao pode devolver o
+                // VFO para cima do DC.
+                const uint64_t f = freqA_.load();
+                const bool comTuner = !Config::instance().quadratureEm(f);
+                device_->setCenterFreq(static_cast<quint64>(centroComDesvioDoLo(
+                    static_cast<int64_t>(f), static_cast<int64_t>(f), comTuner)));
+            }
             // Reaplica o ganho APÓS setCenterFreq porque o driver RTL-SDR
             // reseta o ganho internamente ao mudar a frequência central.
             const auto& cfg = Config::instance();

@@ -1,5 +1,33 @@
 # Histórico de mudanças
 
+## 1.0.48
+
+- **Régua de informações repaginada.** Ela deixou de ser uma barra preta numa
+  fileira própria e passou a flutuar sobre a parte de baixo da cachoeira, em
+  negrito e com o fundo apenas escurecido — dá para ver o espectro passando
+  atrás das letras, e o clique atravessa normalmente. Saiu dali a taxa de
+  amostragem, que já aparecia na barra logo abaixo dizendo a mesma coisa duas
+  vezes.
+- **Nível do sinal em dB com uma fita de leds coloridos**, ao lado do limiar em
+  que o silenciador está regulado. O número é exato mas exige ler; a fita se
+  entende de relance, que é como se acompanha um sinal enquanto se varre a
+  banda. Fica verde quando o silenciador está aberto. Serve para regular
+  olhando, em vez de subir e descer o controle até acertar: dá para ver quanto
+  o sinal sobe acima do ruído e escolher um valor no meio.
+- **Mais um ajuste na sensibilidade do silenciador.** A folga sobre o ruído
+  estava grande demais e barrava justamente o que se queria ouvir: um sinal
+  fraco, visível na cachoeira, encostava no limiar e não abria. Agora abre.
+- **Fim do apito e da linha preta no meio da cachoeira.** O dongle vaza o
+  próprio oscilador bem no centro do espectro. Quando a estação ficava
+  exatamente no meio — ao clicar em `>.<` ou ao arrastar a sintonia até ali —
+  esse vazamento caía dentro da passagem e virava um apito junto com a
+  modulação; a linha preta fina era o filtro que o remove apagando o ponto
+  central. Agora o oscilador se afasta sozinho 50 kHz do VFO sempre que o
+  centro cairia em cima dele. **A frequência recebida não muda**: quem
+  sintoniza é o VFO por software, então o rádio continua exatamente onde você
+  o colocou. Em ondas curtas nada mudou, porque ali não há misturador e
+  portanto não há vazamento.
+
 ## 1.0.47
 
 - **O silenciador (squelch) ficou bem mais sensível.** Antes, um sinal fraco —
