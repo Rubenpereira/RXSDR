@@ -158,6 +158,15 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
 .vfo-eye{flex:0 0 150px;display:flex;flex-direction:column;gap:6px;align-items:center;justify-content:center}
 .eye-wrap{position:relative;width:80px;height:80px}
 .eye-wrap svg,.eye-wrap img{position:absolute;inset:0;width:100%;height:100%}
+/* Aro laranja em volta do olho magico.
+   A moldura vem de eye_bezel.png, que e um degrade cinza virando preto quase
+   solido nos ultimos 5% do raio - e esse ultimo anel que se ve como "borda
+   fina escura". Em 80 px de largura, 5% do raio da exatamente 2 px, entao um
+   aro de 2 px desenhado por cima cobre o preto sem encostar no vidro.
+   Feito em CSS, e nao repintando o PNG: assim a cor se muda numa linha, e nao
+   e preciso mandar um arquivo binario novo para cada caixa. */
+.eye-wrap::after{content:'';position:absolute;inset:0;border-radius:50%;
+  border:2px solid #ff9a1f;pointer-events:none}
 .eye-arrows{display:flex;gap:6px;width:128px}
 .eye-arrows button{flex:1;height:36px;background:linear-gradient(#10312a,#0a201b);border:1.5px solid #25467a;border-radius:6px;color:#37c0d6;font-size:20px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;user-select:none}
 .eye-arrows button:active{background:#37c0d6;color:#031}
@@ -749,6 +758,21 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
   font-family:'Consolas',monospace;font-size:10px;color:var(--accent-rx);
   height:180px;overflow:auto;text-shadow:0 0 2px rgba(0,255,102,0.5)}
 
+/* O terminal cresce junto com a janela.
+   Ele tinha altura fixa de 180 px: esticar o painel so aumentava a margem em
+   volta, e o texto - que e o que se quer ver - continuava do mesmo tamanho.
+   Agora o corpo do painel vira uma coluna e o terminal fica com o que sobrar.
+
+   O :has() limita isso aos paineis que REALMENTE tem um terminal. Os outros -
+   DMR, AIS, o analisador - tem layout proprio, com tabelas e blocos, e virar
+   coluna flexivel os desarrumaria. Em navegador antigo, sem :has(), a regra e
+   simplesmente ignorada e tudo fica como era. */
+.decoder-panel-body:has(> .dec-terminal){
+  display:flex;flex-direction:column;overflow:hidden}
+.decoder-panel-body:has(> .dec-terminal) > .dec-info{flex:0 0 auto}
+.decoder-panel-body:has(> .dec-terminal) > .dec-terminal{
+  flex:1 1 auto;height:auto;min-height:110px}
+
 /* --- APRS links --- */
 .aprs-link {
   color: #90caf9 !important;
@@ -1089,6 +1113,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
         <a onclick="openDecoderPanel('sitorb')" href="javascript:void(0)">SITOR-B / NAVTEX</a>
         <a onclick="openDecoderPanel('dsc')" href="javascript:void(0)">DSC (chamada seletiva)</a>
         <a onclick="openDecoderPanel('cw')" href="javascript:void(0)">CW / Morse</a>
+        <a onclick="openDecoderPanel('hfdl')" href="javascript:void(0)">HFDL &mdash; ACARS em ondas curtas</a>
         <a onclick="openDecoderPanel('analise')" href="javascript:void(0)">Analisar sinal desconhecido</a>
       </div>
     </div>
@@ -1126,7 +1151,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       </div>
     </div>
     <div style="flex:1"></div>
-    <div class="item" style="color:var(--accent-lcd)">RXSDR v1.0.48</div>
+    <div class="item" style="color:var(--accent-lcd)">RXSDR v1.0.49</div>
   </div>
 
   <!-- =============================== TOPO =============================== -->
@@ -1218,7 +1243,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       </div>
       <div class="vfo-eye">
         <div class="eye-wrap">
-          <svg viewBox="0 0 600 600"><circle cx="300" cy="300" r="250" fill="#331f06"></circle><circle cx="300" cy="300" r="250" fill="#ff9a1f" opacity="0.9"></circle><path id="eyeShadow" d="" fill="#261705"></path></svg>
+          <svg viewBox="0 0 600 600"><circle cx="300" cy="300" r="250" fill="#072a0e"></circle><circle cx="300" cy="300" r="250" fill="#2fd24a" opacity="0.9"></circle><path id="eyeShadow" d="" fill="#04200a"></path></svg>
           <img src="eye_bezel.png" alt="">
         </div>
         <div class="eye-arrows">
@@ -1390,7 +1415,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       <span class="cell" id="wfInfoAudio" style="display:none;color:#7fb0ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1"
             title="Saude do audio: folga do buffer, maior intervalo entre pacotes e quantas vezes faltou audio para tocar.">Audio: —</span>
       <span class="spacer"></span>
-      <span class="cell key">RXSDR V1.0.48</span>
+      <span class="cell key">RXSDR V1.0.49</span>
     </div>
 
     </div>
@@ -3939,6 +3964,13 @@ const Backend = {
             if (msg.decoder === 'DSC') DscDecoder.appendLine(msg.text);
             if (msg.decoder === 'ANALISE') AnaliseDecoder.appendLine(msg.text);
             if (msg.decoder === 'CW') { if (msg.cont) CwDecoder.appendTexto(msg.text); else CwDecoder.appendLine(msg.text); }
+            if (msg.decoder === 'HFDL') { try { HfdlDecoder.anotar(msg.text); } catch (e) {} }
+          }
+          // O HFDL manda a mensagem inteira de uma vez, ja montada no C++ a
+          // partir das varias linhas que o dumphfdl escreve. Por isso tem um
+          // tipo proprio, e nao vem como 'dec_line' solta.
+          if (msg.t === 'hfdl_msg') {
+            try { HfdlDecoder.anotar(msg.text); } catch (e) {}
           }
         } catch (_) {}
         return;
@@ -5439,6 +5471,256 @@ function frame(t){
   requestAnimationFrame(frame);
 }
 
+
+/* =========================================================================
+   HFDL - o ACARS das ondas curtas
+   =========================================================================
+   Quem decodifica e o dumphfdl. A diferenca dele para os outros
+   decodificadores daqui e que ele NAO ouve uma frequencia: ouve uma BANDA
+   inteira, com todos os canais ao mesmo tempo.
+
+   Isso nao e capricho. O HFDL foi feito assim: cada estacao de terra usa
+   varias frequencias e troca de uma para outra conforme a hora e a
+   propagacao. Ficar parado num canal so e a melhor maneira de nao ouvir
+   nada. Por isso o painel escolhe a BANDA, e nao a frequencia.
+
+   As larguras vieram da tabela de estacoes do proprio dumphfdl. A banda de
+   5,5 MHz e a mais espalhada - 269 kHz de ponta a ponta -, e por isso e a
+   unica que precisa de 1,024 MSPS; nas outras 250 kHz bastam e o fluxo pelo
+   cano cai para um quarto.
+   ========================================================================= */
+const HfdlDecoder = (() => {
+  // Cada banda: nome, canais em kHz e a taxa de amostragem necessaria.
+  const BANDAS = [
+    { id:'3',  nome:'2,9 - 3,0 MHz',  canais:[2941,2944,2986,2992,2998,3007,3016] },
+    { id:'35', nome:'3,4 - 3,5 MHz',  canais:[3455,3497] },
+    { id:'46', nome:'4,6 - 4,7 MHz',  canais:[4654,4660,4681,4687] },
+    { id:'55', nome:'5,4 - 5,7 MHz',  canais:[5451,5502,5508,5514,5529,5538,5544,5547,5583,5589,5622,5652,5655,5720] },
+    { id:'65', nome:'6,5 - 6,7 MHz',  canais:[6529,6532,6535,6559,6565,6589,6596,6619,6628,6646,6652,6661,6712] },
+    { id:'89', nome:'8,8 - 9,0 MHz',  canais:[8825,8834,8843,8885,8886,8894,8912,8921,8927,8936,8939,8942,8948,8957,8977] },
+    { id:'10', nome:'10,0 - 10,1 MHz',canais:[10027,10030,10060,10063,10066,10081,10084,10087,10093] },
+    { id:'11', nome:'11,3 - 11,4 MHz',canais:[11306,11312,11318,11321,11327,11348,11354,11384,11387] },
+    { id:'13', nome:'13,2 - 13,4 MHz',canais:[13264,13270,13276,13303,13312,13315,13321,13324,13342,13351] },
+    { id:'17', nome:'17,9 - 18,0 MHz',canais:[17901,17912,17916,17919,17922,17928,17934,17958,17967,17985] },
+    { id:'21', nome:'21,9 - 22,0 MHz',canais:[21928,21931,21934,21937,21949,21955,21982,21990,21997] }
+  ];
+
+  // Centro e largura saem dos proprios canais - nao ha numero digitado a mao
+  // que possa ficar desatualizado se a lista mudar.
+  function medidas(b){
+    const lo = Math.min.apply(null, b.canais);
+    const hi = Math.max.apply(null, b.canais);
+    const larguraHz = (hi - lo) * 1000;
+    // Folga de 30% para as bordas nao cairem no canto do filtro.
+    const precisaHz = larguraHz * 1.3;
+    // O RTL-SDR nao aceita taxas entre 300 kHz e 900 kHz - o 500000 da lista
+    // so vale para SDRplay. Por isso o salto e direto de 250k para 1,024M.
+    const taxa = (precisaHz <= 250000) ? 250000 : 1024000;
+    return { centroKHz: (lo + hi) / 2, larguraHz: larguraHz, taxa: taxa };
+  }
+
+  let _linhas = [];
+  let _rodando = false;
+  let _bandaId = '89';
+  let _timer = null;
+
+  function el(id){ return document.getElementById(id); }
+
+  function buildPanelHTML(){
+    let opcoes = '';
+    BANDAS.forEach(b => {
+      const m = medidas(b);
+      const sel = (b.id === _bandaId) ? ' selected' : '';
+      opcoes += '<option value="' + b.id + '"' + sel + '>' + b.nome +
+                '  (' + b.canais.length + ' canais, ' +
+                (m.taxa/1e6).toFixed(3) + ' MSPS)</option>';
+    });
+
+    return '' +
+      '<div class="dec-info" style="margin-bottom:6px">' +
+        '<b>Banda:</b> <select id="hfdlBanda" style="background:#0a1119;color:#cfe;border:1px solid #2a4a6a;border-radius:5px;padding:3px 6px;font-family:inherit;font-size:11px">' + opcoes + '</select> ' +
+        '<button id="hfdlBtn" style="margin-left:8px;background:#10312a;border:1px solid #2e8b57;border-radius:6px;color:#7CFC00;font-family:inherit;font-size:11px;padding:4px 12px;cursor:pointer">OUVIR</button> ' +
+        '<button id="hfdlLimpar" style="margin-left:4px;background:#2a1020;border:1px solid #8c2e5a;border-radius:6px;color:#ff9ec4;font-family:inherit;font-size:11px;padding:4px 10px;cursor:pointer">LIMPAR</button>' +
+      '</div>' +
+      '<div class="dec-info" id="hfdlEstado" style="margin-bottom:6px;font-size:10px;opacity:0.85">parado</div>' +
+      '<div class="dec-terminal" id="hfdlTerm" style="font-size:11px"><span style="opacity:0.6">' +
+        'Escolha a banda e toque em OUVIR. O radio sintoniza o centro sozinho e ' +
+        'passa a acompanhar todos os canais dela ao mesmo tempo.' +
+      '</span></div>';
+  }
+
+  function pintar(){
+    const t = el('hfdlTerm');
+    if (!t) return;
+    if (!_linhas.length) {
+      t.innerHTML = '<span style="opacity:0.6">- sem mensagens ainda -</span>';
+      return;
+    }
+    // As mais novas em cima: numa escuta longa o que interessa e o que acabou
+    // de chegar, e rolar ate o fim a cada mensagem cansa.
+    t.innerHTML = _linhas.slice(-200).reverse().join('');
+  }
+
+  function anotar(texto){
+    const hora = new Date().toISOString().substr(11,8);
+    const corpo = String(texto)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/\n/g,'<br>');
+    _linhas.push('<div style="margin-bottom:6px;border-bottom:1px solid #12283c;padding-bottom:4px">' +
+                 '<span style="color:#67ff8b">[' + hora + 'Z]</span><br>' + corpo + '</div>');
+    if (_linhas.length > 400) _linhas = _linhas.slice(-200);
+    pintar();
+  }
+
+  function estado(txt, cor){
+    const e = el('hfdlEstado');
+    if (e) { e.textContent = txt; e.style.color = cor || ''; }
+  }
+
+  async function ligar(){
+    const b = BANDAS.find(x => x.id === el('hfdlBanda').value);
+    if (!b) return;
+    _bandaId = b.id;
+    const m = medidas(b);
+
+    estado('preparando o radio...', '#ffd479');
+
+    // 1) a taxa PRIMEIRO. Mudar a taxa depois de sintonizar faria o backend
+    //    recalcular o centro e sair do lugar combinado.
+    const selTaxa = document.getElementById('cfgSampleRate');
+    if (selTaxa && Number(selTaxa.value) !== m.taxa) {
+      selTaxa.value = String(m.taxa);
+      selTaxa.dispatchEvent(new Event('change', { bubbles:true }));
+      await new Promise(r => setTimeout(r, 900));
+    }
+
+    // 2) o centro da banda.
+    try { await Backend.setCenter(Math.round(m.centroKHz * 1000)); } catch(e){}
+    await new Promise(r => setTimeout(r, 700));
+
+    // 3) o VFO em cima do canal MAIS BAIXO da banda, em USB.
+    //
+    // O decodificador nao precisa disto - ele recebe o espectro inteiro e nao
+    // olha para o VFO. Isto e para VOCE: sem esta sintonia o mostrador ficava
+    // parado na frequencia anterior enquanto a cachoeira andava para outro
+    // lugar, e nao havia como saber onde o radio estava. Ainda por cima o VFO
+    // ficava fora da banda amostrada, e o audio virava silencio ou lixo.
+    //
+    // O canal mais baixo, e nao o do meio, por um motivo: o desvio automatico
+    // do oscilador afasta o centro em 50 kHz sempre que o VFO chega a menos de
+    // 20 kHz dele. Com o VFO na beirada da banda, isso nunca acontece - e o
+    // centro fica onde foi posto. Se o VFO fosse para o meio, o centro
+    // escaparia 50 kHz e a borda de baixo da banda poderia sair da janela.
+    const canalBaixo = Math.min.apply(null, b.canais) * 1000;
+    try { await Backend.tune(canalBaixo, 'USB', 3000); } catch(e){}
+    await new Promise(r => setTimeout(r, 300));
+
+    // 4) so entao o decodificador. O backend le o centro e a taxa do
+    //    DISPOSITIVO, nao daqui - se o desvio automatico do oscilador tiver
+    //    mexido no centro, o que vale e o valor real.
+    try {
+      const r = await fetch('/api/hfdl/start', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ canais: b.canais })
+      });
+      const j = await r.json();
+      if (!j.ok) {
+        estado('nao consegui iniciar: ' + (j.erro || j.error || '?'), '#ff6b6b');
+        return;
+      }
+      _rodando = true;
+      el('hfdlBtn').textContent = 'PARAR';
+      el('hfdlBtn').style.color = '#ff8a8a';
+      el('hfdlBtn').style.borderColor = '#8b2e2e';
+      estado('ouvindo ' + b.canais.length + ' canais de ' + b.nome +
+             '  -  centro ' + (m.centroKHz/1000).toFixed(3) + ' MHz, ' +
+             (m.taxa/1e6).toFixed(3) + ' MSPS' +
+             '  |  nao mexa no VFO enquanto ouve: sair da banda faz o radio ' +
+             'recentralizar e o decodificador perde o sinal', '#7CFC00');
+    } catch(e){
+      estado('erro de rede ao iniciar', '#ff6b6b');
+    }
+  }
+
+  async function desligar(){
+    try { await fetch('/api/hfdl/stop', { method:'POST' }); } catch(e){}
+    _rodando = false;
+    const b = el('hfdlBtn');
+    if (b) { b.textContent = 'OUVIR'; b.style.color = '#7CFC00'; b.style.borderColor = '#2e8b57'; }
+    estado('parado');
+  }
+
+  // Trava contra pedidos empilhados.
+  //
+  // Ligar leva quase dois segundos - taxa, centro e so entao o decodificador.
+  // Sem trava, girar o seletor tres vezes seguidas dispararia tres sequencias
+  // ao mesmo tempo, cada uma mandando o radio para uma banda diferente.
+  let _ocupado = false;
+
+  async function trocarBanda(){
+    if (_ocupado) return;
+    _ocupado = true;
+    try {
+      if (_rodando) {
+        await desligar();
+        await ligar();
+      } else {
+        // Parado: so guarda a escolha para quando tocar em OUVIR.
+        _bandaId = el('hfdlBanda').value;
+      }
+    } finally {
+      _ocupado = false;
+    }
+  }
+
+  function init(){
+    pintar();
+    const btn = el('hfdlBtn');
+    if (btn) btn.addEventListener('click', () => {
+      if (_ocupado) return;
+      _ocupado = true;
+      const p = _rodando ? desligar() : ligar();
+      Promise.resolve(p).finally(() => { _ocupado = false; });
+    });
+
+    // Trocar de banda com o decodificador no ar RECOMECA na banda nova.
+    //
+    // Antes o seletor so era lido ao tocar em OUVIR, e como durante a escuta o
+    // botao vira PARAR, nao havia como aplicar a troca: o radio ficava presoa
+    // banda anterior sem dizer por que. Reiniciar sozinho e o que se espera de
+    // um seletor - ninguem procura um botao de "aplicar" ao lado dele.
+    const sel = el('hfdlBanda');
+    if (sel) sel.addEventListener('change', trocarBanda);
+
+    const lim = el('hfdlLimpar');
+    if (lim) lim.addEventListener('click', () => { _linhas = []; pintar(); });
+
+    // Se o decodificador ja estava no ar (a janela foi fechada e reaberta),
+    // a tela tem de refletir isso em vez de mostrar "parado".
+    fetch('/api/hfdl/status').then(r => r.json()).then(j => {
+      if (j && j.estado === 'rodando') {
+        _rodando = true;
+        const b2 = el('hfdlBtn');
+        if (b2) { b2.textContent = 'PARAR'; b2.style.color = '#ff8a8a'; b2.style.borderColor = '#8b2e2e'; }
+        estado('ouvindo ' + (j.canais ? j.canais.length : '?') + ' canais', '#7CFC00');
+      } else if (j && j.binario === false) {
+        estado('o dumphfdl nao esta em decoders/ - rode o COMPILAR_HFDL.bat', '#ff6b6b');
+      }
+    }).catch(()=>{});
+  }
+
+  function onClose(){
+    // Fechar a janela PARA o decodificador, de proposito.
+    //
+    // Ele consome o IQ inteiro do radio e ocupa processador; deixar rodando
+    // escondido gastaria a maquina sem ninguem olhando o resultado.
+    if (_rodando) desligar();
+    if (_timer) { clearInterval(_timer); _timer = null; }
+  }
+
+  return { buildPanelHTML, init, onClose, anotar };
+})();
+
 /* =========================================================
    4. CONTROLES — sliders e botões
    ========================================================= */
@@ -6821,7 +7103,8 @@ const DECODERS = [
   {id:'sitorb',name:'SITOR-B', freq:'8415 kHz e outras',    mod:'FSK 100 bd, shift 170 Hz'},
   {id:'cw',    name:'CW / Morse', freq:'qualquer',           mod:'telegrafia, velocidade medida sozinha'},
   {id:'dsc',   name:'DSC',      freq:'8414.5 kHz e outras', mod:'FSK 100 bd, shift 170 Hz'},
-  {id:'analise',name:'Analisador', freq:'onde voce estiver', mod:'mede tons, shift e velocidade'}
+  {id:'analise',name:'Analisador', freq:'onde voce estiver', mod:'mede tons, shift e velocidade'},
+  {id:'hfdl',  name:'HFDL',      freq:'2 a 22 MHz',          mod:'PSK 300-1800 bps, varios canais de uma vez'}
 ];
 
 function buildDecoderContent(d){
@@ -6843,6 +7126,8 @@ function buildDecoderContent(d){
     return CwDecoder.buildPanelHTML();
   } else if(d.id==='analise'){
     return AnaliseDecoder.buildPanelHTML();
+  } else if(d.id==='hfdl'){
+    return HfdlDecoder.buildPanelHTML();
   }
   let body = `<div class="dec-info" style="margin-bottom:6px">
     <b>Freq:</b> ${d.freq} &nbsp; <b>Mod:</b> ${d.mod} &nbsp;
@@ -6964,6 +7249,7 @@ function openDecoderPanel(id){
   if (id === 'dsd')  DsdDecoder.init();
   if (id === 'tetra') TetraDecoder.init();
   if (id === 'packet') AprsDecoder.init();
+  if (id === 'hfdl') HfdlDecoder.init();
 }
 
 function closeDecoderPanel(id){
@@ -6981,6 +7267,7 @@ function closeDecoderPanel(id){
   if (id === 'cw') CwDecoder.onClose();
   if (id === 'dsc') DscDecoder.onClose();
   if (id === 'analise') AnaliseDecoder.onClose();
+  if (id === 'hfdl') HfdlDecoder.onClose();
 }
 
 function makeDecoderPanelDraggable(panel) {

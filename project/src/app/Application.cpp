@@ -29,6 +29,7 @@
 #include "../decoders/AnaliseManager.h"
 #include "../decoders/SelcalManager.h"
 #include "../decoders/TetraManager.h"
+#include "../decoders/HfdlManager.h"
 
 #include <QJsonObject>
 #include <QJsonArray>
@@ -70,8 +71,23 @@ namespace {
 //  passagem de AM (10 kHz), NFM (25 kHz) ou SSB, e a 1,024 Msps representa 5%
 //  da largura da tela - o sinal continua visualmente quase no meio.
 //
-//  Amostragem direta (HF) fica de fora: la nao ha misturador, logo nao ha
-//  vazamento de oscilador, e mexer no centro so atrapalharia.
+//  ONDAS CURTAS TAMBEM PRECISAM DISTO - e nao foi o que eu disse antes.
+//
+//  Escrevi aqui que amostragem direta ficaria de fora "porque nao ha
+//  misturador, logo nao ha vazamento". Metade certa: nao ha vazamento de
+//  oscilador mesmo. Mas o CONVERSOR tem desvio de zero proprio, e esse desvio
+//  aparece exatamente no meio da tela, do mesmo jeito. O bloqueador de DC o
+//  apaga, e sobra a mesma linha preta fina - foi o que a caixa de HF continuou
+//  mostrando enquanto a de VHF ja estava limpa.
+//
+//  Entao o desvio vale para os dois modos. Em amostragem direta quem sintoniza
+//  e o conversor digital de dentro do RTL2832, e ele aceita o centro deslocado
+//  igual ao sintonizador.
+//
+//  O SENTIDO do desvio muda perto do teto: em amostragem direta a faixa util
+//  vai ate cerca de 14,4 MHz, e somar 50 kHz num VFO em 14,38 jogaria o centro
+//  para fora. Nesse caso o desvio vai para baixo. No fundo da escala, abaixo
+//  de 150 kHz, vale o contrario - ali o centro nao pode chegar perto de zero.
 // ---------------------------------------------------------------------------
 constexpr int64_t kDesvioLoHz = 50000;
 
@@ -87,11 +103,23 @@ constexpr int64_t kDesvioLoHz = 50000;
 //  interessa aqui, a de NFM (25 kHz).
 constexpr int64_t kZonaProibidaHz = 20000;
 
-int64_t centroComDesvioDoLo(int64_t centroPedido, int64_t vfo, bool comTuner)
+// Teto util da amostragem direta no RTL2832 (ramo Q, relogio de 28,8 MHz).
+constexpr int64_t kTetoDiretaHz = 14300000;
+// Abaixo disto o centro nao pode descer mais, ou encosta no zero.
+constexpr int64_t kPisoCentroHz = 150000;
+
+int64_t centroComDesvioDoLo(int64_t centroPedido, int64_t vfo, bool amostragemDireta)
 {
-    if (!comTuner) return centroPedido;
     if (std::llabs(centroPedido - vfo) >= kZonaProibidaHz) return centroPedido;
-    return vfo + kDesvioLoHz;
+
+    int64_t centro = vfo + kDesvioLoHz;
+
+    // Perto do teto da amostragem direta, desvia para o outro lado.
+    if (amostragemDireta && centro > kTetoDiretaHz) centro = vfo - kDesvioLoHz;
+    // E no fundo da escala, nunca para baixo.
+    if (centro < kPisoCentroHz) centro = vfo + kDesvioLoHz;
+
+    return centro;
 }
 std::unique_ptr<Demodulator> createDemodForMode(const QString& mode)
 {
@@ -284,13 +312,13 @@ bool Application::start()
             dev->setSampleRate(cfg.sampleRate());
             
             const uint64_t currentFreq = freqA_.load();
-            const bool comTuner = !cfg.quadratureEm(currentFreq);
-            dev->setQuadrature(!comTuner);
+            const bool direta = cfg.quadratureEm(currentFreq);
+            dev->setQuadrature(direta);
             dev->setPpm(cfg.ppm());
             dev->setBias(cfg.biasT());
             // O LO ja abre desviado do VFO - ver centroComDesvioDoLo.
             dev->setCenterFreq(static_cast<quint64>(centroComDesvioDoLo(
-                static_cast<int64_t>(currentFreq), static_cast<int64_t>(currentFreq), comTuner)));
+                static_cast<int64_t>(currentFreq), static_cast<int64_t>(currentFreq), direta)));
             dev->setGain(cfg.agc() ? -1 : cfg.gainTenths());
         }
 
@@ -330,9 +358,9 @@ bool Application::start()
             // Mesmo desvio de LO de sempre: religar nao pode devolver o VFO
             // para cima do DC.
             const uint64_t f = freqA_.load();
-            const bool comTuner = !Config::instance().quadratureEm(f);
+            const bool direta = Config::instance().quadratureEm(f);
             device_->setCenterFreq(static_cast<quint64>(centroComDesvioDoLo(
-                static_cast<int64_t>(f), static_cast<int64_t>(f), comTuner)));
+                static_cast<int64_t>(f), static_cast<int64_t>(f), direta)));
         }
         // Reaplica o ganho APÓS setCenterFreq porque o driver RTL-SDR
         // reseta o ganho internamente ao mudar a frequência central.
@@ -385,18 +413,17 @@ bool Application::start()
             // condicao bastava arrastar a sintonia ate o meio da cachoeira
             // para o vazamento do oscilador voltar para dentro da passagem -
             // que e exatamente o apito de 126.208.
-            const bool caiuSobreOLo = !Config::instance().quadratureEm(freq)
-                                    && diff < kZonaProibidaHz;
+            const bool caiuSobreOLo = diff < kZonaProibidaHz;
             if (saiuDaTela || caiuSobreOLo) {
                 // Atualiza o modo direct sampling conforme a frequência ANTES de sintonizar.
                 // Isso evita que o sintonizador (tuner) tente sintonizar em HF e trave o dongle.
-                const bool comTuner = !Config::instance().quadratureEm(freq);
-                device_->setQuadrature(!comTuner);
+                const bool direta = Config::instance().quadratureEm(freq);
+                device_->setQuadrature(direta);
 
                 // O LO nunca fica em cima do VFO - ver centroComDesvioDoLo.
                 device_->setCenterFreq(static_cast<quint64>(
                     centroComDesvioDoLo(static_cast<int64_t>(freq),
-                                        static_cast<int64_t>(freq), comTuner)));
+                                        static_cast<int64_t>(freq), direta)));
                 // Re-aplica o ganho: o driver RTL-SDR reseta o ganho de hardware
                 // internamente ao mudar a frequência central — sem isso o ganho
                 // manual some a cada mudança de frequência.
@@ -442,8 +469,8 @@ bool Application::start()
         if (device_) {
             // Atualiza o modo direct sampling conforme a frequência ANTES de sintonizar.
             // Isso evita que o sintonizador (tuner) tente sintonizar em HF e trave o dongle.
-            const bool comTuner = !Config::instance().quadratureEm(freq);
-            device_->setQuadrature(!comTuner);
+            const bool direta = Config::instance().quadratureEm(freq);
+            device_->setQuadrature(direta);
 
             // Arrastar a cachoeira para um centro qualquer continua igual. So o
             // caso em que o centro pedido cai em cima do VFO - o botao >.< - e
@@ -451,7 +478,7 @@ bool Application::start()
             const int64_t centro = centroComDesvioDoLo(
                 static_cast<int64_t>(freq),
                 static_cast<int64_t>(freqA_.load()),
-                comTuner);
+                direta);
             device_->setCenterFreq(static_cast<quint64>(centro));
             if (deviceType_ == QStringLiteral("sdrplay")) {
                 auto* sdrplay = dynamic_cast<SdrplayDevice*>(device_.get());
@@ -514,9 +541,9 @@ bool Application::start()
                 // Mesmo desvio de LO de sempre: religar nao pode devolver o
                 // VFO para cima do DC.
                 const uint64_t f = freqA_.load();
-                const bool comTuner = !Config::instance().quadratureEm(f);
+                const bool direta = Config::instance().quadratureEm(f);
                 device_->setCenterFreq(static_cast<quint64>(centroComDesvioDoLo(
-                    static_cast<int64_t>(f), static_cast<int64_t>(f), comTuner)));
+                    static_cast<int64_t>(f), static_cast<int64_t>(f), direta)));
             }
             // Reaplica o ganho APÓS setCenterFreq porque o driver RTL-SDR
             // reseta o ganho internamente ao mudar a frequência central.
@@ -1114,6 +1141,56 @@ bool Application::start()
         return r;
     };
 
+    // ── HFDL ───────────────────────────────────────────────────────────────────
+    hfdlDeco_ = std::make_unique<HfdlManager>(this);
+
+    connect(hfdlDeco_.get(), &HfdlManager::logLine, this, [this](const QString& linha) {
+        ws_->broadcastJson(QJsonObject{
+            {"t",       "dec_line"},
+            {"decoder", "HFDL"},
+            {"text",    linha}
+        });
+    });
+    connect(hfdlDeco_.get(), &HfdlManager::mensagem, this, [this](const QString& texto) {
+        ws_->broadcastJson(QJsonObject{
+            {"t",       "hfdl_msg"},
+            {"text",    texto}
+        });
+    });
+    connect(hfdlDeco_.get(), &HfdlManager::error, this, [](const QString& msg) {
+        Logger::error(QStringLiteral("HFDL: ") + msg);
+    });
+
+    rest_->onHfdlStatus = [this]() {
+        return hfdlDeco_->statusJson();
+    };
+
+    rest_->onHfdlStart = [this](const QJsonObject& j) -> QJsonObject {
+        HfdlManager::Params p;
+        for (const auto& v : j.value("canais").toArray()) {
+            p.canaisKHz.append(v.toDouble());
+        }
+        // O centro e a taxa vem do DISPOSITIVO, nao do pedido: e o IQ dele que
+        // sera entregue, e informar outra coisa faria o dumphfdl procurar os
+        // canais no lugar errado. O painel ja sintonizou antes de chamar aqui.
+        if (device_) {
+            p.centroKHz  = static_cast<double>(device_->centerFreq()) / 1000.0;
+            p.sampleRate = device_->sampleRate();
+        }
+        hfdlDeco_->setParams(p);
+        hfdlDeco_->start();
+        QJsonObject r = hfdlDeco_->statusJson();
+        r["ok"] = (hfdlDeco_->state() == HfdlManager::State::Running);
+        return r;
+    };
+
+    rest_->onHfdlStop = [this]() -> QJsonObject {
+        hfdlDeco_->stop();
+        QJsonObject r = hfdlDeco_->statusJson();
+        r["ok"] = true;
+        return r;
+    };
+
     rest_->onStatus = [this]() {
         const auto& cfg = Config::instance();
         const bool live = device_ && (QDateTime::currentMSecsSinceEpoch() - lastIqMs_.load()) < 2000;
@@ -1621,6 +1698,17 @@ void Application::wireDeviceCallback()
         // AIS-catcher tambem quer IQ, nao audio (ver feedIQ no manager).
         if (aisCatcher_ && aisCatcher_->state() == AisCatcherManager::State::Running) {
             aisCatcher_->feedIQ(demodSrc, n, dev->sampleRate());
+        }
+
+        // HFDL recebe "src", e nao "demodSrc" - e a unica diferenca que
+        // importa aqui.
+        //
+        // O demodSrc ja veio girado para por o VFO no zero, o que serve a quem
+        // decodifica UM canal. O HFDL acompanha varios ao mesmo tempo, entao
+        // precisa do espectro como ele e, centrado no centro do dongle. Girar
+        // antes faria o dumphfdl procurar cada frequencia deslocada da real.
+        if (hfdlDeco_ && hfdlDeco_->state() == HfdlManager::State::Running) {
+            hfdlDeco_->feedIQ(src, n, dev->sampleRate());
         }
 
         // CRITICO: lock obrigatorio - onTune (thread HTTP) pode trocar demod_

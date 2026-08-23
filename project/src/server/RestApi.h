@@ -102,6 +102,11 @@ public:
     std::function<QJsonObject(const QJsonObject&)>           onTetraStart;
     std::function<QJsonObject()>                             onTetraStop;
 
+    // HFDL - o ACARS das ondas curtas, decodificado pelo dumphfdl.
+    std::function<QJsonObject()>                             onHfdlStatus;
+    std::function<QJsonObject(const QJsonObject&)>           onHfdlStart;
+    std::function<QJsonObject()>                             onHfdlStop;
+
 private:
     ISdrDevice* dev_ = nullptr;
 };

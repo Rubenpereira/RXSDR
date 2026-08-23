@@ -65,6 +65,7 @@ set(SOURCES
     src/decoders/AnaliseManager.cpp
     src/decoders/SelcalManager.cpp
     src/decoders/TetraManager.cpp
+    src/decoders/HfdlManager.cpp
     src/util/Logger.cpp
 )
 
@@ -106,6 +107,7 @@ set(HEADERS
     src/decoders/DscManager.h
     src/decoders/SelcalManager.h
     src/decoders/TetraManager.h
+    src/decoders/HfdlManager.h
     src/util/Logger.h
     src/util/Timing.h
 )

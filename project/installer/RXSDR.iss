@@ -3,7 +3,7 @@
 ; O instalador gerado ficará em: project\installer\output\RXSDR_Setup_1.0.0.exe
 
 #define MyAppName      "RXSDR"
-#define MyAppVersion   "1.0.48"
+#define MyAppVersion   "1.0.49"
 #define MyAppPublisher "PU1XTB — Ruben"
 #define MyAppURL       "https://github.com/ruben/RXSDR"
 #define MyAppExeName   "RXSDR.exe"
@@ -97,7 +97,10 @@ Source: "{#BuildDir}\web\*"; DestDir: "{app}\web"; Flags: ignoreversion recurses
 
 ; ── Pasta DECODERS — executáveis, DLLs e configs de todos os decoders ────────
 ; (DSD-FME, ACARS, AIS-Catcher, DSDPlus, FMP24, FMPA, FMPP, Survey, Direwolf)
-Source: "{#BuildDir}\decoders\*"; DestDir: "{app}\decoders"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
+; O hfdl_compat.h e a pasta hfdl_win_shim so servem para COMPILAR o dumphfdl
+; no MSYS2. Nao tem uso nenhum na maquina de quem instala, e mandar codigo
+; fonte junto do programa so confunde quem for olhar a pasta.
+Source: "{#BuildDir}\decoders\*"; DestDir: "{app}\decoders"; Excludes: "hfdl_compat.h,hfdl_win_shim\*,hfdl_win_shim"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 ; ── Ícone da aplicação ────────────────────────────────────────────────────────
 Source: "assets\app.ico"; DestDir: "{app}"; Flags: ignoreversion
 

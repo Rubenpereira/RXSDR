@@ -454,6 +454,30 @@ void RestApi::install(QHttpServer* server)
         return QHttpServerResponse("application/json", QJsonDocument(r).toJson());
     });
 
+    // ── HFDL ────────────────────────────────────────────────────────────────────
+
+    // GET /api/hfdl/status
+    server->route("/api/hfdl/status", QHttpServerRequest::Method::Get, [this]() {
+        QJsonObject o = onHfdlStatus ? onHfdlStatus() : QJsonObject{{"estado","indisponivel"}};
+        return QHttpServerResponse("application/json", QJsonDocument(o).toJson());
+    });
+
+    // POST /api/hfdl/start - recebe a banda escolhida no painel
+    server->route("/api/hfdl/start", QHttpServerRequest::Method::Post,
+        [this](const QHttpServerRequest& req) {
+            auto j = QJsonDocument::fromJson(req.body()).object();
+            QJsonObject r = onHfdlStart ? onHfdlStart(j) : QJsonObject{{"ok",false},{"error","indisponível"}};
+            if (!r.contains("ok")) r.insert("ok", true);
+            return QHttpServerResponse("application/json", QJsonDocument(r).toJson());
+        });
+
+    // POST /api/hfdl/stop
+    server->route("/api/hfdl/stop", QHttpServerRequest::Method::Post, [this]() {
+        QJsonObject r = onHfdlStop ? onHfdlStop() : QJsonObject{{"ok",false},{"error","indisponível"}};
+        if (!r.contains("ok")) r.insert("ok", true);
+        return QHttpServerResponse("application/json", QJsonDocument(r).toJson());
+    });
+
 
     // Gravacao MP3: recebe o corpo e grava na Area de Trabalho (Win 7/10/11)
     server->route("/api/save_recording", QHttpServerRequest::Method::Post,

@@ -32,6 +32,7 @@ class DscManager;
 class AnaliseManager;
 class CwManager;
 class SelcalManager;
+class HfdlManager;   // HFDL - o ACARS das ondas curtas
 class TetraManager;
 
 class Application : public QObject {
@@ -71,6 +72,7 @@ private:
     std::unique_ptr<AnaliseManager> analiseDeco_;
     std::unique_ptr<SelcalManager> selcalDeco_;
     std::unique_ptr<TetraManager> tetraDeco_;
+    std::unique_ptr<HfdlManager>  hfdlDeco_;
     IirDcBlock dcBlock_;
 
     // Leva o audio a 48000 Hz exatos antes de mandar para o navegador.

@@ -1,5 +1,20 @@
 # Histórico de mudanças
 
+## 1.0.49
+
+- **Novo decodificador: HFDL, o ACARS das ondas curtas.** É por ele que as
+  aeronaves conversam com as estações de terra quando estão longe demais para
+  o VHF — sobre o oceano, o deserto ou o polo. Aparecem o prefixo da aeronave,
+  o número do voo, a estação que atendeu e, com sorte, **a posição em latitude
+  e longitude**.
+- No painel você escolhe a **banda**, não a frequência. O HFDL tem várias
+  frequências por banda e as estações se revezam entre elas conforme a hora e a
+  propagação; ficar parado num canal só é a melhor maneira de não ouvir nada.
+  São 11 bandas, de 2,9 a 22 MHz, e o rádio se ajusta sozinho ao escolher uma.
+  Trocar de banda com o decodificador ligado o reinicia na banda nova.
+- A janela do decodificador agora **estica junto com o texto**: antes o terminal
+  tinha altura fixa, e aumentar o painel só aumentava a margem em volta.
+
 ## 1.0.48
 
 - **Régua de informações repaginada.** Ela deixou de ser uma barra preta numa
