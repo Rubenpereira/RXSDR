@@ -1151,7 +1151,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       </div>
     </div>
     <div style="flex:1"></div>
-    <div class="item" style="color:var(--accent-lcd)">RXSDR v1.0.49</div>
+    <div class="item" style="color:var(--accent-lcd)">RXSDR v1.0.50</div>
   </div>
 
   <!-- =============================== TOPO =============================== -->
@@ -1415,7 +1415,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       <span class="cell" id="wfInfoAudio" style="display:none;color:#7fb0ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1"
             title="Saude do audio: folga do buffer, maior intervalo entre pacotes e quantas vezes faltou audio para tocar.">Audio: —</span>
       <span class="spacer"></span>
-      <span class="cell key">RXSDR V1.0.49</span>
+      <span class="cell key">RXSDR V1.0.50</span>
     </div>
 
     </div>
@@ -5561,11 +5561,51 @@ const HfdlDecoder = (() => {
     t.innerHTML = _linhas.slice(-200).reverse().join('');
   }
 
+  // Liga o prefixo da aeronave e o numero do voo ao FlightAware, como no ACARS.
+  //
+  // Duas diferencas em relacao ao ACARS, e as duas importam:
+  //
+  // 1. O HFDL preenche o campo do prefixo com PONTOS a esquerda - vem
+  //    ".PS-AJB", nao "PS-AJB". O ponto e enchimento de um campo de tamanho
+  //    fixo, nao faz parte do prefixo. Ele continua aparecendo na tela, mas
+  //    fica FORA do endereco: com ele, o FlightAware nao acha nada.
+  //
+  // 2. So se liga o que vem depois de "Reg:" ou "Flight:". O ACARS varre a
+  //    linha inteira procurando qualquer coisa parecida com prefixo, e aqui
+  //    isso daria errado: as mensagens estao cheias de codigos com a mesma
+  //    forma - "Blk id: X", "Msg num: S74A" - que virariam links para lugar
+  //    nenhum.
+  function ligarFlightAware(html){
+    html = html.replace(/(Reg:\s*)(\.*)([A-Z0-9][A-Z0-9-]{2,7})/g,
+      function(_, rotulo, pontos, prefixo){
+        return rotulo + pontos +
+               '<a href="https://flightaware.com/live/flight/' +
+               encodeURIComponent(prefixo) + '" target="_blank" class="aprs-link">' +
+               prefixo + '</a>';
+      });
+    // "Flight:" e "Flight ID:" - o HFDL usa OS DOIS rotulos, e nao ha regra:
+    // dentro do envelope ACARS vem "Flight:", nas mensagens de posicao e de
+    // desempenho vem "Flight ID:". A primeira versao so pegava o primeiro, e o
+    // numero do voo das mensagens de posicao - justamente as mais interessantes,
+    // que trazem latitude e longitude - ficava sem link.
+    html = html.replace(/(Flight(?:\s+ID)?:\s*)([A-Z0-9]{3,8})/g,
+      function(_, rotulo, voo){
+        return rotulo +
+               '<a href="https://flightaware.com/live/flight/' +
+               encodeURIComponent(voo) + '" target="_blank" class="aprs-link">' +
+               voo + '</a>';
+      });
+    return html;
+  }
+
   function anotar(texto){
     const hora = new Date().toISOString().substr(11,8);
-    const corpo = String(texto)
+    let corpo = String(texto)
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
       .replace(/\n/g,'<br>');
+    // Depois de escapar, nunca antes: os links sao HTML de verdade e seriam
+    // transformados em texto se entrassem primeiro.
+    corpo = ligarFlightAware(corpo);
     _linhas.push('<div style="margin-bottom:6px;border-bottom:1px solid #12283c;padding-bottom:4px">' +
                  '<span style="color:#67ff8b">[' + hora + 'Z]</span><br>' + corpo + '</div>');
     if (_linhas.length > 400) _linhas = _linhas.slice(-200);

@@ -1,5 +1,13 @@
 # Histórico de mudanças
 
+## 1.0.50
+
+- **No HFDL, o prefixo da aeronave e o número do voo viram link.** Um clique
+  abre a página dela no FlightAware, do mesmo jeito que já acontecia no ACARS.
+  Vale para os dois rótulos que o HFDL usa — `Reg:` e `Flight:` dentro das
+  mensagens ACARS, e `Flight ID:` nos relatórios de posição, que são os que
+  trazem latitude e longitude.
+
 ## 1.0.49
 
 - **Novo decodificador: HFDL, o ACARS das ondas curtas.** É por ele que as
