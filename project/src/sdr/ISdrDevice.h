@@ -1,6 +1,7 @@
 #pragma once
 #include <QString>
 #include <QStringList>
+#include <QList>
 #include <complex>
 #include <cstdint>
 #include <functional>
@@ -34,6 +35,13 @@ public:
 
     // Introspecção
     virtual QStringList listAntennas() const { return {}; }
+
+    // Taxas de amostragem que o aparelho aceita, quando ele sabe dizer.
+    //
+    // Vazio significa "use a lista fixa da tela", que e o caso do RTL-SDR e do
+    // SDRplay. So a ExtIO precisa disto: o SDR-IQ, por exemplo, aceita 55555,
+    // 111111 e 196078 Hz - nenhuma delas na lista fixa, que comeca em 125 kHz.
+    virtual QList<uint32_t> listSampleRates() const { return {}; }
     virtual uint64_t centerFreq() const = 0;
     virtual uint32_t sampleRate() const = 0;
     virtual int gain() const = 0;

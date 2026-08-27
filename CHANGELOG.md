@@ -1,5 +1,79 @@
 # Histórico de mudanças
 
+## 1.0.58
+
+As versões 1.0.51 a 1.0.57 foram compilações de teste do suporte a hardware
+com ExtIO, feitas para um amigo com um RFspace SDR-IQ. Esse suporte continua em
+desenvolvimento e **não** entra nesta versão; o que vem aqui é tudo o que foi
+feito em paralelo.
+
+### SCAN — varredura de frequências
+
+- **Janela nova de SCAN**, no menu do topo. Início, fim e passo editáveis, e o
+  limiar é o **próprio squelch do rádio**, sem conversão: a medida sai da mesma
+  calibração que o squelch compara.
+- **A varredura não perde o começo das transmissões.** Dentro de uma janela do
+  dongle, todas as frequências são vigiadas ao mesmo tempo, lendo a mesma FFT
+  que desenha a cachoeira; o rádio só se move para trocar de bloco. Um scanner
+  que pula de canal em canal é surdo para todos os outros enquanto está parado
+  num — este não.
+- **Botão de canais marítimos**, com os 89 canais de 156 a 162 MHz, lado navio
+  e costeira. O canal 70 e o AIS ficam de fora: são dados e parariam a varredura
+  a cada rajada.
+- **Registro do que foi encontrado**, com nível, horário e quantas vezes
+  apareceu. Fica gravado mesmo depois de fechar a janela, e cada linha sintoniza
+  com um clique.
+- **CONTINUAR** larga a frequência atual, que volta sozinha quando a portadora
+  sair do ar. **IGNORAR** bane de vez, e o que foi banido some da conta.
+- **Tempo máximo parado**, para sair mesmo com o sinal ainda no ar. Sem ele uma
+  portadora que nunca cala prendia a varredura para sempre — e baixar os outros
+  tempos não ajudava, porque a espera após o sinal só começa a contar depois que
+  o nível cai.
+- Passo a partir de 5 kHz em faixas largas, e o painel diz quanto tempo leva uma
+  volta inteira em vez de recusar listas grandes.
+
+### Gravar IQ bruto
+
+- **O menu Gravar virou dois**: áudio em MP3, como antes, e **IQ bruto** — o
+  sinal como sai do rádio, antes do deslocamento de frequência, da decimação e
+  do demodulador. É o que permite medir desvio, alimentar um decodificador
+  externo ou abrir o sinal no SDR++ depois. Gravar áudio já filtrado em 3,4 kHz
+  não serve para investigar sinal nenhum.
+- **Pré-gravação**: os últimos segundos ficam guardados o tempo todo, então o
+  arquivo começa **antes** do clique. Quando se ouve o sinal e se aperta o
+  botão, o começo da transmissão já passou.
+- **Disparo por nível**, para deixar o rádio caçando sozinho a noite toda,
+  encerrando após alguns segundos de silêncio.
+- Arquivos fatiados a cada 2 minutos, na Área de Trabalho, com um `.json` ao
+  lado guardando centro, taxa, ganho e horário. O centro anotado é o **real do
+  sintonizador**, não o número do VFO — o rádio desloca o oscilador de propósito,
+  e quem confiasse no VFO procuraria o sinal no lugar errado.
+- Contagem de perdas na tela: um arquivo com buraco silencioso parece bom e não é.
+
+### Correções
+
+- **Trocar de modo só fazia efeito depois de girar o VFO.** A marca do filtro
+  não era redesenhada, e a tela continuava mostrando a largura do modo anterior.
+- **No TETRA, o botão Reiniciar devolvia a largura para 10 kHz.** Ele chamava
+  parar e iniciar, e o parar restaura o que havia antes do painel — mas ninguém
+  reaplicava os 25 kHz do TETRA depois.
+- **Aviso falso de correção PPM.** A biblioteca do RTL-SDR responde "esse já é o
+  valor atual" com um código que era lido como falha, e isso aparecia como erro.
+- O desvio automático do oscilador virou proporção da janela, em vez de 50 kHz
+  fixos. Em RTL-SDR nada muda; importa em aparelhos de janela estreita.
+
+### Idioma
+
+- Inglês completo nas janelas de decodificador: botões, rótulos, dicas e também
+  as frases que aparecem durante a operação, que antes voltavam ao português
+  assim que o decodificador atualizava a tela. O texto decodificado continua
+  como veio do ar, de propósito.
+
+### Visual
+
+- Molduras finas nas caixas de controle, no S-meter e no VFO, e aro no botão SQL
+  para deixar claro que ali existe um toque.
+
 ## 1.0.50
 
 - **No HFDL, o prefixo da aeronave e o número do voo viram link.** Um clique

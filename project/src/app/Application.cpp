@@ -10,6 +10,7 @@
 #include "../sdr/ISdrDevice.h"
 #include "../sdr/RtlTcpClient.h"
 #include "../sdr/SdrplayDevice.h"
+#include "../sdr/ExtIoDevice.h"
 #include "../dsp/FftProcessor.h"
 #include "../dsp/DemodSSB.h"
 #include "../dsp/DemodAM.h"
@@ -108,16 +109,39 @@ constexpr int64_t kTetoDiretaHz = 14300000;
 // Abaixo disto o centro nao pode descer mais, ou encosta no zero.
 constexpr int64_t kPisoCentroHz = 150000;
 
-int64_t centroComDesvioDoLo(int64_t centroPedido, int64_t vfo, bool amostragemDireta)
+// Os 50 e 20 kHz acima foram medidos numa janela de 2,4 MHz, onde valem 2% e
+// menos de 1% do que se ve. Numa janela estreita eles deixam de ser detalhe:
+// no SDR-IQ, que entrega 196 kHz, o desvio de 50 kHz joga o sinal a um quarto
+// da tela e a zona proibida come um decimo dela. Entao, quando a janela e
+// pequena, os dois viram PROPORCAO; quando e larga, nada muda, porque o
+// minimo continua sendo o valor de sempre.
+int64_t desvioLo(uint32_t taxa)
 {
-    if (std::llabs(centroPedido - vfo) >= kZonaProibidaHz) return centroPedido;
+    const int64_t proporcional = int64_t(taxa) / 16;   // 6% da janela
+    return std::min<int64_t>(kDesvioLoHz, std::max<int64_t>(proporcional, 5000));
+}
+int64_t zonaProibida(uint32_t taxa)
+{
+    // Continua menor que o desvio, pelo motivo explicado acima: iguais, cada
+    // passo em direcao ao LO mandaria a cachoeira saltar de novo.
+    const int64_t proporcional = int64_t(taxa) / 40;   // 2,5% da janela
+    return std::min<int64_t>(kZonaProibidaHz, std::max<int64_t>(proporcional, 2000));
+}
 
-    int64_t centro = vfo + kDesvioLoHz;
+int64_t centroComDesvioDoLo(int64_t centroPedido, int64_t vfo, bool amostragemDireta,
+                            uint32_t taxa)
+{
+    const int64_t zona   = zonaProibida(taxa);
+    const int64_t desvio = desvioLo(taxa);
+
+    if (std::llabs(centroPedido - vfo) >= zona) return centroPedido;
+
+    int64_t centro = vfo + desvio;
 
     // Perto do teto da amostragem direta, desvia para o outro lado.
-    if (amostragemDireta && centro > kTetoDiretaHz) centro = vfo - kDesvioLoHz;
+    if (amostragemDireta && centro > kTetoDiretaHz) centro = vfo - desvio;
     // E no fundo da escala, nunca para baixo.
-    if (centro < kPisoCentroHz) centro = vfo + kDesvioLoHz;
+    if (centro < kPisoCentroHz) centro = vfo + desvio;
 
     return centro;
 }
@@ -318,7 +342,8 @@ bool Application::start()
             dev->setBias(cfg.biasT());
             // O LO ja abre desviado do VFO - ver centroComDesvioDoLo.
             dev->setCenterFreq(static_cast<quint64>(centroComDesvioDoLo(
-                static_cast<int64_t>(currentFreq), static_cast<int64_t>(currentFreq), direta)));
+                static_cast<int64_t>(currentFreq), static_cast<int64_t>(currentFreq), direta,
+                dev->sampleRate())));
             dev->setGain(cfg.agc() ? -1 : cfg.gainTenths());
         }
 
@@ -360,7 +385,8 @@ bool Application::start()
             const uint64_t f = freqA_.load();
             const bool direta = Config::instance().quadratureEm(f);
             device_->setCenterFreq(static_cast<quint64>(centroComDesvioDoLo(
-                static_cast<int64_t>(f), static_cast<int64_t>(f), direta)));
+                static_cast<int64_t>(f), static_cast<int64_t>(f), direta,
+                device_->sampleRate())));
         }
         // Reaplica o ganho APÓS setCenterFreq porque o driver RTL-SDR
         // reseta o ganho internamente ao mudar a frequência central.
@@ -413,7 +439,7 @@ bool Application::start()
             // condicao bastava arrastar a sintonia ate o meio da cachoeira
             // para o vazamento do oscilador voltar para dentro da passagem -
             // que e exatamente o apito de 126.208.
-            const bool caiuSobreOLo = diff < kZonaProibidaHz;
+            const bool caiuSobreOLo = diff < zonaProibida(sr);
             if (saiuDaTela || caiuSobreOLo) {
                 // Atualiza o modo direct sampling conforme a frequência ANTES de sintonizar.
                 // Isso evita que o sintonizador (tuner) tente sintonizar em HF e trave o dongle.
@@ -423,7 +449,7 @@ bool Application::start()
                 // O LO nunca fica em cima do VFO - ver centroComDesvioDoLo.
                 device_->setCenterFreq(static_cast<quint64>(
                     centroComDesvioDoLo(static_cast<int64_t>(freq),
-                                        static_cast<int64_t>(freq), direta)));
+                                        static_cast<int64_t>(freq), direta, sr)));
                 // Re-aplica o ganho: o driver RTL-SDR reseta o ganho de hardware
                 // internamente ao mudar a frequência central — sem isso o ganho
                 // manual some a cada mudança de frequência.
@@ -478,7 +504,8 @@ bool Application::start()
             const int64_t centro = centroComDesvioDoLo(
                 static_cast<int64_t>(freq),
                 static_cast<int64_t>(freqA_.load()),
-                direta);
+                direta,
+                device_->sampleRate());
             device_->setCenterFreq(static_cast<quint64>(centro));
             if (deviceType_ == QStringLiteral("sdrplay")) {
                 auto* sdrplay = dynamic_cast<SdrplayDevice*>(device_.get());
@@ -543,7 +570,8 @@ bool Application::start()
                 const uint64_t f = freqA_.load();
                 const bool direta = Config::instance().quadratureEm(f);
                 device_->setCenterFreq(static_cast<quint64>(centroComDesvioDoLo(
-                    static_cast<int64_t>(f), static_cast<int64_t>(f), direta)));
+                    static_cast<int64_t>(f), static_cast<int64_t>(f), direta,
+                    device_->sampleRate())));
             }
             // Reaplica o ganho APÓS setCenterFreq porque o driver RTL-SDR
             // reseta o ganho internamente ao mudar a frequência central.
@@ -1143,6 +1171,7 @@ bool Application::start()
 
     // ── HFDL ───────────────────────────────────────────────────────────────────
     hfdlDeco_ = std::make_unique<HfdlManager>(this);
+    iqRec_    = std::make_unique<IqRecorder>();
 
     connect(hfdlDeco_.get(), &HfdlManager::logLine, this, [this](const QString& linha) {
         ws_->broadcastJson(QJsonObject{
@@ -1184,6 +1213,48 @@ bool Application::start()
         return r;
     };
 
+    rest_->onIqArm = [this](const QJsonObject& j) -> QJsonObject {
+        if (!iqRec_) return QJsonObject{{"ok",false},{"error","gravador indisponivel"}};
+        iqRec_->armar(j.value("pre").toBool(true),
+                      j.value("preSegundos").toInt(20),
+                      j.value("gatilho").toBool(false),
+                      j.value("limiarDb").toDouble(-40.0),
+                      j.value("silencioSegundos").toInt(5));
+        QJsonObject r = iqRec_->statusJson();
+        r["ok"] = true;
+        return r;
+    };
+    rest_->onIqStart = [this]() -> QJsonObject {
+        if (!iqRec_) return QJsonObject{{"ok",false},{"error","gravador indisponivel"}};
+        const bool ok = iqRec_->iniciar();
+        QJsonObject r = iqRec_->statusJson();
+        r["ok"] = ok;
+        return r;
+    };
+    rest_->onIqStop = [this]() -> QJsonObject {
+        if (!iqRec_) return QJsonObject{{"ok",false},{"error","gravador indisponivel"}};
+        iqRec_->parar();
+        QJsonObject r = iqRec_->statusJson();
+        r["ok"] = true;
+        return r;
+    };
+    rest_->onIqStatus = [this]() -> QJsonObject {
+        if (!iqRec_) return QJsonObject{{"ok",false},{"error","gravador indisponivel"}};
+        QJsonObject r = iqRec_->statusJson();
+        // O nivel CRU, na mesma escala do limiar do gatilho, para o painel
+        // mostrar os dois lado a lado.
+        r["nivelDb"] = static_cast<double>(peakDb_.load());
+        r["ok"] = true;
+        return r;
+    };
+
+    rest_->onExtIoGui = [this](bool mostrar) -> QJsonObject {
+        auto* e = dynamic_cast<ExtIoDevice*>(device_.get());
+        if (!e) return QJsonObject{{"ok",false},{"error","o aparelho em uso nao e uma ExtIO"}};
+        e->mostrarGui(mostrar);
+        return QJsonObject{{"ok",true}};
+    };
+
     rest_->onHfdlStop = [this]() -> QJsonObject {
         hfdlDeco_->stop();
         QJsonObject r = hfdlDeco_->statusJson();
@@ -1205,6 +1276,37 @@ bool Application::start()
         o["powerOn"] = powerOn_;
         o["streaming"] = live;
         o["rfMode"] = live ? QStringLiteral("live") : QStringLiteral("idle");
+        // Onde o run.log foi parar. Nem sempre e ao lado do programa: em
+        // Arquivos de Programas o usuario nao escreve, e o arquivo vai para a
+        // pasta de dados dele. Sem mostrar isto, "me mande o run.log" vira
+        // uma cacada - e o que chega e o arquivo antigo.
+        o["logPath"] = Logger::caminhoArquivo();
+        // As taxas que o aparelho aceita, quando ele sabe dizer.
+        //
+        // So a ExtIO responde a isto hoje. A tela tem uma lista fixa que
+        // comeca em 125 kHz; o SDR-IQ nao chega la - as tres taxas dele sao
+        // 55555, 111111 e 196078. Sem passar a lista adiante, nao haveria como
+        // sequer escolher a taxa certa na interface.
+        if (device_) {
+            const QList<uint32_t> tx = device_->listSampleRates();
+            if (!tx.isEmpty()) {
+                QJsonArray a;
+                for (uint32_t v : tx) a.append(static_cast<double>(v));
+                o["sampleRates"] = a;
+            }
+            o["sampleRate"] = static_cast<double>(device_->sampleRate());
+            // A tarja vermelha na tela e SO para o caso que a inventou: a
+            // ExtIO, que aceita abrir e comecar sem o aparelho e nunca avisa.
+            //
+            // O lastError_ dos outros dispositivos e pegajoso - fica gravado
+            // depois de qualquer tropeco, mesmo dos que nao tem consequencia -
+            // e virava uma tarja permanente reclamando de coisa antiga. Erro
+            // de verdade nesses ja aparece na hora, no lugar certo.
+            if (deviceType_ == QStringLiteral("extio")) {
+                const QString e = device_->lastError();
+                if (!e.isEmpty()) o["deviceError"] = e;
+            }
+        }
         o["peakDb"] = static_cast<double>(peakDb_.load());
         o["gainTenths"] = cfg.gainTenths();
         o["agc"] = cfg.agc();
@@ -1480,6 +1582,27 @@ void Application::wireDeviceCallback()
         if (!dev || !iq || n == 0) return;
         lastIqMs_.store(QDateTime::currentMSecsSinceEpoch());
 
+        // ---- gravacao de IQ: o ponto mais cru que existe -----------------
+        //
+        // Aqui, e nao tres linhas abaixo. O que vem depois - ganho digital do
+        // slider e bloqueador de DC - ja e tratamento, e um deles quebraria
+        // uma promessa do formato: no RTL-SDR o CU8 gravado e byte a byte o
+        // que o dongle mandou, e so continua sendo se ninguem multiplicar
+        // nada antes. O bloqueador de DC tambem apagaria justamente o
+        // vazamento do oscilador, que e informacao para quem analisa.
+        if (iqRec_) {
+            const uint32_t srAgora  = dev->sampleRate();
+            const uint64_t ctrAgora = dev->centerFreq();
+            // Reconfigurar trava um mutex; so quando muda de verdade.
+            if (srAgora != iqCfgSr_ || ctrAgora != iqCfgCtr_) {
+                iqCfgSr_  = srAgora;
+                iqCfgCtr_ = ctrAgora;
+                const auto& c = Config::instance();
+                iqRec_->configurar(srAgora, ctrAgora, c.gainTenths(), c.ppm(), deviceType_);
+            }
+            iqRec_->feed(iq, n);
+        }
+
         // Captura freqA_ atomicamente UMA VEZ no início do bloco.
         // freqA_ pode ser escrito pela thread HTTP (onTune) a qualquer momento;
         // usar o valor capturado localmente garante consistência dentro deste bloco.
@@ -1513,7 +1636,17 @@ void Application::wireDeviceCallback()
         const bool isDirectSampling = cfgNow.quadratureEm(vfoHz);
         const bool isRtlsdrFamily = (deviceType_ == QStringLiteral("rtlsdr")
                                      || deviceType_ == QStringLiteral("rtltcp"));
-        const bool noUiGain = (deviceType_ == QStringLiteral("sdrplay"));
+        //  • ExtIO: pelo mesmo motivo do SDRplay, e por um pior.
+        //
+        //    No RTL-SDR o slider vale ganho, de 0 a 49,6 dB, e 28,0 dB e o
+        //    ponto onde o ganho digital fica em zero. Num aparelho com ExtIO o
+        //    mesmo slider vira ATENUADOR: no SDR-IQ ele escolhe entre 0, -10,
+        //    -20 e -30 dB. Aplicar a formula do RTL por cima disso conta o
+        //    ajuste duas vezes - e, pior, um slider parado em zero, que ali
+        //    significa "sem atenuacao nenhuma", virava 24 dB de corte digital.
+        //    Era sinal chegando e sumindo dentro do proprio programa.
+        const bool noUiGain = (deviceType_ == QStringLiteral("sdrplay")
+                            || deviceType_ == QStringLiteral("extio"));
         if (cfgNow.agc() || noUiGain) {
             uiGain = 1.0f;
         }
@@ -1608,6 +1741,14 @@ void Application::wireDeviceCallback()
         }
         const float peak = 10.f * std::log10(maxPower + 1e-12f);
         peakDb_.store(peak);
+
+        // O disparo por nivel usa ESTE numero, em dBFS cru, e nao o da barra
+        // de rodape. O da tela passa por uma calibracao que so existe no
+        // navegador; se o gatilho dependesse dela, o radio nao conseguiria
+        // cacar sozinho de madrugada com a pagina fechada - que e justamente
+        // para o que ele serve. O painel mostra este valor ao lado do campo
+        // do limiar, para regular olhando em vez de adivinhando.
+        if (iqRec_) iqRec_->nivel(peak);
 
         // Acumula a potência de TODOS os blocos que chegam, como o
         // LogAveragePower do OpenWebRX+. Antes só um bloco a cada ~6 era

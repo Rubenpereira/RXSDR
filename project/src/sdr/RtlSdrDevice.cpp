@@ -119,7 +119,8 @@ bool RtlSdrDevice::open(const QString& serial) {
         close();
         return false;
     }
-    if (rtlsdr_set_freq_correction((rtlsdr_dev_t*)dev_, ppm_) < 0) {
+    const int rPpm = rtlsdr_set_freq_correction((rtlsdr_dev_t*)dev_, ppm_);
+    if (rPpm < 0 && rPpm != -2) {   // -2 = ja estava nesse valor; ver setPpm
         Logger::warn("RTL-SDR: falha ao definir correção PPM (não crítico)");
     }
 
@@ -324,7 +325,15 @@ void RtlSdrDevice::setPpm(int ppm) {
     ppm_ = ppm;
 #if RTLSDR_AVAILABLE
     if (dev_) {
-        if (rtlsdr_set_freq_correction((rtlsdr_dev_t*)dev_, ppm) < 0) {
+        // -2 NAO e falha: e a librtlsdr dizendo "esse ja e o valor atual".
+        //
+        // Como o PPM padrao e zero e o programa reaplica a configuracao varias
+        // vezes - ao abrir, ao ligar, a cada mudanca -, essa recusa acontecia o
+        // tempo todo. Virava aviso no log e, desde que o status passou a levar
+        // o ultimo erro para a tela, virou tarja vermelha no rosto do usuario
+        // reclamando de algo que nao aconteceu.
+        const int r = rtlsdr_set_freq_correction((rtlsdr_dev_t*)dev_, ppm);
+        if (r < 0 && r != -2) {
             lastError_ = "RTL-SDR: falha ao definir correção PPM";
             Logger::warn(lastError_);
         }

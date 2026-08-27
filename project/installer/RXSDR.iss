@@ -3,7 +3,7 @@
 ; O instalador gerado ficará em: project\installer\output\RXSDR_Setup_1.0.0.exe
 
 #define MyAppName      "RXSDR"
-#define MyAppVersion   "1.0.50"
+#define MyAppVersion   "1.0.58"
 #define MyAppPublisher "PU1XTB — Ruben"
 #define MyAppURL       "https://github.com/ruben/RXSDR"
 #define MyAppExeName   "RXSDR.exe"
@@ -54,6 +54,14 @@ Source: "{#BuildDir}\RXSDR.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\LICENSE-DSD.txt"; DestDir: "{app}"; Flags: ignoreversion
 ; Memorias: onlyifdoesntexist para NAO apagar as do usuario ao atualizar.
 Source: "..\..\bookmarks.json"; DestDir: "{app}"; Flags: ignoreversion onlyifdoesntexist
+
+; ── Ponte ExtIO (32 bits) - EM ESPERA desde 25/08/2026 ───────────────────────
+; Fora do instalador enquanto o suporte a ExtIO nao esta fechado. O codigo
+; continua no projeto e o COMPILAR_EXTIO.bat continua gerando a ponte; ela so
+; nao viaja para os amigos, para ninguem receber uma pasta que nao serve para
+; nada. PARA VOLTAR: apague este comentario e as duas linhas abaixo valem.
+; Source: "{#BuildDir}\rxsdr_extio_bridge.exe"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+; Source: "..\extio\LEIAME.txt"; DestDir: "{app}\extio"; Flags: ignoreversion
 
 ; ── DLLs Qt6 ─────────────────────────────────────────────────────────────────
 Source: "{#BuildDir}\Qt6Core.dll";        DestDir: "{app}"; Flags: ignoreversion

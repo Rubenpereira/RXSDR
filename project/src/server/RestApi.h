@@ -106,6 +106,15 @@ public:
     std::function<QJsonObject()>                             onHfdlStatus;
     std::function<QJsonObject(const QJsonObject&)>           onHfdlStart;
     std::function<QJsonObject()>                             onHfdlStop;
+    // Abre ou fecha a janela de ajustes da PROPRIA ExtIO. Cada fabricante
+    // poe ali coisas que a especificacao nao cobre - no SDR-IQ e onde ficam
+    // ajustes que nao ha como alcancar de fora.
+    std::function<QJsonObject(bool)>                          onExtIoGui;
+    // Gravacao de IQ cru.
+    std::function<QJsonObject(const QJsonObject&)>            onIqArm;
+    std::function<QJsonObject()>                              onIqStart;
+    std::function<QJsonObject()>                              onIqStop;
+    std::function<QJsonObject()>                              onIqStatus;
 
 private:
     ISdrDevice* dev_ = nullptr;

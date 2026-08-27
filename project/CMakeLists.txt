@@ -41,6 +41,9 @@ set(SOURCES
     src/sdr/RtlSdrDevice.cpp
     src/sdr/RtlTcpClient.cpp
     src/sdr/SdrplayDevice.cpp
+    src/sdr/ExtIoDevice.cpp
+    src/app/IqRecorder.cpp
+    src/util/Caminhos.cpp
     src/dsp/FftProcessor.cpp
     src/dsp/Demodulator.cpp
     src/dsp/DemodAM.cpp
@@ -131,6 +134,12 @@ target_link_libraries(RXSDR PRIVATE
     Qt6::Network Qt6::WebSockets
     Qt6::Multimedia Qt6::HttpServer Qt6::Concurrent
 )
+
+# shell32: e dela o SHGetKnownFolderPath, que da a Area de Trabalho de verdade
+# quando o OneDrive a desviou de lugar. Ver src/util/Caminhos.h.
+if(WIN32)
+    target_link_libraries(RXSDR PRIVATE shell32 ole32)
+endif()
 
 # ----- RTL-SDR (opcional, auto-detect) -----
 # Limpa o cache de busca para que um SDK recém-adicionado seja detectado numa re-configuração.

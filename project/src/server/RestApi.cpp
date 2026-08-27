@@ -13,6 +13,9 @@
 #include <QDateTime>
 #include <QRegularExpression>
 #include <QCoreApplication>
+#include "../util/Caminhos.h"
+#include "../app/IqRecorder.h"
+#include "../util/Logger.h"
 
 namespace masdr {
 
@@ -479,6 +482,83 @@ void RestApi::install(QHttpServer* server)
     });
 
 
+    // POST /api/extio/gui  { "show": true|false }
+    server->route("/api/extio/gui", QHttpServerRequest::Method::Post,
+        [this](const QHttpServerRequest& req) {
+            auto j = QJsonDocument::fromJson(req.body()).object();
+            QJsonObject r = onExtIoGui ? onExtIoGui(j.value("show").toBool(true))
+                                       : QJsonObject{{"ok",false},{"error","indisponivel"}};
+            if (!r.contains("ok")) r.insert("ok", true);
+            return QHttpServerResponse("application/json", QJsonDocument(r).toJson());
+        });
+
+    // ---- gravacao de IQ cru --------------------------------------------
+    server->route("/api/iq/arm", QHttpServerRequest::Method::Post,
+        [this](const QHttpServerRequest& req) {
+            auto j = QJsonDocument::fromJson(req.body()).object();
+            QJsonObject r = onIqArm ? onIqArm(j)
+                                    : QJsonObject{{"ok",false},{"error","indisponivel"}};
+            if (!r.contains("ok")) r.insert("ok", true);
+            return QHttpServerResponse("application/json", QJsonDocument(r).toJson());
+        });
+    server->route("/api/iq/start", QHttpServerRequest::Method::Post, [this]() {
+        QJsonObject r = onIqStart ? onIqStart() : QJsonObject{{"ok",false},{"error","indisponivel"}};
+        if (!r.contains("ok")) r.insert("ok", true);
+        return QHttpServerResponse("application/json", QJsonDocument(r).toJson());
+    });
+    server->route("/api/iq/stop", QHttpServerRequest::Method::Post, [this]() {
+        QJsonObject r = onIqStop ? onIqStop() : QJsonObject{{"ok",false},{"error","indisponivel"}};
+        if (!r.contains("ok")) r.insert("ok", true);
+        return QHttpServerResponse("application/json", QJsonDocument(r).toJson());
+    });
+    server->route("/api/iq/status", QHttpServerRequest::Method::Get, [this]() {
+        QJsonObject r = onIqStatus ? onIqStatus() : QJsonObject{{"ok",false}};
+        if (!r.contains("ok")) r.insert("ok", true);
+        return QHttpServerResponse("application/json", QJsonDocument(r).toJson());
+    });
+
+    // ---- trazer o IQ gravado para o computador de quem esta olhando -----
+    //
+    // O radio pode estar noutra maquina. Gravar POR CIMA DA REDE seria pior:
+    // sao megabytes por segundo, e um engasgo do wi-fi viraria buraco no
+    // arquivo. Entao grava-se sempre no disco local, e o download vem depois,
+    // quando nao ha mais nada a perder.
+    server->route("/api/iq/files", QHttpServerRequest::Method::Get, []() {
+        QJsonObject r{ {"ok", true}, {"arquivos", IqRecorder::listarArquivos()},
+                       {"pasta", IqRecorder::pastaDestino()} };
+        return QHttpServerResponse("application/json", QJsonDocument(r).toJson());
+    });
+
+    // O nome vai NO CAMINHO, e nao numa pergunta, para o navegador salvar com
+    // o nome certo sem precisar de cabecalho nenhum.
+    server->route("/api/iq/baixar/<arg>", QHttpServerRequest::Method::Get,
+        [](const QString& nome) {
+            const QString c = IqRecorder::caminhoDe(nome);
+            if (c.isEmpty())
+                return QHttpServerResponse("text/plain", "arquivo desconhecido");
+            QFile f(c);
+            // Teto de memoria: a resposta e montada inteira na RAM. Um bloco
+            // de 2 min a 250 kSps da 60 MB e passa bem; um de 2,4 MSPS daria
+            // 1,1 GB e derrubaria o radio. Melhor recusar e explicar.
+            if (f.size() > 600ll * 1024 * 1024)
+                return QHttpServerResponse("text/plain",
+                    "arquivo grande demais para baixar pelo navegador - "
+                    "pegue direto na maquina do radio");
+            if (!f.open(QIODevice::ReadOnly))
+                return QHttpServerResponse("text/plain", "nao consegui abrir");
+            const QByteArray dados = f.readAll();
+            f.close();
+            return QHttpServerResponse(
+                nome.endsWith(".json") ? "application/json" : "audio/wav", dados);
+        });
+
+    server->route("/api/iq/apagar/<arg>", QHttpServerRequest::Method::Post,
+        [](const QString& nome) {
+            const bool ok = IqRecorder::apagar(nome);
+            QJsonObject r{ {"ok", ok} };
+            return QHttpServerResponse("application/json", QJsonDocument(r).toJson());
+        });
+
     // Gravacao MP3: recebe o corpo e grava na Area de Trabalho (Win 7/10/11)
     server->route("/api/save_recording", QHttpServerRequest::Method::Post,
         [this](const QHttpServerRequest& req) {
@@ -488,9 +568,10 @@ void RestApi::install(QHttpServer* server)
                 name = "RXSDR_gravacao_" + QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss") + ".mp3";
             name.replace(QRegularExpression("[\\\\/:*?\"<>|]"), "_");
 
-            QString desktop = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
-            if (desktop.isEmpty())
-                desktop = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+            // Mesma pasta do gravador de IQ, e pelo mesmo motivo - ver
+            // Caminhos.h. Perguntar so ao Qt escrevia numa Area de Trabalho
+            // antiga, que existe mas ninguem enxerga.
+            const QString desktop = areaDeTrabalho();
             QDir().mkpath(desktop);
             QString fullPath = QDir(desktop).filePath(name);
 
@@ -498,6 +579,9 @@ void RestApi::install(QHttpServer* server)
             QFile out(fullPath);
             bool ok = out.open(QIODevice::WriteOnly);
             if (ok) { ok = (out.write(data) == data.size()); out.close(); }
+            Logger::info(QStringLiteral("Gravacao de audio %1: %2 (%3 KB)")
+                             .arg(ok ? "salva" : "FALHOU", QDir::toNativeSeparators(fullPath))
+                             .arg(data.size() / 1024));
 
             QJsonObject r{ {"ok", ok}, {"path", QDir::toNativeSeparators(fullPath)}, {"bytes", (double)data.size()} };
             return QHttpServerResponse("application/json", QJsonDocument(r).toJson());

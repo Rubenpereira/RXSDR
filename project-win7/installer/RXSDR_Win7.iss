@@ -4,7 +4,7 @@
 ; Compile com: ISCC RXSDR_Win7.iss
 
 #define MyAppName      "RXSDR"
-#define MyAppVersion   "1.0.50"
+#define MyAppVersion   "1.0.58"
 #define MyAppPublisher "PU1XTB — Ruben"
 #define MyAppURL       "https://github.com/ruben/RXSDR"
 #define MyAppExeName   "RXSDR.exe"

@@ -92,7 +92,8 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
 .toprow{display:grid;grid-template-columns:120px 210px minmax(0,1fr) 480px;gap:8px;align-items:center;flex-shrink:0;
   padding:8px;background:var(--bg-panel);border-bottom:1px solid var(--border);height:132px}
 
-.power-block{display:flex;flex-direction:column;gap:4px}
+.power-block{display:flex;flex-direction:column;gap:4px;
+  border:0.5px solid #20aadd;border-radius:6px;padding:5px}
 .power-btn{background:linear-gradient(180deg,#2a0606,#1a0303);
   border:1px solid var(--border-light);color:var(--accent-tx);
   text-shadow:0 0 8px var(--accent-tx);
@@ -111,7 +112,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
 .af-block{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-dim)}
 /* SQL vira botao de 1 clique: ajusta o squelch rente ao piso de ruido */
 .sql-btn{cursor:pointer;user-select:none;padding:0 4px;border-radius:3px;
-  border:1px solid transparent;transition:color .15s,border-color .15s,text-shadow .15s}
+  border:0.5px solid #ff9a1f;transition:color .15s,border-color .15s,text-shadow .15s}
 .sql-btn:hover{border-color:#25467a;color:#37c0d6}
 .sql-btn.medindo{color:#37c0d6;border-color:#37c0d6}
 /* aceso em ambar enquanto o audio esta passando */
@@ -125,12 +126,12 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
 .ais-nmea{color:#30dd70;opacity:.85}
 .af-block .val{color:var(--accent-lcd);font-weight:700;font-size:11px}
 
-.smeter-panel{background:#0e0c0a;border:1.5px solid var(--border);border-radius:6px;padding:0;
+.smeter-panel{background:#0e0c0a;border:0.5px solid #20aadd;border-radius:6px;padding:0;
   display:flex;align-items:center;justify-content:center;width:210px;height:106px;overflow:hidden;
   box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.85);
   transition: all 0.3s ease}
 .smeter-panel.powered {
-  border-color: #FFA038;
+  border-color: #20aadd;
   box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.4), 0 0 15px rgba(255, 160, 56, 0.45);
 }
 #smeter{width:100%;height:100%;display:block}
@@ -138,7 +139,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
 .smeter-yaesu img{width:100%;height:100%;display:block;border-radius:4px}
 .smeter-yaesu svg{position:absolute;inset:0;width:100%;height:100%}
 #smeterNeedle{stroke:#ff2a2a;stroke-width:5;stroke-linecap:round}
-.toprow .vfo-main .vfo-side,.toprow .vfo-main .vfo-side.powered{background:#0a0e14;border:1.5px solid #243246;box-shadow:inset 0 0 8px rgba(0,0,0,.55);justify-content:flex-start;gap:4px;padding:8px 12px}
+.toprow .vfo-main .vfo-side,.toprow .vfo-main .vfo-side.powered{background:#0a0e14;border:0.5px solid #20aadd;box-shadow:inset 0 0 8px rgba(0,0,0,.55);justify-content:flex-start;gap:4px;padding:8px 12px}
 .toprow .vfo-main .vfo-freq,.toprow .vfo-main .vfo-side.powered .vfo-freq{color:#f4f7fb;text-shadow:none}
 .vfo-drow{display:flex;justify-content:space-between;align-items:center;width:100%}
 .vfo-agc{color:#9fb0c4;font-size:7px}
@@ -179,7 +180,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
   align-items: center;
   text-align: center;
   background: #0e0c0a;
-  border: 1.5px solid var(--border);
+  border: 0.5px solid #20aadd;
   border-radius: 6px;
   padding: 8px 12px;
   box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.85);
@@ -341,7 +342,9 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
   grid-template-rows: 1fr 1fr 1fr;
   gap: 6px;
   background: rgba(0, 40, 12, 0.18);
-  border: 1px solid rgba(11, 106, 45, 0.5);
+  /* Mesmo aro de 2 px e mesmo laranja do olho magico, para as caixas de
+     controle e o mostrador conversarem entre si. */
+  border: 0.5px solid #20aadd;
   border-radius: 4px;
   padding: 6px 8px;
   box-sizing: border-box;
@@ -1095,6 +1098,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       Barcos&Navios ▾
       <div class="menubar-dropdown-menu" id="barcosNaviosDropdown">
         <a href="https://share.garmin.com/SVKankudaiV" target="_blank">Share.Garmin</a>
+        <a href="https://www.icrj.com.br/iate/estacoes-costeiras.html" target="_blank">Esta&ccedil;&otilde;es Costeiras VHF</a>
       </div>
     </div>
     <div class="item menubar-dropdown-container" id="menuDxCluster">
@@ -1133,8 +1137,15 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
         <a onclick="Memorias.recarregar()" href="javascript:void(0)">Recarregar as memórias</a>
       </div>
     </div>
-    <div class="item" id="menuGravar" onclick="openGravarModal()" style="cursor:pointer; color:#ff5252; font-weight:bold;" title="Gravar áudio da frequência atual em MP3">
-      Gravar
+    <div class="item" id="menuScan" onclick="openDecoderPanel('scan')" style="cursor:pointer" title="Varredura de frequencias com o squelch do radio">
+      SCAN
+    </div>
+    <div class="item menubar-dropdown-container" id="menuGravar" style="cursor:pointer; color:#ff5252; font-weight:bold;">
+      Gravar ▾
+      <div class="menubar-dropdown-menu" id="gravarDropdown">
+        <a onclick="openGravarModal()" href="javascript:void(0)" title="Grava o audio ja demodulado, em MP3">Áudio (MP3)</a>
+        <a onclick="openDecoderPanel('iq')" href="javascript:void(0)" title="Grava o sinal cru, antes de qualquer filtro - para analisar depois">IQ bruto</a>
+      </div>
     </div>
     <div class="item menubar-dropdown-container" id="menuIdiomaWrap" style="cursor:pointer">
       <span id="menuIdioma">PT ▾</span>
@@ -1151,7 +1162,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       </div>
     </div>
     <div style="flex:1"></div>
-    <div class="item" style="color:var(--accent-lcd)">RXSDR v1.0.50</div>
+    <div class="item" style="color:var(--accent-lcd)">RXSDR v1.0.58</div>
   </div>
 
   <!-- =============================== TOPO =============================== -->
@@ -1255,7 +1266,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
 
     <div class="slider-stack">
       <!-- Coluna 1 (Esquerda): slider Vol + botão ÁUDIO empilhados, alinhados com Filtro -->
-      <div class="col-left-wrap slider-group" style="display:flex;flex-direction:column;justify-content:center;gap:6px;height:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border-light,#2a4a2a);border-radius:5px;background:rgba(255,255,255,0.02)">
+      <div class="col-left-wrap slider-group" style="display:flex;flex-direction:column;justify-content:center;gap:6px;height:100%;box-sizing:border-box;padding:8px 10px;border-radius:5px;background:rgba(255,255,255,0.02)">
         <!-- gainSlider oculto: mantido no DOM para sincronização JS -->
         <input type="range" min="0" max="496" value="496" step="1" id="gainSlider" style="display:none">
         <span id="gainValContainer" style="display:none"><span id="gainVal">49.6</span></span>
@@ -1415,7 +1426,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       <span class="cell" id="wfInfoAudio" style="display:none;color:#7fb0ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1"
             title="Saude do audio: folga do buffer, maior intervalo entre pacotes e quantas vezes faltou audio para tocar.">Audio: —</span>
       <span class="spacer"></span>
-      <span class="cell key">RXSDR V1.0.50</span>
+      <span class="cell key">RXSDR V1.0.58</span>
     </div>
 
     </div>
@@ -1447,6 +1458,17 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
                 <option value="rtlsdr">RTL-SDR Dongle</option>
                 <option value="sdrplay">SDRplay</option>
                 <option value="rtltcp">RTL-TCP</option>
+                <!-- ExtIO em espera: 25/08/2026.
+                     Escondido da lista SO AQUI. Todo o resto continua de pe e
+                     compilando - a ponte de 32 bits, o ExtIoDevice, as rotas e
+                     a linha "Ajustes do aparelho" (que se esconde sozinha
+                     quando o aparelho em uso nao e ExtIO). Sem o teste do
+                     amigo com o SDR-IQ na mao nao ha como fechar o ajuste de
+                     ganho, e nao vale segurar as versoes novas por isso.
+                     PARA VOLTAR: apague este comentario e a linha abaixo volta
+                     a valer. Nao ha mais nada a fazer.
+                <option value="extio">ExtIO (SDR-IQ, Perseus, etc.)</option>
+                -->
               </select>
             </div>
             <div class="config-row" id="rowCfgDevice"><label>Device</label>
@@ -1461,17 +1483,32 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
             <div class="config-row" id="rowCfgRtltcpPort"><label>Porta</label>
               <input type="number" id="cfgRtltcpPort" min="1" max="65535" value="1234">
             </div>
+            <div class="config-row" id="rowCfgExtio" style="display:none"><label>ExtIO</label>
+              <button id="btnExtioGui" onclick="abrirGuiExtIo()"
+                      title="Abre a janela de ajustes da propria ExtIO - cada fabricante poe ali o que a especificacao nao cobre"
+                      style="padding:3px 10px;font-size:11px;cursor:pointer;border-radius:4px;
+                             background:#06131f;border:1px solid #1e6ca0;color:#7fd0ff">
+                Ajustes do aparelho
+              </button>
+            </div>
             <div class="config-row"><label>Sample Rate</label>
               <select id="cfgSampleRate">
-                <option value="125000">125 kHz (SDRplay)</option>
-                <option value="250000">250 kHz (SDRplay HF)</option>
-                <option value="500000">500 kHz (SDRplay)</option>
-                <option value="1000000">1.000 MSPS (SDRplay VHF)</option>
-                <option value="1024000" selected>1.024 MSPS</option>
-                <option value="2000000">2.000 MSPS (SDRplay máx)</option>
-                <option value="2048000">2.048 MSPS</option>
-                <option value="2400000">2.400 MSPS</option>
-                <option value="3200000">3.200 MSPS</option>
+                <!-- Duas unidades para o mesmo numero, e as duas certas.
+                     kSps e a taxa de amostragem; kHz e a largura de janela que
+                     ela produz. Como a amostragem e complexa, os dois valores
+                     coincidem: 250 kSps abrem exatamente 250 kHz de espectro.
+                     A lista antiga escrevia kHz nos tres primeiros e MSPS nos
+                     demais, e isso fazia parecer que havia duas grandezas
+                     diferentes ali dentro. -->
+                <option value="125000">125 kSps &mdash; janela de 125 kHz (SDRplay)</option>
+                <option value="250000">250 kSps &mdash; janela de 250 kHz (SDRplay HF)</option>
+                <option value="500000">500 kSps &mdash; janela de 500 kHz (SDRplay)</option>
+                <option value="1000000">1.000 kSps &mdash; janela de 1 MHz (SDRplay VHF)</option>
+                <option value="1024000" selected>1.024 kSps &mdash; janela de 1,024 MHz</option>
+                <option value="2000000">2.000 kSps &mdash; janela de 2 MHz (SDRplay máx)</option>
+                <option value="2048000">2.048 kSps &mdash; janela de 2,048 MHz</option>
+                <option value="2400000">2.400 kSps &mdash; janela de 2,4 MHz</option>
+                <option value="3200000">3.200 kSps &mdash; janela de 3,2 MHz</option>
               </select>
             </div>
             <div class="config-row"><label>FFT Size</label>
@@ -4961,6 +4998,29 @@ const I18N_EN = {
   'Barcos&Navios ▾':'Ships ▾', 'Digital Decoder ▾':'Digital decoder ▾',
   'DSC (chamada seletiva)':'DSC (selective calling)',
   'Analisar sinal desconhecido':'Analyse unknown signal',
+  // HFDL — o painel e montado por JavaScript, mas o aplicarIdioma() roda
+  // sobre ele quando a janela abre (ver openDecoderPanel), entao basta
+  // registrar as frases aqui.
+  'HFDL — ACARS em ondas curtas':'HFDL — shortwave ACARS',
+  'Banda:':'Band:',
+  'OUVIR':'LISTEN', 'PARAR':'STOP', 'LIMPAR':'CLEAR',
+  'parado':'stopped',
+  'preparando o radio...':'preparing the radio...',
+  'erro de rede ao iniciar':'network error while starting',
+  'o dumphfdl nao esta em decoders/ - rode o COMPILAR_HFDL.bat':
+    'dumphfdl is not in decoders/ - run COMPILAR_HFDL.bat',
+  // O texto de abertura do terminal NAO entra aqui de proposito: o
+  // .dec-terminal esta em I18N_NAO_MEXER, porque e por ele que passa o texto
+  // recebido do ar. Por em ingles ali exigiria abrir uma excecao numa zona
+  // que existe justamente para nao ser mexida.
+  //
+  // dicas (title=) - as chaves sao SEM ACENTO porque e assim que estao no
+  // HTML. O dicionario compara o texto exato; "Nivel" e "Nível" sao chaves
+  // diferentes, e a de acento nunca casaria.
+  'Nivel no canal e limiar do squelch, na MESMA escala que o squelch usa para decidir. Verde = aberto.':
+    'Channel level and squelch threshold, on the SAME scale the squelch uses to decide. Green = open.',
+  'Clique para ajustar o squelch na beirada do silencio':
+    'Click to set the squelch at the edge of the silence',
   'Memórias ▾':'Memories ▾', 'Gravar':'Record', 'Parar':'Stop',
   // menu de memorias
   'Criar a partir do VFO atual':'Create from current VFO',
@@ -5030,7 +5090,199 @@ const I18N_EN = {
   'Aguardando mensagem NAVTEX...':'Waiting for NAVTEX message...',
   'Aguardando chamada DSC...':'Waiting for DSC call...',
   'Analisador de sinal':'Signal analyser',
-  'Sintonize o sinal em USB e clique em Analisar':'Tune the signal in USB and click Analyse'
+  // ---- GRAVAR IQ -------------------------------------------------------
+  'pedindo ao radio...':'asking the radio...',
+  'encerrando...':'stopping...',
+  'o radio recusou o pedido':'the radio refused the request',
+  'o radio nao respondeu em /api/iq/ - se este RXSDR foi instalado antes da gravacao de IQ existir, o programa em execucao nao tem o recurso, mesmo com a janela aparecendo':
+    'the radio did not answer at /api/iq/ - if this RXSDR was installed before IQ recording existed, the running program does not have the feature, even though the window shows up',
+  'A pasta fica na maquina que roda o radio - se voce acessa um TV box pela rede, o arquivo esta la':
+    'The folder is on the machine running the radio - if you are reaching a TV box over the network, the file is there',
+  'nenhuma gravacao ainda':'nothing recorded yet',
+  'Gravado ate agora:':'Recorded so far:',
+  'Baixar para este computador':'Download to this computer',
+  'Apagar da maquina do radio':'Delete from the radio machine',
+  'GRAVAR':'RECORD',
+  'Pr\u00e9-grava\u00e7\u00e3o':'Pre-record',
+  'Disparo por n\u00edvel':'Level trigger',
+  'acima de':'above',
+  'encerra ap\u00f3s':'stop after',
+  's de sil\u00eancio':'s of silence',
+  'N\u00edvel agora':'Level now',
+  'Tempo':'Elapsed',
+  'Gravado':'Recorded',
+  'Blocos':'Files',
+  'Formato':'Format',
+  'Taxa':'Rate',
+  'Centro real':'Real centre',
+  'Perdas (overrun)':'Losses (overrun)',
+  'gravando':'recording',
+  'Guarda os ultimos segundos o tempo todo, para o arquivo comecar ANTES do clique':
+    'Keeps the last seconds at all times, so the file starts BEFORE the click',
+  'Comeca a gravar sozinho quando o nivel passar do limiar, e encerra apos o silencio':
+    'Starts recording by itself when the level crosses the threshold, and stops after the silence',
+  'o radio nao esta entregando IQ - ligue o radio antes':
+    'the radio is not delivering IQ - switch the radio on first',
+  'Grava o sinal CRU, antes do deslocamento de frequencia, da decimacao e do demodulador. E o que permite medir desvio. Os arquivos vao para a Area de Trabalho, fatiados a cada 2 minutos, em WAV IQ de 16 bits. A pre-gravacao existe porque, quando voce ouve o sinal e clica, o comeco da transmissao ja passou. ANTES DE GRAVAR, BAIXE A TAXA DE AMOSTRAGEM: entre na janela de configuracao e ajuste para 250 kSps.\n\nNAO ABRA NUM TOCADOR DE MUSICA. Apesar da extensao .wav, ali dentro nao ha audio nenhum - sao as amostras I e Q do radio, e um tocador comum devolve ruido. Abra no SDR#, no SDR++ ou no inspectrum, que e para isso que serve. O nome comeca com SDRSharp porque esses programas leem a frequencia central do proprio nome do arquivo.':
+    'Records the RAW signal, before the frequency shift, the decimation and the demodulator. That is what allows measuring deviation. Files go to the Desktop, sliced every 2 minutes, as 16-bit IQ WAV. Pre-recording exists because, by the time you hear the signal and click, the start of the transmission is already gone. BEFORE RECORDING, LOWER THE SAMPLE RATE: open the settings window and set it to 250 kSps.\n\nDO NOT OPEN IT IN A MUSIC PLAYER. Despite the .wav extension there is no audio inside - those are the radio I and Q samples, and an ordinary player gives back noise. Open it in SDR#, SDR++ or inspectrum, which is what it is for. The name starts with SDRSharp because those programs read the centre frequency from the file name itself.',
+  'Sintonize o sinal em USB e clique em Analisar':'Tune the signal in USB and click Analyse',
+
+  // ---- SCAN -----------------------------------------------------------
+  // A janela e montada por JavaScript e o aplicarIdioma() passa nela quando
+  // abre, entao os rotulos e botoes se resolvem sozinhos aqui. Ja as frases
+  // de estado sao escritas DEPOIS, a cada instante, e por isso o modulo as
+  // manda pelo T() pedaco por pedaco - as chaves abaixo sao esses pedacos.
+  'Inicio':'Start', 'Fim':'End', 'Passo':'Step',
+  'Espera por bloco':'Dwell per block', 'Espera apos o sinal':'Hold after signal',
+  'INICIAR':'START', 'CONTINUAR':'RESUME', 'IGNORAR':'IGNORE',
+  '\u2693 Canais maritimos':'\u2693 Marine channels',
+  'Limpar registro':'Clear log', 'Limpar ignoradas':'Clear ignored',
+  'Ignoradas:':'Ignored:',
+  'escolha a faixa ou clique em Canais maritimos, e depois INICIAR. O limiar e o proprio squelch do radio.':
+    'choose the range or click Marine channels, then START. The threshold is the radio\u2019s own squelch.',
+  'nada encontrado ainda &mdash; o que a varredura achar fica registrado aqui, mesmo depois de fechar a janela':
+    'nothing found yet &mdash; whatever the scan finds is logged here, and stays after the window is closed',
+  // nomes dos canais maritimos
+  'socorro':'distress', 'navio':'ship', 'costeira':'coast',
+  // frases de estado ('parado' ja esta la em cima, no bloco do HFDL)
+  'ligue o radio primeiro':'switch the radio on first',
+  'o radio desligou':'the radio was switched off',
+  'confira inicio, fim e passo':'check start, end and step',
+  'agora vale a faixa digitada acima':'the range typed above is what counts now',
+  'nenhuma frequencia esta sendo ignorada':'no frequency is being ignored',
+  'canais maritimos carregados.':'marine channels loaded.',
+  'frequencias; o limite e':'frequencies; the limit is',
+  'Aumente o passo ou estreite a faixa.':'Increase the step or narrow the range.',
+  'varrendo  -  bloco':'scanning  -  block',
+  'No maximo':'At most',
+  'passou do tempo maximo; seguindo':'went past the time limit; moving on',
+  'Sai mesmo com o sinal no ar. Sem isto uma portadora que nunca cala prende a varredura para sempre. Zero = sem limite':
+    'Leaves even with the signal still on. Without this, a carrier that never stops holds the scan forever. Zero = no limit',
+  'frequencias em':'frequencies in',
+  'blocos; uma volta inteira leva cerca de':'blocks; a full sweep takes about',
+  'frequencias vigiadas ao mesmo tempo':'frequencies watched at the same time',
+  'mais forte agora:':'strongest right now:',
+  'limiar em':'threshold at',
+  'ouvindo':'listening to',
+  'seguindo em frente;':'moving on;',
+  'fica de fora enquanto a portadora estiver no ar':
+    'stays out while the carrier is on the air',
+  'fica de fora da varredura de agora em diante':'is out of the scan from now on',
+  'voltou para a varredura':'is back in the scan',
+  'o squelch esta todo aberto: com ele assim a varredura para na primeira frequencia. Feche um pouco no slider SQL, ou clique no botao SQL para ele se ajustar sozinho.':
+    'the squelch is wide open: like this the scan stops on the very first frequency. Close it a little on the SQL slider, or click the SQL button to have it set itself.',
+  'atencao: o squelch esta todo aberto (-90). Assim a varredura para na primeira frequencia que olhar. Feche um pouco no SQL antes de iniciar.':
+    'careful: the squelch is wide open (-90). Like this the scan stops on the first frequency it looks at. Close it a little on SQL before starting.',
+  'o IGNORAR vale para a frequencia em que a varredura estiver parada; espere ela parar numa e clique de novo':
+    'IGNORE applies to the frequency the scan is stopped on; wait for it to stop on one and click again',
+  // dicas (title=)
+  'Quanto tempo fica de olho num bloco calado antes de saltar para o proximo':
+    'How long it watches a silent block before jumping to the next one',
+  'Depois que a conversa acaba, quanto segura a frequencia antes de voltar a varrer - serve para nao perder a resposta':
+    'After the conversation ends, how long it holds the frequency before scanning again - so the reply is not missed',
+  'Larga a frequencia em que parou e segue varrendo; ela volta sozinha quando a portadora sair do ar':
+    'Drops the frequency it stopped on and keeps scanning; it comes back on its own when the carrier leaves the air',
+  'Bane de vez a frequencia em que a varredura parou; fica gravado':
+    'Bans for good the frequency the scan stopped on; it is saved',
+  'Devolve todas as frequencias ignoradas para a varredura':
+    'Puts every ignored frequency back into the scan',
+  'Sintonizar aqui':'Tune here',
+  'Voltar a varrer esta frequencia':'Scan this frequency again',
+  'Varredura de frequencias com o squelch do radio':
+    'Frequency scan using the radio squelch',
+  'Esta\u00e7\u00f5es Costeiras VHF':'VHF Coast Stations',
+
+  // ---- botoes e rotulos das janelas de decodificador -------------------
+  // O texto DECODIFICADO nao entra aqui: ele mora no .dec-terminal e no
+  // .dmr-log-box, que estao em I18N_NAO_MEXER. Traduzir o que a janela diz
+  // sobre o decodificador e uma coisa; traduzir o que ele leu do ar seria
+  // adulterar dado recebido.
+  'Iniciar':'Start', 'Mapa':'Map', 'Enviar':'Send', 'apagar':'clear',
+  'Invertido':'Inverted', 'Excl.':'Del.', 'passo':'step',
+  'Para':'To', 'Seu indicativo':'Your callsign', 'Tom':'Tone',
+  'Porta web:':'Web port:',
+  '\ud83e\uddf9 Limpar Texto':'\ud83e\uddf9 Clear text',
+  '\u25b6 Iniciar':'\u25b6 Start',
+  '\u23f9 Parar':'\u23f9 Stop',
+  '\u23f9 Parar TETRA':'\u23f9 Stop TETRA',
+  '\u23f9 Para DSD':'\u23f9 Stop DSD',
+  's\u00f3 espectro vis\u00edvel':'visible spectrum only',
+  // dicas
+  'Inicia o DSD-FME':'Starts DSD-FME',
+  'Para o DSD-FME sem fechar o painel':'Stops DSD-FME without closing the panel',
+  'Abre o mapa do proprio AIS-catcher':'Opens the AIS-catcher own map',
+  'Abrir no MarineTraffic':'Open in MarineTraffic',
+  'Abrir no VesselFinder':'Open in VesselFinder',
+  'Reduz a largura de recepcao para 500 Hz.':'Narrows the receive bandwidth to 500 Hz.',
+  'Reduz a largura de recepcao para 500 Hz. O sinal ocupa uns 300 Hz - receber com 3 kHz so acrescenta ruido.':
+    'Narrows the receive bandwidth to 500 Hz. The signal takes about 300 Hz - receiving with 3 kHz only adds noise.',
+  'Frequencia no meio dos dois tons, em Hz':'Frequency midway between the two tones, in Hz',
+  'Separacao entre mark e space':'Spacing between mark and space',
+  'Separacao entre mark e space. 170 e o padrao, mas ha estacoes em 200, 425 e 850':
+    'Spacing between mark and space. 170 is the standard, but there are stations on 200, 425 and 850',
+  'Velocidade. 100 para SITOR-B; RTTY usa 45.45, 50 ou 75':
+    'Speed. 100 for SITOR-B; RTTY uses 45.45, 50 or 75',
+  '100 em HF; 1200 no canal 70 de VHF':'100 on HF; 1200 on VHF channel 70',
+  'Inverte mark e space se nada fechar':'Swaps mark and space if nothing decodes',
+  'Inverte mark e space se o texto sair como lixo':
+    'Swaps mark and space if the text comes out as garbage',
+  'Ponto de partida. O decodificador mede o tom real sozinho nos primeiros 12 segundos e escreve o valor no log.':
+    'Starting point. The decoder measures the real tone by itself in the first 12 seconds and writes the value in the log.',
+  '0 = medir sozinho. Em CW n\u00e3o existe tom padr\u00e3o: depende de onde voc\u00ea sintonizou.':
+    '0 = measure by itself. In CW there is no standard tone: it depends on where you tuned.',
+  'Deixe 0 para o decodificador medir sozinho. S\u00f3 preencha se ele errar.':
+    'Leave 0 for the decoder to measure by itself. Only fill it in if it gets it wrong.',
+  'Limita a varredura a largura visivel para nunca deslocar a cachoeira':
+    'Limits the scan to the visible width so the waterfall never shifts',
+  // DMR
+  'Decodificador DMR \u2014 pronto':'DMR decoder \u2014 ready',
+  'Diagnostico: aguardando audio...':'Diagnostics: waiting for audio...',
+  '4FSK histograma: --':'4FSK histogram: --',
+  'Ouvir:':'Listen:', 'Ts1 e Ts2 (normal)':'Ts1 and Ts2 (normal)',
+  'S\u00f3 TS1':'TS1 only', 'S\u00f3 TS2':'TS2 only',
+  'Estado:':'State:', 'Tipo:':'Type:', 'Origem:':'Source:', 'Destino:':'Target:',
+  'inativo':'idle',
+  '\ud83d\udd0a VOZ':'\ud83d\udd0a VOICE',
+  // TETRA
+  'Decodificador TETRA \u2014 pronto':'TETRA decoder \u2014 ready',
+  'A decodificacao aparecera aqui em tempo real.':
+    'Decoded output will appear here in real time.',
+  'SYNC / CELULA':'SYNC / CELL', 'FRAME / RECEPCAO':'FRAME / RECEPTION',
+  'HISTORICO (fica gravado)':'HISTORY (kept)',
+  'Log de decodificacao:':'Decoding log:',
+  'Inverter Espectro (IQ Conjugado)':'Invert spectrum (conjugate IQ)',
+  'Cripto:':'Crypto:', 'Modo:':'Mode:', 'VOZ:':'VOICE:', 'aguardando':'waiting',
+  // ACARS / AIS / APRS
+  'Modo: ACARS |':'Mode: ACARS |', 'Modo: AIS |':'Mode: AIS |',
+  'Janela 192 kHz - Use VFO em 162.000':'192 kHz window - set the VFO to 162.000',
+  'APRS Decoder (Direwolf) \u2014 Pronto':'APRS decoder (Direwolf) \u2014 ready',
+  'Aguardando decodificacao APRS...':'Waiting for APRS decoding...',
+  '*Ajuste o Tamanho da Janela*':'*Adjust the window size*',
+
+  // ---- frases escritas DURANTE a operacao ------------------------------
+  // Estas nao passam pelo aplicarIdioma(): ele percorre a arvore uma vez, na
+  // abertura da janela, e estas sao escritas depois, a cada mudanca de
+  // estado. Por isso cada modulo as manda pelo T() na hora de escrever - do
+  // contrario a janela abria em ingles e voltava para o portugues no primeiro
+  // "parado" que o decodificador anunciasse.
+  'ativo':'active',
+  'Erro:':'Error:', 'Falha ao iniciar':'Failed to start',
+  'Decodificador DMR \u2014 parado':'DMR decoder \u2014 stopped',
+  'Decodificador TETRA \u2014 parado':'TETRA decoder \u2014 stopped',
+  'Decodificador TETRA \u2014 iniciando...':'TETRA decoder \u2014 starting...',
+  'Diagn\u00f3stico: parado pelo usu\u00e1rio.':'Diagnostics: stopped by the user.',
+  'Diagn\u00f3stico: reiniciando decodificador...':'Diagnostics: restarting the decoder...',
+  'DMR: sinal 4FSK detectado | Color Code:':'DMR: 4FSK signal detected | Color Code:',
+  'Aguardando telegrafia...':'Waiting for morse...',
+  'Sintonize o sinal e clique em Analisar.':'Tune the signal and click Analyse.',
+  'AVISO: Nenhum decodificador DSD (DSDPlus.exe, dsd-fme.exe ou dsd.exe) foi encontrado na pasta ./decoders/':
+    'WARNING: no DSD decoder (DSDPlus.exe, dsd-fme.exe or dsd.exe) was found in ./decoders/',
+  'Coloque o binario para Windows na pasta decoders/ para poder decodificar em tempo real.':
+    'Put the Windows binary in the decoders/ folder to decode in real time.',
+  'AVISO: acarsdeco2.exe nao encontrado em ./decoders/':
+    'WARNING: acarsdeco2.exe not found in ./decoders/',
+  'Baixe o binario para Windows no GitHub e coloque-o na pasta build/decoders/ para poder decodificar em tempo real.':
+    'Download the Windows binary from GitHub and put it in build/decoders/ to decode in real time.'
 };
 
 // Zonas onde o motor NUNCA entra: sao dados, nao interface.
@@ -5614,7 +5866,9 @@ const HfdlDecoder = (() => {
 
   function estado(txt, cor){
     const e = el('hfdlEstado');
-    if (e) { e.textContent = txt; e.style.color = cor || ''; }
+    // Traduz na hora de escrever: o aplicarIdioma() so passa aqui quando a
+    // janela abre, e estas frases sao escritas depois.
+    if (e) { e.textContent = T(txt); e.style.color = cor || ''; }
   }
 
   async function ligar(){
@@ -5760,6 +6014,961 @@ const HfdlDecoder = (() => {
 
   return { buildPanelHTML, init, onClose, anotar };
 })();
+
+/* =========================================================
+   SCAN - varredura de frequencias
+   =========================================================
+   Um scanner comum move o dongle de canal em canal e, enquanto esta parado
+   num, e surdo para todos os outros. Aqui nao: o RTL-SDR entrega uma janela
+   inteira de espectro de uma vez, entao TODAS as frequencias que caem dentro
+   dessa janela sao vigiadas ao mesmo tempo, lendo a mesma FFT que desenha a
+   cachoeira. O dongle so se move quando a lista nao cabe numa janela so.
+
+   Consequencia pratica: dentro de um bloco a varredura nao "perde" o comeco
+   de uma transmissao, por mais rapida que seja. Um scanner de verdade perde.
+
+   O limiar e o SQUELCH DO RADIO, sem conversao nenhuma: a medida sai da mesma
+   funcao de calibracao que alimenta o _sqlOpen(). Se o squelch estiver todo
+   aberto (-90), tudo parece sinal - por isso o painel avisa.
+   ========================================================= */
+const ScanDecoder = (() => {
+
+  // ---- canais do servico movel maritimo (tabela do PU1XTB) --------------
+  // [canal, navio kHz, costeira kHz - 0 quando e simplex ou nao existe]
+  //
+  // FORA da lista, de proposito:
+  //   canal 70 (156.525)      - DSC, e dado, dispararia a cada rajada
+  //   161.975 e 162.025       - AIS, idem (sao as costeiras dos canais 87/88)
+  const TABELA_MAR = [
+    [1,156050,160650],[2,156100,160700],[3,156150,160750],[4,156200,160800],
+    [5,156250,160850],[6,156300,0],[7,156350,160950],[8,156400,0],
+    [9,156450,0],[10,156500,0],[11,156550,0],[12,156600,0],
+    [13,156650,0],[14,156700,0],[15,156750,0],[16,156800,0],
+    [17,156850,0],[18,156900,161500],[19,156950,161550],[20,157000,161600],
+    [21,157050,161650],[22,157100,161700],[23,157150,161750],[24,157200,161800],
+    [25,157250,161850],[26,157300,161900],[27,157350,161950],[28,157400,162000],
+    [60,156025,160625],[61,156075,160675],[62,156125,160725],[63,156175,160775],
+    [64,156225,160825],[65,156275,160875],[66,156325,160925],[67,156375,0],
+    [68,156425,0],[69,156475,0],[71,156575,0],[72,156625,0],
+    [73,156675,0],[74,156725,0],[75,156775,0],[76,156825,0],
+    [77,156875,0],[78,156925,161525],[79,156975,161575],[80,157025,161625],
+    [81,157075,161675],[82,157125,161725],[83,157175,161775],[84,157225,161825],
+    [85,157275,161875],[86,157325,161925],[87,157375,0],[88,157425,0]
+  ];
+
+  function canaisMaritimos(){
+    // Nada fora de 156-162 aqui.
+    //
+    // Os 148.670 dos barcos da regiao chegaram a entrar e sairam: ficam 8 MHz
+    // abaixo da faixa, entao virariam um bloco so deles, e a volta inteira da
+    // varredura pagaria uma parada a mais por uma frequencia. Para ouvi-la,
+    // use a faixa manual.
+    const lista = [];
+    for (const [ch, nav, cost] of TABELA_MAR){
+      const n = 'CH ' + String(ch).padStart(2,'0');
+      lista.push({ hz: nav*1000, nome: n + (ch===16 ? ' ' + T('socorro') : (cost ? ' ' + T('navio') : '')) });
+      if (cost){
+        let nc = n + ' ' + T('costeira');
+        if (cost===160750 || cost===160800) nc += ' - Atalaia';
+        lista.push({ hz: cost*1000, nome: nc });
+      }
+    }
+    return lista;
+  }
+
+  const CHAVE = 'rxsdr_scan_achados';
+  // Teto de frequencias numa varredura.
+  //
+  // Eram 4000, e isso barrava passo pequeno em faixa larga - com 5 kHz de
+  // passo, varrer 400 a 470 MHz daria 14 mil frequencias e ele recusava.
+  // O numero era conservador a toa: dentro de cada volta so as frequencias do
+  // BLOCO ATUAL sao medidas, e um bloco cabe umas 400 delas no passo de 5 kHz.
+  // Medir 400 canais numa FFT ja pronta nao custa quase nada; o que cresce e o
+  // NUMERO DE BLOCOS, ou seja, o tempo da volta - e disso o painel avisa em
+  // vez de recusar.
+  const MAX_FREQS = 20000;
+
+  let _lista   = [];      // o que esta sendo varrido
+  let _blocos  = [];
+  let _iBloco  = 0;
+  let _estado  = 'parado'; // parado | trocando | varrendo | ouvindo
+  let _tEstado = 0;
+  let _tSilencio = 0;
+  let _tParou = 0;        // instante em que parou na frequencia atual
+  let _parado  = null;    // {hz, nome}
+  let _timer   = null;
+  let _achados = [];
+  let _centroPedido = 0;
+  // Frequencias pulando a vez porque o CONTINUAR mandou seguir.
+  //
+  // Nao e uma exclusao definitiva: a frequencia volta sozinha assim que a
+  // portadora sair do ar. Foi a resposta mais util para o caso que motivou o
+  // botao - um transmissor preso na tecla segura a varredura para sempre, e
+  // apagar o canal da lista seria perde-lo tambem depois que o problema
+  // passasse.
+  let _pulando = new Set();
+  // De onde a lista sai quando se aperta INICIAR.
+  //
+  // Antes havia um botao "Usar a faixa acima" que so carregava a lista sem
+  // varrer, e ninguem adivinhava para que servia - o INICIAR ja fazia isso
+  // sozinho. Agora e um estado: clicar em Canais maritimos manda usar os
+  // canais; mexer em qualquer campo da faixa manda usar a faixa.
+  let _fonte = 'faixa';
+  // Frequencias banidas de vez - a portadora de interferencia que vive no ar.
+  //
+  // Diferente do CONTINUAR, que so afasta a frequencia enquanto a portadora
+  // durar: aqui a exclusao e permanente e sobrevive a fechar o programa, ate
+  // que voce mesmo tire da lista.
+  let _ignoradas = new Set();
+  const CHAVE_IGN = 'rxsdr_scan_ignoradas';
+
+  const el = (id) => document.getElementById(id);
+  const num = (id, padrao) => {
+    const v = Number((el(id)||{}).value);
+    return isFinite(v) ? v : padrao;
+  };
+
+  // Frequencia se escreve com PONTO.
+  //
+  // Os campos eram type="number", e o navegador em portugues insiste na
+  // virgula ali: quem digitava 156.800 via o campo recusar o ponto. Agora sao
+  // campos de texto e a leitura aceita os dois, entao ninguem erra.
+  const numPonto = (id, padrao) => {
+    const t = String((el(id)||{}).value || '').trim().replace(',', '.');
+    const v = Number(t);
+    return isFinite(v) && t !== '' ? v : padrao;
+  };
+
+  // Completa o que faltou: 156.8 vira 156.800. Casas a mais que o usuario
+  // tenha digitado sao respeitadas - ha quem varra de 100 em 100 Hz.
+  function arrumar(campo, minimo){
+    if (!campo) return;
+    const t = String(campo.value || '').trim().replace(',', '.');
+    const v = Number(t);
+    if (!isFinite(v) || t === ''){ return; }
+    const casas = Math.max(minimo, (t.split('.')[1] || '').length);
+    campo.value = v.toFixed(Math.min(casas, 6));
+  }
+  const arrumarMHz = (c) => arrumar(c, 3);
+  const arrumarKHz = (c) => arrumar(c, 0);
+  const agora = () => performance.now();
+
+  function fmt(hz){
+    return (hz/1e6).toFixed(4).replace(/0+$/,'').replace(/\.$/,'') + ' MHz';
+  }
+
+  // ---- a medida ---------------------------------------------------------
+  //
+  // Mesmo caminho do S-meter: pico de dBFS dentro da largura do canal, mais a
+  // correcao de 15 dB do ganho de processamento da FFT, e a MESMA calibracao
+  // sem achatamento de piso que o squelch compara. Medir numa escala e
+  // comparar noutra foi o defeito que ja custou uma tarde no squelch.
+  function nivelEm(hz, bw){
+    if (!fftData || !fftData.length) return -200;
+    const bins = fftData.length;
+    const span = Number(el('cfgSampleRate') ? el('cfgSampleRate').value : 0) || 1024000;
+    const b0 = Math.round((hz - bw/2 - centerFreqHz)/span*bins + bins/2);
+    const b1 = Math.round((hz + bw/2 - centerFreqHz)/span*bins + bins/2);
+    if (b1 < 0 || b0 > bins-1) return -200;   // esta fora da janela agora
+    const ini = Math.max(0, Math.min(bins-1, b0));
+    const fim = Math.max(0, Math.min(bins-1, b1));
+    const centro = Math.round(bins/2);
+    let pk = -200;
+    for (let i = ini; i <= fim; i++){
+      // O vazamento do oscilador mora no centro e nao e sinal de ninguem.
+      if (Math.abs(i - centro) <= 2) continue;
+      if (fftData[i] > pk) pk = fftData[i];
+    }
+    if (pk === -200) return -200;
+    pk = Math.min(0, pk + 15);
+    return Smeter.calibrateDbSemPiso(pk);
+  }
+
+  function limiar(){
+    return Number((el('sqlSlider')||{}).value ?? -90);
+  }
+
+  // ---- blocos -----------------------------------------------------------
+  function montarBlocos(lista){
+    const sr = Number(el('cfgSampleRate') ? el('cfgSampleRate').value : 0) || 1024000;
+    const util = sr * 0.80;          // as bordas da FFT nao prestam
+    const ord = lista.slice().sort((a,b) => a.hz - b.hz);
+    const blocos = [];
+    let atual = null;
+    for (const c of ord){
+      if (!atual || (c.hz - atual.freqs[0].hz) > util){
+        atual = { freqs: [c] };
+        blocos.push(atual);
+      } else {
+        atual.freqs.push(c);
+      }
+    }
+    // Ate onde o centro pode passear em volta do meio do bloco.
+    //
+    // Pode ser generoso: quem garante a seguranca nao e este numero, e o
+    // teste "o bloco inteiro ainda cabe na janela" logo abaixo. Com folga
+    // curta a busca nao enxergava a brecha do canal 70, a 200 kHz do meio, e
+    // se contentava com os 12,5 kHz de um plano de 25 em 25 kHz - perto
+    // demais: a menos de 20 kHz do centro o proprio radio desloca o LO.
+    const folga = Math.min(sr * 0.20, 500000);
+    for (const b of blocos){
+      const lo = b.freqs[0].hz;
+      const hi = b.freqs[b.freqs.length-1].hz;
+      let centro = Math.round((lo + hi)/2);
+      // O centro do bloco foge dos canais.
+      //
+      // Duas razoes, e as duas ja morderam este programa: em cima do centro
+      // mora o vazamento do oscilador local - o apito de 126.208 -, e o
+      // proprio radio reposiciona o centro sozinho quando o VFO chega a menos
+      // de 20 kHz dele, o que moveria o bloco embaixo dos nossos pes.
+      //
+      // Nao da para resolver por formula. Num plano de 25 em 25 kHz o melhor
+      // afastamento possivel do centro ate o canal vizinho e 12,5 kHz, e nem
+      // sempre ha uma brecha maior. Entao aqui se PROCURA: testa candidatos
+      // de 2,5 em 2,5 kHz em volta do meio e fica com o que estiver mais
+      // longe de todos os canais. Na faixa maritima ele acha a brecha do
+      // canal 70, que tiramos da lista, e o centro fica limpo.
+      //
+      // A primeira versao tentou empurrar o centro de 25 em 25 kHz e ficava
+      // presa: somava 25 e subtraia 25, voltando ao mesmo ponto para sempre.
+      const meio = Math.round((lo + hi)/2);
+      let melhorFolga = -1;
+      for (let d = -folga; d <= folga; d += 2500){
+        const cand = meio + d;
+        // O bloco inteiro tem de continuar dentro da janela.
+        if ((hi - cand) > util/2 || (cand - lo) > util/2) continue;
+        let perto = Infinity;
+        for (const f of b.freqs) perto = Math.min(perto, Math.abs(f.hz - cand));
+        // Empate: fica com o candidato mais perto do meio, para os canais
+        // das pontas nao irem parar na borda ruim da FFT.
+        if (perto > melhorFolga ||
+            (perto === melhorFolga && Math.abs(cand - meio) < Math.abs(centro - meio))){
+          melhorFolga = perto; centro = cand;
+        }
+      }
+      b.centro = centro;
+      b.folgaLo = melhorFolga;
+    }
+    return blocos;
+  }
+
+  // ---- registro do que foi achado ---------------------------------------
+  function carregarIgnoradas(){
+    try {
+      const a = JSON.parse(localStorage.getItem(CHAVE_IGN) || '[]');
+      _ignoradas = new Set(Array.isArray(a) ? a : []);
+    } catch(e){ _ignoradas = new Set(); }
+  }
+  function gravarIgnoradas(){
+    try { localStorage.setItem(CHAVE_IGN, JSON.stringify(Array.from(_ignoradas))); } catch(e){}
+  }
+  function desenharIgnoradas(){
+    const c = el('scan-ignoradas');
+    if (!c) return;
+    if (!_ignoradas.size){ c.innerHTML = ''; c.style.display = 'none'; return; }
+    c.style.display = 'block';
+    c.innerHTML = '<span style="opacity:.7">' + T('Ignoradas:') + '</span> ' +
+      Array.from(_ignoradas).sort((a,b)=>a-b).map(hz =>
+        '<span style="display:inline-block;border:1px solid #6c1e2e;border-radius:3px;' +
+        'padding:0 3px;margin:1px 3px 1px 0;color:#ff9a9a">' + fmt(hz) +
+        ' <a href="javascript:void(0)" onclick="ScanDecoder.designorar(' + hz + ')" ' +
+        'title="' + T('Voltar a varrer esta frequencia') + '" ' +
+        'style="color:#ffd0d0;text-decoration:none;font-weight:bold">&times;</a></span>'
+      ).join('');
+  }
+
+  function ignorar(){
+    if (_estado !== 'ouvindo' || !_parado){
+      aviso('o IGNORAR vale para a frequencia em que a varredura estiver parada; ' +
+            'espere ela parar numa e clique de novo', '#ffb74d');
+      return;
+    }
+    const p = _parado;
+    _ignoradas.add(p.hz);
+    gravarIgnoradas();
+    desenharIgnoradas();
+    _parado = null;
+    _estado = 'varrendo';
+    _tEstado = agora();
+    aviso(fmt(p.hz) + ' ' + T('fica de fora da varredura de agora em diante'), '#ffb74d');
+  }
+
+  function designorar(hz){
+    _ignoradas.delete(hz);
+    gravarIgnoradas();
+    desenharIgnoradas();
+    aviso(fmt(hz) + ' ' + T('voltou para a varredura'));
+  }
+
+  function limparIgnoradas(){
+    _ignoradas.clear();
+    gravarIgnoradas();
+    desenharIgnoradas();
+    aviso('nenhuma frequencia esta sendo ignorada');
+  }
+
+  function carregarAchados(){
+    try { _achados = JSON.parse(localStorage.getItem(CHAVE) || '[]'); }
+    catch(e){ _achados = []; }
+    if (!Array.isArray(_achados)) _achados = [];
+  }
+  function gravarAchados(){
+    try { localStorage.setItem(CHAVE, JSON.stringify(_achados.slice(0,400))); } catch(e){}
+  }
+  function anotarAchado(hz, nome, db){
+    const q = new Date().toISOString().slice(11,19);
+    const j = _achados.find(a => a.hz === hz);
+    if (j){ j.vezes++; j.ultima = q; j.db = Math.round(db); }
+    else _achados.unshift({ hz, nome: nome||'', vezes:1, primeira:q, ultima:q, db: Math.round(db) });
+    gravarAchados();
+    desenharAchados();
+  }
+  function limparAchados(){
+    _achados = [];
+    gravarAchados();
+    desenharAchados();
+  }
+  function desenharAchados(){
+    const c = el('scan-lista');
+    if (!c) return;
+    if (!_achados.length){
+      c.innerHTML = '<span style="opacity:.55">' +
+        T('nada encontrado ainda &mdash; o que a varredura achar fica registrado aqui, mesmo depois de fechar a janela') +
+        '</span>';
+      return;
+    }
+    c.innerHTML = _achados.map(a =>
+      '<div style="padding:1px 0;border-bottom:1px dotted #0d2a14">' +
+      '<a href="javascript:void(0)" onclick="ScanDecoder.irPara(' + a.hz + ')" ' +
+      'style="color:#FFA038;font-weight:bold;text-decoration:underline" ' +
+      'title="' + T('Sintonizar aqui') + '">' + fmt(a.hz) + '</a> ' +
+      '<span style="color:#7fb0ff">' + (a.nome || '') + '</span> ' +
+      '<span style="opacity:.7">' + a.db + ' dB &nbsp; ' + a.vezes + 'x &nbsp; ' +
+      a.primeira + ' a ' + a.ultima + ' UTC</span></div>'
+    ).join('');
+  }
+
+  function irPara(hz){
+    if (_estado !== 'parado') parar();
+    if (typeof tuneTo === 'function') tuneTo(hz).catch(()=>{});
+    else if (typeof renderVfo === 'function'){
+      renderVfo(hz);
+      Backend.tune(hz, activeMode(), currentBwHz).catch(()=>{});
+    }
+  }
+
+  // ---- estado na tela ---------------------------------------------------
+  // Frases montadas na hora nao passam pelo aplicarIdioma - ele so percorre a
+  // arvore quando a janela abre. Por isso cada mensagem sai daqui ja traduzida,
+  // e os pedacos fixos das frases com numero no meio vao um a um pelo T().
+  //
+  // Os pedacos sao propositalmente LONGOS. Uma chave curta como "de" ou "com"
+  // entraria no dicionario global e trocaria essas palavras em qualquer outro
+  // canto da tela que tivesse um texto igualzinho.
+  function aviso(txt, cor){
+    const e = el('scan-estado');
+    if (e){ e.textContent = T(txt); e.style.color = cor || '#7fb0ff'; }
+  }
+
+  // ---- o motor ----------------------------------------------------------
+  function iniciar(){
+    if (_estado !== 'parado') return;   // ja esta varrendo; quem para e o PARAR
+    if (!powerOn){ aviso('ligue o radio primeiro', '#ff6b6b'); return; }
+
+    const lista = (_fonte === 'maritimos') ? canaisMaritimos() : listaDaFaixa();
+    if (!lista || !lista.length) return;
+    _lista = lista;
+    console.log('[scan] ' + avisoDaVolta(lista));
+
+    if (limiar() <= -90){
+      aviso('o squelch esta todo aberto: com ele assim a varredura para na primeira frequencia. ' +
+            'Feche um pouco no slider SQL, ou clique no botao SQL para ele se ajustar sozinho.', '#ffb74d');
+      return;
+    }
+
+    _blocos = montarBlocos(_lista);
+    _pulando.clear();
+    _iBloco = -1;
+    proximoBloco();
+    marcarBotoes(true);
+    if (_timer) clearInterval(_timer);
+    _timer = setInterval(passo, 100);
+  }
+
+  function parar(){
+    if (_timer){ clearInterval(_timer); _timer = null; }
+    _estado = 'parado';
+    _parado = null;
+    marcarBotoes(false);
+    aviso('parado');
+  }
+
+  // Os dois botoes existem sempre; o que muda e qual deles esta aceso. Com um
+  // botao so que trocava de nome, era preciso ler o texto para saber se a
+  // varredura estava rodando - e o texto dizia o que ele FARIA, nao o que
+  // estava acontecendo.
+  function marcarBotoes(rodando){
+    const i = el('scan-btn'), c = el('scan-btn-continuar'), p = el('scan-btn-parar');
+    if (i){ i.style.opacity = rodando ? '.45' : '1'; }
+    if (c){ c.style.opacity = rodando ? '1' : '.45'; }
+    if (p){ p.style.opacity = rodando ? '1' : '.45'; }
+  }
+
+  function continuar(){
+    if (_estado !== 'ouvindo' || !_parado){
+      if (_estado === 'parado') iniciar();
+      return;
+    }
+    const p = _parado;
+    _pulando.add(p.hz);
+    _parado = null;
+    _estado = 'varrendo';
+    _tEstado = agora();
+    aviso(T('seguindo em frente;') + ' ' + fmt(p.hz) + ' ' +
+          T('fica de fora enquanto a portadora estiver no ar'), '#ffb74d');
+  }
+
+  function proximoBloco(){
+    _iBloco = (_iBloco + 1) % _blocos.length;
+    const b = _blocos[_iBloco];
+    _centroPedido = b.centro;
+    _estado = 'trocando';
+    _tEstado = agora();
+    if (Math.abs(centerFreqHz - b.centro) > 1000){
+      Backend.setCenter(b.centro).catch(()=>{});
+    }
+  }
+
+  function passo(){
+    if (!powerOn){ parar(); aviso('o radio desligou', '#ff6b6b'); return; }
+    const b = _blocos[_iBloco];
+    if (!b) { parar(); return; }
+    const bw = currentBwHz || 12500;
+    const lim = limiar();
+    const t = agora();
+
+    if (_estado === 'trocando'){
+      // Espera o hardware assentar. O centro que vale e o que a cachoeira
+      // informa, nao o que pedimos: o radio desloca o LO por conta propria.
+      const chegou = Math.abs(centerFreqHz - _centroPedido) < 80000;
+      if (chegou && (t - _tEstado) > 400){
+        _estado = 'varrendo';
+        _tEstado = t;
+      } else if ((t - _tEstado) > 3000){
+        _estado = 'varrendo';   // nao chegou; varre assim mesmo
+        _tEstado = t;
+      }
+      return;
+    }
+
+    if (_estado === 'varrendo'){
+      let melhor = null, melhorDb = -200;
+      let forte = null, forteDb = -200;   // o maior do bloco, passe ou nao no limiar
+      for (const c of b.freqs){
+        // Banida: nem se mede. Entrar no "mais forte agora" so confundiria,
+        // porque a portadora dela ganharia de todas as outras sempre.
+        if (_ignoradas.has(c.hz)) continue;
+        const db = nivelEm(c.hz, bw);
+        if (db > forteDb){ forte = c; forteDb = db; }
+        // Quem esta pulando a vez so volta a contar quando emudecer.
+        if (_pulando.has(c.hz)){
+          if (db < lim) _pulando.delete(c.hz);
+          continue;
+        }
+        if (db >= lim && db > melhorDb){ melhor = c; melhorDb = db; }
+      }
+      if (melhor){
+        _parado = melhor;
+        _estado = 'ouvindo';
+        _tSilencio = 0;
+        _tParou = t;
+        if (typeof renderVfo === 'function') renderVfo(melhor.hz);
+        Backend.tune(melhor.hz, activeMode(), currentBwHz).catch(()=>{});
+        anotarAchado(melhor.hz, melhor.nome, melhorDb);
+        aviso(T('ouvindo') + ' ' + fmt(melhor.hz) + (melhor.nome ? '  -  ' + melhor.nome : '') +
+              '   (' + Math.round(melhorDb) + ' dB)', '#7CFC00');
+        return;
+      }
+      const espera = num('scan-tbloco', 1500);
+      if ((t - _tEstado) > espera && _blocos.length > 1) proximoBloco();
+      // Sem isto o painel parecia morto: so a cachoeira se mexia e nao havia
+      // como saber se faltava pouco ou muito para o limiar. Mostrar o canal
+      // mais forte do bloco AGORA, mesmo abaixo do limiar, transforma a
+      // varredura parada num instrumento para regular o squelch.
+      else aviso(T('varrendo  -  bloco') + ' ' + (_iBloco+1) + '/' + _blocos.length +
+                 ', ' + b.freqs.length + ' ' + T('frequencias vigiadas ao mesmo tempo') +
+                 (forte ? '   |   ' + T('mais forte agora:') + ' ' + fmt(forte.hz) +
+                          (forte.nome ? ' ' + forte.nome : '') + ' ' +
+                          Math.round(forteDb) + ' dB, ' + T('limiar em') + ' ' +
+                          lim + ' dB' : ''));
+      return;
+    }
+
+    if (_estado === 'ouvindo'){
+      const db = nivelEm(_parado.hz, bw);
+
+      // Teto de permanencia: sai mesmo com o sinal ainda no ar.
+      //
+      // Sem isto, uma portadora que nunca cala prende a varredura para sempre,
+      // e nenhum dos dois tempos ajuda: a "espera apos o sinal" so comeca a
+      // contar DEPOIS que o nivel cai abaixo do limiar, e num sinal continuo
+      // isso nunca acontece. Baixar o numero nao adianta nada - o cronometro
+      // nem chega a ser ligado.
+      //
+      // Ao sair por aqui a frequencia fica de fora enquanto a portadora
+      // durar, igual ao botao CONTINUAR: ela volta sozinha quando o ar
+      // limpar. Banir de vez continua sendo o IGNORAR.
+      const teto = num('scan-tmax', 30);
+      if (teto > 0 && (t - _tParou) > teto * 1000){
+        const p = _parado;
+        _pulando.add(p.hz);
+        _parado = null;
+        _estado = 'varrendo';
+        _tEstado = t;
+        aviso(fmt(p.hz) + ' ' + T('passou do tempo maximo; seguindo') , '#ffb74d');
+        return;
+      }
+
+      if (db >= lim){
+        _tSilencio = 0;
+        return;
+      }
+      if (!_tSilencio) _tSilencio = t;
+      if ((t - _tSilencio) > num('scan-tsinal', 2000)){
+        _parado = null;
+        _estado = 'varrendo';
+        _tEstado = t;
+      }
+      return;
+    }
+  }
+
+  // ---- listas -----------------------------------------------------------
+  function listaDaFaixa(silencioso){
+    const ini = Math.round(numPonto('scan-ini', 0) * 1e6);
+    const fim = Math.round(numPonto('scan-fim', 0) * 1e6);
+    const passoHz = Math.round(numPonto('scan-passo', 0) * 1000);
+    if (!(ini > 0 && fim > ini && passoHz > 0)){
+      // Enquanto se digita, meia frequencia e sempre invalida; reclamar a cada
+      // tecla so atrapalharia.
+      if (!silencioso) aviso('confira inicio, fim e passo', '#ff6b6b');
+      return null;
+    }
+    const n = Math.floor((fim - ini)/passoHz) + 1;
+    if (n > MAX_FREQS){
+      if (!silencioso) {
+        aviso(n + ' ' + T('frequencias; o limite e') + ' ' + MAX_FREQS +
+              '. ' + T('Aumente o passo ou estreite a faixa.'), '#ff6b6b');
+      }
+      return null;
+    }
+    const lista = [];
+    for (let hz = ini; hz <= fim; hz += passoHz) lista.push({ hz, nome:'' });
+    return lista;
+  }
+
+  // Quanto tempo leva uma volta inteira, para o passo pequeno nao virar
+  // surpresa: com 5 kHz numa faixa larga sao muitos blocos, e cada bloco tem a
+  // sua espera. Melhor dizer o numero do que deixar o usuario cronometrando.
+  function avisoDaVolta(lista){
+    const b = montarBlocos(lista);
+    const espera = num('scan-tbloco', 1500);
+    const seg = (b.length * (espera + 400)) / 1000;   // 400 ms = o dongle assentando
+    let quanto;
+    if (seg < 60) quanto = seg.toFixed(0) + ' s';
+    else quanto = (seg/60).toFixed(1) + ' min';
+    return lista.length + ' ' + T('frequencias em') + ' ' + b.length + ' ' +
+           T('blocos; uma volta inteira leva cerca de') + ' ' + quanto;
+  }
+
+  function usarMaritimos(){
+    if (_estado !== 'parado') parar();
+    _fonte = 'maritimos';
+    _lista = canaisMaritimos();
+    const lo = Math.min.apply(null, _lista.map(c=>c.hz));
+    const hi = Math.max.apply(null, _lista.map(c=>c.hz));
+    if (el('scan-ini'))   el('scan-ini').value   = (lo/1e6).toFixed(3);
+    if (el('scan-fim'))   el('scan-fim').value   = (hi/1e6).toFixed(3);
+    if (el('scan-passo')) el('scan-passo').value = 25;
+    // Marítimo e NFM. A largura de 12,5 kHz e a que separa canais vizinhos de
+    // 25 em 25 kHz sem deixar um invadir o outro.
+    const btnNfm = Array.from(document.querySelectorAll('.mode-btn'))
+      .find(b => b.textContent.trim() === 'NFM');
+    if (btnNfm && !btnNfm.classList.contains('on')) btnNfm.click();
+    setTimeout(() => {
+      const o = document.querySelector('.bw-opt[data-bw="12500"]');
+      if (o) o.click();
+    }, 60);
+    aviso(_lista.length + ' ' + T('canais maritimos carregados.'));
+  }
+
+  // Mexeu na faixa, e a faixa que vale.
+  function faixaEditada(){
+    if (_fonte !== 'faixa'){
+      _fonte = 'faixa';
+      if (_estado !== 'parado') parar();
+    }
+    // Enquanto ele digita, ja mostra o tamanho do servico. Com passo de 5 kHz
+    // numa faixa larga a volta pode passar de um minuto, e e melhor descobrir
+    // isso agora do que depois de mandar varrer.
+    if (_estado === 'parado'){
+      const l = listaDaFaixa(true);
+      if (l && l.length) aviso(avisoDaVolta(l));
+    }
+  }
+
+  // ---- a janela ---------------------------------------------------------
+  function buildPanelHTML(){
+    const cx = 'background:#0a1420;border:1px solid #25467a;color:#cfe3ff;' +
+               'font-size:11px;padding:2px 4px;border-radius:3px;width:74px';
+    const bx = 'padding:4px 8px;font-size:11px;font-weight:bold;cursor:pointer;' +
+               'border-radius:4px;background:#07120a;border:1px solid #2e8b57;color:#7CFC00';
+    return `
+      <div class="dec-info" style="margin-bottom:6px">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:5px">
+          <label>Inicio <input id="scan-ini" type="text" inputmode="decimal" value="156.000" onblur="ScanDecoder.arrumarMHz(this)" oninput="ScanDecoder.faixaEditada()" style="${cx}"> MHz</label>
+          <label>Fim <input id="scan-fim" type="text" inputmode="decimal" value="157.500" onblur="ScanDecoder.arrumarMHz(this)" oninput="ScanDecoder.faixaEditada()" style="${cx}"> MHz</label>
+          <label>Passo <input id="scan-passo" type="text" inputmode="decimal" value="25" onblur="ScanDecoder.arrumarKHz(this)" oninput="ScanDecoder.faixaEditada()" style="${cx}"> kHz</label>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:5px">
+          <label title="Quanto tempo fica de olho num bloco calado antes de saltar para o proximo">Espera por bloco <input id="scan-tbloco" type="number" step="100" value="1500" style="${cx}"> ms</label>
+          <label title="Depois que a conversa acaba, quanto segura a frequencia antes de voltar a varrer - serve para nao perder a resposta">Espera apos o sinal <input id="scan-tsinal" type="number" step="100" value="2000" style="${cx}"> ms</label>
+          <label title="Sai mesmo com o sinal no ar. Sem isto uma portadora que nunca cala prende a varredura para sempre. Zero = sem limite">No maximo <input id="scan-tmax" type="number" step="5" value="30" style="${cx};width:52px"> s</label>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+          <button id="scan-btn" onclick="ScanDecoder.iniciar()" style="${bx}">INICIAR</button>
+          <button id="scan-btn-continuar" onclick="ScanDecoder.continuar()" title="Larga a frequencia em que parou e segue varrendo; ela volta sozinha quando a portadora sair do ar" style="${bx};border-color:#8a6a1e;color:#ffcc66;background:#161005;opacity:.45">CONTINUAR</button>
+          <button onclick="ScanDecoder.ignorar()" title="Bane de vez a frequencia em que a varredura parou; fica gravado" style="${bx};border-color:#6c1e2e;color:#ff9a9a;background:#150708">IGNORAR</button>
+          <button id="scan-btn-parar" onclick="ScanDecoder.parar()" style="${bx};border-color:#8b2e2e;color:#ff8a8a;background:#150708;opacity:.45">PARAR</button>
+          <button onclick="ScanDecoder.usarMaritimos()" style="${bx};border-color:#1e6ca0;color:#7fd0ff;background:#06131f">&#9875; Canais maritimos</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:5px">
+          <button onclick="ScanDecoder.limparAchados()" style="${bx};border-color:#6c1e2e;color:#ff9a9a;background:#150708">Limpar registro</button>
+          <button onclick="ScanDecoder.limparIgnoradas()" title="Devolve todas as frequencias ignoradas para a varredura" style="${bx};border-color:#6c1e2e;color:#ff9a9a;background:#150708">Limpar ignoradas</button>
+        </div>
+        <div id="scan-ignoradas" style="margin-top:5px;font-size:10px;display:none"></div>
+        <div id="scan-estado" style="margin-top:5px;font-size:10px;color:#7fb0ff">
+          escolha a faixa ou clique em Canais maritimos, e depois INICIAR. O limiar e o proprio squelch do radio.
+        </div>
+      </div>
+      <div class="dec-terminal" id="scan-lista" style="font-size:11px"></div>`;
+  }
+
+  function init(){
+    carregarAchados();
+    desenharAchados();
+    carregarIgnoradas();
+    desenharIgnoradas();
+    marcarBotoes(_estado !== 'parado');
+    if (limiar() <= -90){
+      aviso('atencao: o squelch esta todo aberto (-90). Assim a varredura para na primeira ' +
+            'frequencia que olhar. Feche um pouco no SQL antes de iniciar.', '#ffb74d');
+    }
+  }
+
+  function onClose(){ parar(); }
+
+  return { buildPanelHTML, init, onClose, iniciar, parar, continuar,
+           usarMaritimos, faixaEditada, limparAchados, irPara,
+           ignorar, designorar, limparIgnoradas,
+           arrumarMHz, arrumarKHz };
+})();
+
+/* =========================================================
+   GRAVAR IQ - o sinal cru, antes de qualquer filtro
+   =========================================================
+   A gravacao de audio que ja existia serve para guardar uma conversa. Nao
+   serve para investigar um sinal: ela entrega audio ja demodulado e cortado
+   em 3,4 kHz, e com isso nao ha como medir desvio de frequencia nem alimentar
+   um decodificador de 4FSK, que precisa de fase e de banda plana. Foi o que
+   travou a analise dos 160.900 MHz.
+
+   Este painel e so a tela. Quem grava e o C++, porque o fluxo nao pode passar
+   pelo navegador - sao megabytes por segundo, e o callback do USB nao pode
+   esperar por ninguem.
+   ========================================================= */
+const IqPanel = (() => {
+  let _timer = null;
+  let _ultimo = {};
+  let _falhas = 0;
+  let _blocosVistos = -1;
+
+  const el = (id) => document.getElementById(id);
+  const num = (id, padrao) => {
+    const v = Number((el(id) || {}).value);
+    return isFinite(v) ? v : padrao;
+  };
+
+  function post(rota, corpo) {
+    return fetch(rota, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(corpo || {})
+    }).then(r => r.json());
+  }
+
+  function armar() {
+    return post('/api/iq/arm', {
+      pre:              el('iq-pre') ? el('iq-pre').checked : true,
+      preSegundos:      num('iq-pre-seg', 20),
+      gatilho:          el('iq-gatilho') ? el('iq-gatilho').checked : false,
+      limiarDb:         num('iq-limiar', -40),
+      silencioSegundos: num('iq-silencio', 5)
+    }).then(pintar);
+  }
+
+  function iniciar() {
+    // Reacao imediata ao clique. Antes, se o pedido falhasse, a janela nao
+    // mudava NADA - nem estado, nem erro - e do lado de fora parecia que o
+    // botao nao tinha funcao nenhuma. Era o que estava acontecendo.
+    aviso('pedindo ao radio...', '#ffb74d');
+    armar()
+      .then(() => post('/api/iq/start'))
+      .then(function(j){
+        if (!j || !j.ok) aviso((j && (j.erro || j.error)) || 'o radio recusou o pedido', '#ff8a8a');
+        else pintar(j);
+      })
+      .catch(function(e){ semResposta(e); });
+  }
+
+  function parar() {
+    aviso('encerrando...', '#ffb74d');
+    post('/api/iq/stop').then(pintar).catch(function(e){ semResposta(e); });
+  }
+
+  // Uma unica explicacao para o caso mais provavel de tudo isto nao responder.
+  function semResposta(e) {
+    aviso('o radio nao respondeu em /api/iq/ - se este RXSDR foi instalado antes ' +
+          'da gravacao de IQ existir, o programa em execucao nao tem o recurso, ' +
+          'mesmo com a janela aparecendo', '#ff8a8a');
+    console.warn('[iq]', e);
+  }
+
+  function aviso(txt, cor) {
+    // Mesma razao do SCAN: o aplicarIdioma() so passa aqui quando a janela
+    // abre, e estas frases sao escritas depois.
+    const e = el('iq-estado');
+    if (e) { e.textContent = T(txt); e.style.color = cor || '#7fb0ff'; }
+  }
+
+  function mb(bytes) {
+    const v = Number(bytes) || 0;
+    if (v > 1024*1024*1024) return (v/(1024*1024*1024)).toFixed(2) + ' GB';
+    return (v/(1024*1024)).toFixed(1) + ' MB';
+  }
+
+  function pintar(j) {
+    if (!j) return;
+    _ultimo = j;
+    const grav = !!j.gravando;
+
+    const b = el('iq-btn');
+    if (b) {
+      b.textContent = grav ? 'PARAR' : 'GRAVAR';
+      b.style.color = grav ? '#ff8a8a' : '#7CFC00';
+      b.style.borderColor = grav ? '#8b2e2e' : '#2e8b57';
+      b.onclick = grav ? parar : iniciar;
+    }
+
+    const linha = (id, v) => { const e = el(id); if (e) e.textContent = v; };
+    linha('iq-tempo',   (Number(j.segundos)||0).toFixed(1) + ' s');
+    linha('iq-bytes',   mb(j.bytes));
+    linha('iq-blocos',  j.blocos || 0);
+    linha('iq-formato', j.formato || '—');
+    linha('iq-taxa',    (Number(j.sampleRate)||0).toLocaleString('pt-BR') + ' amostras/s');
+    linha('iq-centro',  ((Number(j.centroHz)||0)/1e6).toFixed(4) + ' MHz');
+    linha('iq-livre',   mb((Number(j.livreMb)||0) * 1024 * 1024) + ' livres');
+    linha('iq-arquivo', j.arquivo || '—');
+    // A pasta DE VERDADE, e nao so o nome do arquivo.
+    //
+    // Isto resolve a duvida que custou uma tarde: o radio pode estar rodando
+    // num TV box, e ai a "Area de Trabalho" e a DA CAIXA. Ver o caminho na
+    // tela tira a adivinhacao.
+    linha('iq-pasta', j.pasta || '—');
+
+    // Os overruns em vermelho quando existirem. Um arquivo com buraco
+    // silencioso parece bom e nao e; quem analisa depois nao teria como saber.
+    const ov = el('iq-overruns');
+    if (ov) {
+      const n = j.overruns || 0;
+      ov.textContent = n;
+      ov.style.color = n > 0 ? '#ff6b6b' : '#7cff9e';
+    }
+
+    // Nivel cru e limiar lado a lado: e assim que se regula o disparo, olhando
+    // em vez de adivinhando. Este numero NAO e o do rodape - aquele passa por
+    // uma calibracao que so existe no navegador, e o disparo precisa funcionar
+    // com a pagina fechada.
+    const nv = el('iq-nivel');
+    if (nv && typeof j.nivelDb === 'number') {
+      nv.textContent = j.nivelDb.toFixed(1) + ' dBFS';
+      nv.style.color = (j.nivelDb >= num('iq-limiar', -40)) ? '#7cff9e' : '#8aa0b8';
+    }
+
+    const pc = el('iq-pre-cheio');
+    if (pc) pc.textContent = (Number(j.preCheio)||0).toFixed(1) + ' s guardados';
+
+    if (j.erro) aviso(j.erro, '#ff8a8a');
+    else if (grav) aviso('gravando', '#7CFC00');
+    else aviso('parado');
+  }
+
+  function mbCurto(b){
+    const v = Number(b) || 0;
+    return v > 1024*1024*1024 ? (v/(1024*1024*1024)).toFixed(2) + ' GB'
+                              : (v/(1024*1024)).toFixed(1) + ' MB';
+  }
+
+  // O que ja foi gravado, com link para trazer para ca.
+  //
+  // Sem isto, o arquivo gravado num TV box so sairia de la por SSH ou pen
+  // drive - e a pergunta "cade meu arquivo" ja custou uma tarde.
+  function listarArquivos() {
+    fetch('/api/iq/files').then(r => r.ok ? r.json() : null).then(function(j){
+      const c = el('iq-lista');
+      if (!c || !j) return;
+      const a = j.arquivos || [];
+      if (!a.length) {
+        c.innerHTML = '<span style="opacity:.55">' + T('nenhuma gravacao ainda') + '</span>';
+        return;
+      }
+      c.innerHTML = '<div style="opacity:.8;margin:4px 0">' + T('Gravado ate agora:') + '</div>' +
+        a.map(function(f){
+          return '<div style="padding:1px 0;border-bottom:1px dotted #0d2a14">' +
+            '<a href="/api/iq/baixar/' + encodeURIComponent(f.nome) + '" download ' +
+            'style="color:#FFA038;font-weight:bold;text-decoration:underline" ' +
+            'title="' + T('Baixar para este computador') + '">' + f.nome + '</a> ' +
+            '<span style="opacity:.7">' + mbCurto(f.bytes) + ' &middot; ' + f.quando + '</span> ' +
+            '<a href="javascript:void(0)" onclick="IqPanel.apagar(\'' + f.nome + '\')" ' +
+            'style="color:#ff9a9a;text-decoration:none" title="' + T('Apagar da maquina do radio') +
+            '">&times;</a>' +
+            (f.json ? ' <a href="/api/iq/baixar/' + encodeURIComponent(f.nome) + '.json" download ' +
+                      'style="color:#7fb0ff;font-size:9px">json</a>' : '') +
+            '</div>';
+        }).join('');
+    }).catch(()=>{});
+  }
+
+  function apagar(nome) {
+    fetch('/api/iq/apagar/' + encodeURIComponent(nome), { method:'POST' })
+      .then(()=>listarArquivos()).catch(()=>{});
+  }
+
+  function atualizar() {
+    fetch('/api/iq/status')
+      .then(function(r){
+        // Rota inexistente devolve 404 com corpo que nao e JSON: sem este
+        // teste, o erro virava um catch mudo e a janela ficava parada para
+        // sempre, sem dizer o motivo.
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function(j){
+        _falhas = 0;
+        const eraGravando = !!_ultimo.gravando;
+        pintar(j);
+        // A lista so e refeita quando muda o numero de blocos ou quando a
+        // gravacao termina - refazer a cada 700 ms piscaria a tela a toa.
+        if (eraGravando !== !!j.gravando || _blocosVistos !== j.blocos) {
+          _blocosVistos = j.blocos;
+          listarArquivos();
+        }
+      })
+      .catch(function(e){
+        if (++_falhas === 3) semResposta(e);   // uma vez so, nao a cada 700 ms
+      });
+  }
+
+  // O .dec-terminal e zona proibida do motor de idioma - por ele passa texto
+  // recebido do ar nos outros paineis. Aqui e so ajuda, entao a traducao e
+  // feita na mao, na hora de montar a janela.
+  const AJUDA =
+'Grava o sinal CRU, antes do deslocamento de frequencia, da decimacao e do ' +
+'demodulador. E o que permite medir desvio. Os arquivos vao para a Area de ' +
+'Trabalho, fatiados a cada 2 minutos, em WAV IQ de 16 bits. A pre-gravacao ' +
+'existe porque, quando voce ouve o sinal e clica, o comeco da transmissao ja ' +
+'passou. ANTES DE GRAVAR, BAIXE A TAXA DE AMOSTRAGEM: entre na janela de ' +
+'configuracao e ajuste para 250 kSps.\n\n' +
+'NAO ABRA NUM TOCADOR DE MUSICA. Apesar da extensao .wav, ali dentro nao ha ' +
+'audio nenhum - sao as amostras I e Q do radio, e um tocador comum devolve ' +
+'ruido. Abra no SDR#, no SDR++ ou no inspectrum, que e para isso que serve. O ' +
+'nome comeca com SDRSharp porque esses programas leem a frequencia central do ' +
+'proprio nome do arquivo.';
+
+  function buildPanelHTML() {
+    const cx = 'background:#0a1420;border:1px solid #25467a;color:#cfe3ff;' +
+               'font-size:11px;padding:2px 4px;border-radius:3px;width:64px';
+    const bx = 'padding:4px 10px;font-size:11px;font-weight:bold;cursor:pointer;' +
+               'border-radius:4px;background:#07120a;border:1px solid #2e8b57;color:#7CFC00';
+    const kv = (rot, id, val) =>
+      '<div style="display:flex;justify-content:space-between;gap:8px">' +
+      '<span style="opacity:.7">' + rot + '</span>' +
+      '<span id="' + id + '" style="color:#cfe3ff">' + (val || '—') + '</span></div>';
+    return `
+      <div class="dec-info" style="margin-bottom:6px">
+        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:6px">
+          <button id="iq-btn" onclick="IqPanel.iniciar()" style="${bx}">GRAVAR</button>
+          <label title="Guarda os ultimos segundos o tempo todo, para o arquivo comecar ANTES do clique">
+            <input type="checkbox" id="iq-pre" checked onchange="IqPanel.armar()"> Pré-gravação
+            <input type="text" inputmode="numeric" id="iq-pre-seg" value="20" onchange="IqPanel.armar()" style="${cx};width:38px"> s
+          </label>
+          <span id="iq-pre-cheio" style="font-size:10px;opacity:.7">—</span>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:6px">
+          <label title="Comeca a gravar sozinho quando o nivel passar do limiar, e encerra apos o silencio">
+            <input type="checkbox" id="iq-gatilho" onchange="IqPanel.armar()"> Disparo por nível
+          </label>
+          <label>acima de <input type="text" inputmode="numeric" id="iq-limiar" value="-40" onchange="IqPanel.armar()" style="${cx};width:48px"> dBFS</label>
+          <label>encerra após <input type="text" inputmode="numeric" id="iq-silencio" value="5" onchange="IqPanel.armar()" style="${cx};width:38px"> s de silêncio</label>
+        </div>
+        <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:10px;line-height:1.7">
+          <div style="min-width:200px;flex:1">
+            ${kv('Nível agora', 'iq-nivel')}
+            ${kv('Tempo', 'iq-tempo')}
+            ${kv('Gravado', 'iq-bytes')}
+            ${kv('Blocos', 'iq-blocos')}
+          </div>
+          <div style="min-width:200px;flex:1">
+            ${kv('Formato', 'iq-formato')}
+            ${kv('Taxa', 'iq-taxa')}
+            ${kv('Centro real', 'iq-centro')}
+            ${kv('Perdas (overrun)', 'iq-overruns')}
+          </div>
+        </div>
+        <div style="margin-top:5px;font-size:10px;opacity:.75">
+          <span id="iq-pasta" title="A pasta fica na maquina que roda o radio - se voce acessa um TV box pela rede, o arquivo esta la">—</span><br>
+          <span id="iq-livre">—</span> &nbsp;|&nbsp; <span id="iq-arquivo">—</span>
+        </div>
+        <div id="iq-estado" style="margin-top:5px;font-size:10px;color:#7fb0ff">parado</div>
+      </div>
+      <div class="dec-terminal" id="iq-ajuda" style="font-size:11px">
+        <div style="opacity:.8;margin-bottom:6px">${T(AJUDA)}</div>
+        <div id="iq-lista"></div>
+      </div>`;
+  }
+
+  function init() {
+    armar();
+    atualizar();
+    listarArquivos();
+    if (_timer) clearInterval(_timer);
+    _timer = setInterval(atualizar, 700);
+  }
+
+  function onClose() {
+    if (_timer) { clearInterval(_timer); _timer = null; }
+    // Fechar a janela NAO para a gravacao: a ideia e justamente deixar o radio
+    // cacando sozinho. Mas desliga a pre-gravacao, que come memoria a toa se
+    // ninguem estiver esperando por ela.
+    if (!_ultimo.gravando) {
+      post('/api/iq/arm', { pre:false, gatilho:false }).catch(()=>{});
+    }
+  }
+
+  return { buildPanelHTML, init, onClose, iniciar, parar, armar, apagar, listarArquivos };
+})();
+
+
 
 /* =========================================================
    4. CONTROLES — sliders e botões
@@ -6212,11 +7421,27 @@ document.querySelectorAll('.mode-btn').forEach(b=>{
       document.querySelector('.step-opt[data-hz="1000"]')?.classList.add('active');
     }
     
+    // O radio primeiro, a tela depois.
+    //
+    // Com o comando de sintonia na ultima linha, qualquer tropeco numa das
+    // funcoes de tela acima engolia o pedido inteiro e o modo novo nunca
+    // chegava ao hardware. Agora o rádio recebe a ordem antes de qualquer
+    // enfeite ser redesenhado.
+    Backend.tune(currentFreqHz, mode, currentBwHz).catch(()=>{});
+
     updateVfoModeDisplay();
     keepWaterfallAutoPattern();
     updateWfFooter();
     updateVfoLabels();
-    Backend.tune(currentFreqHz, mode, currentBwHz).catch(()=>{});
+    // A marca do filtro tem de ser redesenhada AQUI - era esta a linha que
+    // faltava.
+    //
+    // Trocar de modo troca a largura junto (NFM 10 kHz -> WFM 200 kHz) e, em
+    // USB/LSB, muda o lado da sombra. Sem esta chamada a tela continuava
+    // mostrando o filtro do modo anterior, e a mudanca so aparecia quando se
+    // girava o VFO - porque o renderVfo redesenha a marca de passagem.
+    // O menu de BW ja chamava esta funcao; o de modo, nao. Mesmo defeito.
+    updateMarkerPosition(currentFreqHz);
   });
 });
 
@@ -7067,6 +8292,89 @@ function tickClock(){
 }
 setInterval(tickClock, 1000); tickClock();
 
+/* ===== Taxas de amostragem ditas pelo proprio aparelho =====================
+   A lista da tela e fixa e comeca em 125 kHz, o que serve para RTL-SDR e
+   SDRplay. Nao serve para tudo: o SDR-IQ, pela ExtIO, so aceita 55555, 111111
+   e 196078 Hz - nenhuma delas na lista. Sem trocar a lista, nao havia sequer
+   como selecionar a taxa certa, e todo o calculo de frequencia por bin da FFT
+   sairia deslocado, porque ele usa justamente o valor deste seletor.
+
+   Quando o aparelho nao responde a isto - que e o caso de todos os outros -,
+   a lista original volta intacta.                                           */
+/* A janela de ajustes da propria ExtIO.
+
+   Ela pertence ao fabricante e mora dentro da DLL, entao quem a abre e a
+   ponte de 32 bits - o RXSDR nao tem como desenhar isso. Vale a pena existir:
+   no SDR-IQ ha ajustes ali que nenhuma funcao da especificacao alcanca.      */
+function abrirGuiExtIo(){
+  fetch('/api/extio/gui', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ show:true })
+  }).then(r=>r.json()).then(function(j){
+    if (!j.ok) avisoDoAparelho(j.error || 'nao consegui abrir os ajustes da ExtIO');
+  }).catch(function(){
+    avisoDoAparelho('nao consegui falar com o radio para abrir os ajustes da ExtIO');
+  });
+}
+
+// O botao so faz sentido com uma ExtIO em uso; com RTL-SDR ou SDRplay nao ha
+// janela de fabricante nenhuma para abrir.
+function mostrarLinhaExtIo(tipo){
+  const r = document.getElementById('rowCfgExtio');
+  if (r) r.style.display = (tipo === 'extio') ? '' : 'none';
+}
+
+var _taxasOriginais = null;
+var _taxasDoAparelho = '';
+
+function aplicarTaxasDoAparelho(st){
+  const sel = document.getElementById('cfgSampleRate');
+  if (!sel) return;
+  if (_taxasOriginais === null) _taxasOriginais = sel.innerHTML;
+
+  const lista = Array.isArray(st.sampleRates) ? st.sampleRates : null;
+  const chave = lista ? lista.join(',') : '';
+  if (chave === _taxasDoAparelho) return;      // nada mudou
+  _taxasDoAparelho = chave;
+
+  if (!lista || !lista.length) {
+    sel.innerHTML = _taxasOriginais;
+    return;
+  }
+  const atual = Number(st.sampleRate) || Number(lista[0]);
+  sel.innerHTML = lista.map(function(v){
+    const r = (v >= 1000000) ? (v/1e6).toFixed(3) + ' MSPS' : Math.round(v/1000) + ' kHz';
+    return '<option value="' + v + '"' + (v === atual ? ' selected' : '') + '>' +
+           r + ' (' + v + ' Hz)</option>';
+  }).join('');
+  console.log('[dispositivo] taxas proprias:', lista.join(', '));
+}
+
+/* Aviso do aparelho: aparece uma vez, some quando o problema passa.
+
+   Existe por causa de uma descoberta concreta: a ExtIO do SDR-IQ aceita
+   InitHW, OpenHW e StartHW com o radio DESLIGADO, e depois nao entrega uma
+   amostra sequer. Sem este aviso o usuario veria a cachoeira parada e nenhuma
+   explicacao - o proprio driver nunca diz que o aparelho nao esta la.        */
+function avisoDoAparelho(txt){
+  let b = document.getElementById('avisoDispositivo');
+  if (!txt) { if (b) b.remove(); return; }
+  if (b && b.dataset.txt === txt) return;
+  if (!b) {
+    b = document.createElement('div');
+    b.id = 'avisoDispositivo';
+    b.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);top:34px;z-index:9500;' +
+      'max-width:min(720px,92vw);background:#2a0d0d;border:1px solid #a03030;border-radius:6px;' +
+      'padding:8px 12px;color:#ffc0c0;font-size:12px;box-shadow:0 6px 20px rgba(0,0,0,.6);' +
+      'cursor:pointer';
+    b.title = 'clique para fechar';
+    b.onclick = function(){ b.remove(); };
+    document.body.appendChild(b);
+  }
+  b.dataset.txt = txt;
+  b.textContent = txt;
+}
+
 // ── Sincronismo do VFO com sintonia externa ────────────────────────────────
 // A pagina lia o VFO do backend so uma vez, ao carregar. Uma sintonia vinda de
 // fora (BuscaFreq, rigctl, outra aba) movia o hardware e a cachoeira, mas o
@@ -7102,6 +8410,17 @@ setInterval(tickClock, 1000); tickClock();
         AudioOut.diag.backVaos  = st.audioVaos | 0;
         AudioOut.diag.reconfigs = st.reconfigs | 0;
       }
+      // O aparelho pode ter lista propria de taxas de amostragem, e pode ter
+      // algo a reclamar. As duas coisas vem no mesmo status, e as duas tem de
+      // ser tratadas ANTES dos desvios de frequencia abaixo - senao, com o VFO
+      // parado, nenhuma delas seria vista.
+      aplicarTaxasDoAparelho(st);
+      avisoDoAparelho(st.deviceError || '');
+      mostrarLinhaExtIo(String(st.deviceType || ''));
+      // O caminho do run.log continua vindo no status e continua sendo a
+      // primeira linha do proprio arquivo; so nao ocupa mais espaco na tela.
+      if (st.logPath) window._rxsdrLogPath = st.logPath;
+
       var freqExterna = Number(st.freqA) || 0;
       if (!freqExterna) return;
       if (freqExterna === ultimoAplicado) return;
@@ -7144,7 +8463,9 @@ const DECODERS = [
   {id:'cw',    name:'CW / Morse', freq:'qualquer',           mod:'telegrafia, velocidade medida sozinha'},
   {id:'dsc',   name:'DSC',      freq:'8414.5 kHz e outras', mod:'FSK 100 bd, shift 170 Hz'},
   {id:'analise',name:'Analisador', freq:'onde voce estiver', mod:'mede tons, shift e velocidade'},
-  {id:'hfdl',  name:'HFDL',      freq:'2 a 22 MHz',          mod:'PSK 300-1800 bps, varios canais de uma vez'}
+  {id:'hfdl',  name:'HFDL',      freq:'2 a 22 MHz',          mod:'PSK 300-1800 bps, varios canais de uma vez'},
+  {id:'scan',  name:'SCAN',      freq:'a faixa que voce escolher', mod:'varredura por squelch, canais maritimos prontos'},
+  {id:'iq',    name:'GRAVAR IQ',  freq:'onde o radio estiver',      mod:'sinal cru, antes de qualquer filtro'}
 ];
 
 function buildDecoderContent(d){
@@ -7168,6 +8489,10 @@ function buildDecoderContent(d){
     return AnaliseDecoder.buildPanelHTML();
   } else if(d.id==='hfdl'){
     return HfdlDecoder.buildPanelHTML();
+  } else if(d.id==='scan'){
+    return ScanDecoder.buildPanelHTML();
+  } else if(d.id==='iq'){
+    return IqPanel.buildPanelHTML();
   }
   let body = `<div class="dec-info" style="margin-bottom:6px">
     <b>Freq:</b> ${d.freq} &nbsp; <b>Mod:</b> ${d.mod} &nbsp;
@@ -7232,6 +8557,17 @@ function openDecoderPanel(id){
     panel.style.width = '660px';
     panel.style.height = '500px';
   }
+  if (id === 'scan') {
+    // Larga o suficiente para a fila de botoes caber numa linha so, e nao um
+    // dedo alem: sobrava um vazio grande depois do "Limpar registro".
+    // 560 e nao 520: a linha dos tempos ganhou um terceiro campo.
+    panel.style.width = '560px';
+    panel.style.height = '470px';
+  }
+  if (id === 'iq') {
+    panel.style.width = '560px';
+    panel.style.height = '430px';
+  }
 
   // O ANALISADOR nasce encostado na direita, e nao na cascata.
   // Ele existe para ser lido AO LADO do decodificador - voce compara o que ele
@@ -7290,6 +8626,8 @@ function openDecoderPanel(id){
   if (id === 'tetra') TetraDecoder.init();
   if (id === 'packet') AprsDecoder.init();
   if (id === 'hfdl') HfdlDecoder.init();
+  if (id === 'scan') ScanDecoder.init();
+  if (id === 'iq')   IqPanel.init();
 }
 
 function closeDecoderPanel(id){
@@ -7308,6 +8646,8 @@ function closeDecoderPanel(id){
   if (id === 'dsc') DscDecoder.onClose();
   if (id === 'analise') AnaliseDecoder.onClose();
   if (id === 'hfdl') HfdlDecoder.onClose();
+  if (id === 'scan') ScanDecoder.onClose();
+  if (id === 'iq')   IqPanel.onClose();
 }
 
 function makeDecoderPanelDraggable(panel) {
@@ -7470,10 +8810,14 @@ const ConfigUI = {
     const src = document.getElementById('cfgSource').value;
     const isTcp = src === 'rtltcp';
     const isUsb = src === 'rtlsdr' || src === 'sdrplay';
+    // A ExtIO tambem tem lista de aparelhos - uma linha por DLL achada na
+    // pasta extio. Sem entrar aqui, a lista ficava escondida e a DLL, embora
+    // encontrada pelo programa, nunca aparecia na tela.
+    const isExtio = src === 'extio';
     document.getElementById('rowCfgRtltcpHost').style.display = isTcp ? '' : 'none';
     document.getElementById('rowCfgRtltcpPort').style.display = isTcp ? '' : 'none';
-    document.getElementById('rowCfgUsbSerial').style.display = isUsb ? '' : 'none';
-    document.getElementById('rowCfgDevice').style.display = isUsb ? '' : 'none';
+    document.getElementById('rowCfgUsbSerial').style.display = (isUsb || isExtio) ? '' : 'none';
+    document.getElementById('rowCfgDevice').style.display = (isUsb || isExtio) ? '' : 'none';
 
     const isSdrplay = src === 'sdrplay';
     const groupSdrplayEl = document.getElementById('groupSdrplay');
@@ -7507,6 +8851,8 @@ const ConfigUI = {
     if (serialEl) {
       if (src === 'sdrplay') {
         serialEl.placeholder = 'Serial do RSP (ou vazio)';
+      } else if (src === 'extio') {
+        serialEl.placeholder = 'vazio = a DLL escolhida acima, ou cole outro caminho';
       } else {
         serialEl.placeholder = 'vazio = 1º dongle';
       }
@@ -7533,6 +8879,8 @@ const ConfigUI = {
         op.textContent = 'Nenhum RTL-SDR encontrado';
       } else if (src === 'sdrplay') {
         op.textContent = 'Nenhum SDRplay encontrado';
+      } else if (src === 'extio') {
+        op.textContent = 'Nenhuma DLL na pasta extio';
       } else {
         op.textContent = 'RTL-TCP manual';
       }
@@ -7551,7 +8899,7 @@ const ConfigUI = {
         document.getElementById('cfgRtltcpHost').value = ep.host;
         document.getElementById('cfgRtltcpPort').value = ep.port;
       }
-    } else if (list.length) {
+    } else if (list.length && src !== 'extio') {
       document.getElementById('cfgUsbSerial').value = list[0].serial || '';
     }
     this.updateSourceRows();
@@ -7564,7 +8912,10 @@ const ConfigUI = {
       document.getElementById('cfgDevice').value;
     return {
       deviceType: src,
-      deviceSerial: src === 'rtltcp' ? buildRtltcpSerial(host, port) : usbSerial,
+      deviceSerial: src === 'rtltcp' ? buildRtltcpSerial(host, port)
+                  : src === 'extio'  ? (document.getElementById('cfgUsbSerial').value.trim() ||
+                                        document.getElementById('cfgDevice').value)
+                  : usbSerial,
       rtltcpHost: host,
       rtltcpPort: port,
       sampleRate: Number(document.getElementById('cfgSampleRate').value),
@@ -7934,6 +9285,8 @@ document.getElementById('cfgClose').addEventListener('click', async ()=>{
   document.getElementById('configModal').classList.remove('open');
 });
 document.getElementById('cfgSource').addEventListener('change', ()=>{
+  const campoSerial = document.getElementById('cfgUsbSerial');
+  if (campoSerial) campoSerial.value = '';
   ConfigUI.updateSourceRows(true);  // true = sugerir sample rate padrão para o hardware
   ConfigUI.fillDeviceList();
 });
@@ -8963,10 +10316,10 @@ const DsdDecoder = (() => {
 
     if (ts1.active) {
       if (ts1Led) { ts1Led.style.background = '#4caf50'; ts1Led.style.boxShadow = '0 0 6px #4caf50'; }
-      if (ts1State) ts1State.textContent = 'ativo';
+      if (ts1State) ts1State.textContent = T('ativo');
     } else {
       if (ts1Led) { ts1Led.style.background = '#757575'; ts1Led.style.boxShadow = 'none'; }
-      if (ts1State) ts1State.textContent = 'inativo';
+      if (ts1State) ts1State.textContent = T('inativo');
       ts1.voice = false;
       ts1.type = '-';
       ts1.src = '-';
@@ -8993,10 +10346,10 @@ const DsdDecoder = (() => {
 
     if (ts2.active) {
       if (ts2Led) { ts2Led.style.background = '#4caf50'; ts2Led.style.boxShadow = '0 0 6px #4caf50'; }
-      if (ts2State) ts2State.textContent = 'ativo';
+      if (ts2State) ts2State.textContent = T('ativo');
     } else {
       if (ts2Led) { ts2Led.style.background = '#757575'; ts2Led.style.boxShadow = 'none'; }
-      if (ts2State) ts2State.textContent = 'inativo';
+      if (ts2State) ts2State.textContent = T('inativo');
       ts2.voice = false;
       ts2.type = '-';
       ts2.src = '-';
@@ -9029,7 +10382,7 @@ const DsdDecoder = (() => {
     const waitSignal = el('dsd-wait-signal');
     if (waitSignal) {
       if (currentCC !== null) {
-        waitSignal.textContent = `DMR: sinal 4FSK detectado | Color Code: ${currentCC} (BW 12.5 kHz, NFM)`;
+        waitSignal.textContent = T('DMR: sinal 4FSK detectado | Color Code:') + ' ' + currentCC + ' (BW 12.5 kHz, NFM)';
         waitSignal.style.color = "#4caf50";
       } else {
         waitSignal.textContent = "DMR: aguardando sinal 4FSK @ 4800 baud (BW 12.5 kHz, NFM)";
@@ -9109,12 +10462,13 @@ const DsdDecoder = (() => {
       if (data.state === 'starting') {
         term.textContent = "Iniciando decodificador DSD (DSDPlus.exe / dsd-fme.exe / dsd.exe)...";
       } else if (data.state === 'error') {
-        term.textContent = "Erro: " + (data.error || 'Falha ao iniciar');
+        term.textContent = T('Erro:') + ' ' + (data.error || T('Falha ao iniciar'));
       } else if (!data.binaryPresent) {
-        term.textContent = `AVISO: Nenhum decodificador DSD (DSDPlus.exe, dsd-fme.exe ou dsd.exe) foi encontrado na pasta ./decoders/\n\nColoque o binário para Windows na pasta decoders/ para poder decodificar em tempo real.`;
+        term.textContent = T('AVISO: Nenhum decodificador DSD (DSDPlus.exe, dsd-fme.exe ou dsd.exe) foi encontrado na pasta ./decoders/') +
+          '\n\n' + T('Coloque o binario para Windows na pasta decoders/ para poder decodificar em tempo real.');
       } else {
         if (_lines.length === 0) {
-          term.textContent = "A decodificacao aparecera aqui em tempo real.";
+          term.textContent = T('A decodificacao aparecera aqui em tempo real.');
         }
       }
     } else {
@@ -9169,9 +10523,9 @@ const DsdDecoder = (() => {
         _running = false;
         applyStopSettings();
         const title = document.getElementById('dsd-main-title');
-        if (title) title.textContent = 'Decodificador DMR — parado';
+        if (title) title.textContent = T('Decodificador DMR \u2014 parado');
         const diag = document.getElementById('dsd-diag');
-        if (diag) { diag.textContent = 'Diagnóstico: parado pelo usuário.'; diag.style.color = '#ef9a9a'; }
+        if (diag) { diag.textContent = T('Diagn\u00f3stico: parado pelo usu\u00e1rio.'); diag.style.color = '#ef9a9a'; }
       })
       .catch(err => console.error('Erro ao parar DSD:', err));
   }
@@ -9431,13 +10785,13 @@ const TetraDecoder = (() => {
         
         // Reset visual status indicators on stop
         const title = el('tetra-main-title');
-        if (title) title.textContent = 'Decodificador TETRA — parado';
+        if (title) title.textContent = T('Decodificador TETRA \u2014 parado');
         const diag = el('tetra-diag');
-        if (diag) { diag.textContent = 'Diagnóstico: parado pelo usuário.'; diag.style.color = '#ef9a9a'; }
+        if (diag) { diag.textContent = T('Diagn\u00f3stico: parado pelo usu\u00e1rio.'); diag.style.color = '#ef9a9a'; }
         const led = el('tetra-led');
         if (led) led.style.background = '#757575';
         const syncText = el('tetra-sync');
-        if (syncText) syncText.textContent = 'parado';
+        if (syncText) syncText.textContent = T('parado');
         const voiceLed = el('tetra-voice-led');
         if (voiceLed) voiceLed.style.background = '#404040';
       })
@@ -9449,10 +10803,18 @@ const TetraDecoder = (() => {
     fetch('/api/tetra/stop', { method: 'POST' })
       .then(() => {
         applyStartSettings();
+        // Reimpoe os 25 kHz do TETRA.
+        //
+        // O applyStopSettings acima devolve ao radio o modo e a largura que
+        // ele tinha ANTES do painel abrir - e correto, e o que faz o botao
+        // fechar funcionar. So que o reiniciar chamava o par parar/iniciar e
+        // nunca reaplicava a largura do TETRA, entao o radio ficava nos 10 kHz
+        // de antes enquanto o painel continuava aberto dizendo 25 kHz.
+        applyTetraMode();
         const title = el('tetra-main-title');
-        if (title) title.textContent = 'Decodificador TETRA — iniciando...';
+        if (title) title.textContent = T('Decodificador TETRA \u2014 iniciando...');
         const diag = el('tetra-diag');
-        if (diag) { diag.textContent = 'Diagnóstico: reiniciando decodificador...'; diag.style.color = '#ffb74d'; }
+        if (diag) { diag.textContent = T('Diagn\u00f3stico: reiniciando decodificador...'); diag.style.color = '#ffb74d'; }
         return fetch('/api/tetra/start', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -10131,7 +11493,7 @@ const SitorBDecoder = (() => {
   function clearTerminal() {
     _linhas = [];
     const term = el('sitorb-terminal');
-    if (term) term.textContent = 'Aguardando mensagem NAVTEX...';
+    if (term) term.textContent = T('Aguardando mensagem NAVTEX...');
   }
 
   // Abrir a janela sintoniza o canal e liga; fechar devolve tudo.
@@ -10541,7 +11903,7 @@ const CwDecoder = (() => {
     _linhas = [];
     _aberta = false;
     const t = el('cw-terminal');
-    if (t) t.textContent = 'Aguardando telegrafia...';
+    if (t) t.textContent = T('Aguardando telegrafia...');
   }
 
   function tomAtual() {
@@ -10694,7 +12056,7 @@ const AnaliseDecoder = (() => {
 
   function clearTerminal() {
     const term = el('analise-terminal');
-    if (term) term.textContent = 'Sintonize o sinal e clique em Analisar.';
+    if (term) term.textContent = T('Sintonize o sinal e clique em Analisar.');
   }
 
   // Nao mexe na sintonia: a ideia e justamente medir onde voce ja esta.
@@ -10882,7 +12244,7 @@ const DscDecoder = (() => {
   function clearTerminal() {
     _linhas = [];
     const term = el('dsc-terminal');
-    if (term) term.textContent = 'Aguardando chamada DSC...';
+    if (term) term.textContent = T('Aguardando chamada DSC...');
   }
 
   // O tom central e a inversao ficam guardados: sem isso o valor digitado se
@@ -11112,7 +12474,7 @@ const AisDecoder = (() => {
       t.style.color = '#ff8080';
       return;
     }
-    if (data.error) { t.textContent = 'Erro: ' + data.error; t.style.color = '#ff8080'; return; }
+    if (data.error) { t.textContent = T('Erro:') + ' ' + data.error; t.style.color = '#ff8080'; return; }
     t.textContent = _running ? 'Rodando' : 'Parado';
     t.style.color = _running ? '#7CFC00' : '#ffaa00';
   }
@@ -11444,12 +12806,13 @@ const AcarsDecoder = (() => {
       if (data && data.state === 'starting') {
         term.textContent = "Iniciando decodificador acarsdeco2...";
       } else if (data && data.state === 'error') {
-        term.textContent = "Erro: " + (data.error || 'Falha ao iniciar');
+        term.textContent = T('Erro:') + ' ' + (data.error || T('Falha ao iniciar'));
       } else if (data && !data.binaryPresent) {
-        term.textContent = `AVISO: acarsdeco2.exe não encontrado em ./decoders/\n\nBaixe o binário para Windows no GitHub e coloque-o na pasta build/decoders/ para poder decodificar em tempo real.`;
+        term.textContent = T('AVISO: acarsdeco2.exe nao encontrado em ./decoders/') +
+          '\n\n' + T('Baixe o binario para Windows no GitHub e coloque-o na pasta build/decoders/ para poder decodificar em tempo real.');
       } else {
         if (_lines.length === 0) {
-          term.textContent = "A decodificacao aparecera aqui em tempo real.";
+          term.textContent = T('A decodificacao aparecera aqui em tempo real.');
         }
       }
     } else {
@@ -11696,7 +13059,7 @@ const AprsDecoder = (() => {
   function clearTerminal() {
     _lines = [];
     const term = el('aprs-terminal');
-    if (term) term.innerHTML = 'Aguardando decodificacao APRS...';
+    if (term) term.innerHTML = T('Aguardando decodificacao APRS...');
   }
 
   // -- Envio de mensagem pela internet ------------------------------------

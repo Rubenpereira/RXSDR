@@ -9,6 +9,7 @@
 #include <atomic>
 #include <chrono>
 #include "../dsp/Filters.h"
+#include "IqRecorder.h"
 
 class QJsonObject;
 
@@ -73,6 +74,10 @@ private:
     std::unique_ptr<SelcalManager> selcalDeco_;
     std::unique_ptr<TetraManager> tetraDeco_;
     std::unique_ptr<HfdlManager>  hfdlDeco_;
+    std::unique_ptr<IqRecorder>   iqRec_;
+    // Ultimos valores entregues ao gravador, para nao reconfigurar a toa.
+    uint32_t iqCfgSr_  = 0;
+    uint64_t iqCfgCtr_ = 0;
     IirDcBlock dcBlock_;
 
     // Leva o audio a 48000 Hz exatos antes de mandar para o navegador.

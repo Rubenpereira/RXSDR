@@ -28,6 +28,11 @@ if not exist "%~dp0project\build\bookmarks.json" (
     if exist "%~dp0bookmarks.json" copy /Y "%~dp0bookmarks.json" "%~dp0project\build\bookmarks.json" >nul
 )
 
+REM  A pasta extio nasce vazia (so o LEIAME): e o usuario quem poe a DLL dele.
+REM  Nunca sobrescrevemos o que ja estiver la dentro.
+if not exist "%~dp0project\build\extio" mkdir "%~dp0project\build\extio"
+copy /Y "%~dp0project\extio\LEIAME.txt" "%~dp0project\build\extio\LEIAME.txt" >nul 2>&1
+
 echo Copiando decoders externos atualizados...
 xcopy /Y /S /I "%~dp0project\decoders" "%~dp0project\build\decoders" >nul
 
