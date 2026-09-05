@@ -110,6 +110,11 @@ public:
     // poe ali coisas que a especificacao nao cobre - no SDR-IQ e onde ficam
     // ajustes que nao ha como alcancar de fora.
     std::function<QJsonObject(bool)>                          onExtIoGui;
+    std::function<QJsonObject(bool)>                          onDcRemove;
+    // Transcricao de fala.
+    std::function<QJsonObject(const QString&, int, const QString&, int)> onWhisperStart;
+    std::function<QJsonObject()>                              onWhisperStop;
+    std::function<QJsonObject()>                              onWhisperStatus;
     // Gravacao de IQ cru.
     std::function<QJsonObject(const QJsonObject&)>            onIqArm;
     std::function<QJsonObject()>                              onIqStart;

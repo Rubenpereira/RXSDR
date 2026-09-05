@@ -34,6 +34,7 @@ class AnaliseManager;
 class CwManager;
 class SelcalManager;
 class HfdlManager;   // HFDL - o ACARS das ondas curtas
+class WhisperManager; // transcricao da fala (so Windows)
 class TetraManager;
 
 class Application : public QObject {
@@ -75,6 +76,7 @@ private:
     std::unique_ptr<TetraManager> tetraDeco_;
     std::unique_ptr<HfdlManager>  hfdlDeco_;
     std::unique_ptr<IqRecorder>   iqRec_;
+    std::unique_ptr<WhisperManager> whisper_;
     // Ultimos valores entregues ao gravador, para nao reconfigurar a toa.
     uint32_t iqCfgSr_  = 0;
     uint64_t iqCfgCtr_ = 0;

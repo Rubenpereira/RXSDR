@@ -79,7 +79,14 @@ echo.
 
 if exist "%QTBUILD%\decoders" (
   echo Copiando decoders externos para build-win7...
-  xcopy /Y /S /I "%QTBUILD%\decoders" "%WIN7BUILD%\decoders" >nul
+  REM  /D copia so o que estiver mais novo; a lista de exclusao deixa de
+  REM  fora o whisper INTEIRO.
+  REM
+  REM  A versao Windows 7 e compilada sem o subsistema de decodificadores,
+  REM  entao ela nao tem como usar a transcricao - e ainda assim os 607 MB
+  REM  dos modelos vinham para ca e entravam no instalador. Era por isso
+  REM  que o setup do Win7 saia com 590 MB contra 94 MB do normal.
+  xcopy /Y /S /I /D /EXCLUDE:%~dp0project\decoders_sem_whisper.txt "%QTBUILD%\decoders" "%WIN7BUILD%\decoders" >nul
   echo [OK] Decoders copiados para build-win7\decoders\
 ) else (
   echo [AVISO] Pasta decoders nao encontrada em project\build\

@@ -3,7 +3,7 @@
 ; O instalador gerado ficará em: project\installer\output\RXSDR_Setup_1.0.0.exe
 
 #define MyAppName      "RXSDR"
-#define MyAppVersion   "1.0.58"
+#define MyAppVersion   "1.0.59"
 #define MyAppPublisher "PU1XTB — Ruben"
 #define MyAppURL       "https://github.com/ruben/RXSDR"
 #define MyAppExeName   "RXSDR.exe"
@@ -108,7 +108,18 @@ Source: "{#BuildDir}\web\*"; DestDir: "{app}\web"; Flags: ignoreversion recurses
 ; O hfdl_compat.h e a pasta hfdl_win_shim so servem para COMPILAR o dumphfdl
 ; no MSYS2. Nao tem uso nenhum na maquina de quem instala, e mandar codigo
 ; fonte junto do programa so confunde quem for olhar a pasta.
-Source: "{#BuildDir}\decoders\*"; DestDir: "{app}\decoders"; Excludes: "hfdl_compat.h,hfdl_win_shim\*,hfdl_win_shim"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
+; Os modelos do whisper ficam de fora: 630 MB inchariam o instalador de TODOS
+; os amigos por causa de um recurso que so alguns usam, e que so existe no
+; Windows. Quem quiser transcricao roda o BAIXAR_MODELOS_WHISPER.bat, logo
+; abaixo, que baixa os modelos pelo proprio Windows - o COMPILAR_WHISPER.bat
+; nao serve para o usuario final, aquele compila e exige o MSYS2.
+; O whisper-server.exe vai junto - sao 4 MB e evita uma compilacao a mais.
+Source: "{#BuildDir}\decoders\*"; DestDir: "{app}\decoders"; Excludes: "hfdl_compat.h,hfdl_win_shim\*,hfdl_win_shim,whisper\*.bin"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
+; ── Baixador dos modelos da transcricao de fala ──────────────────────────────
+; Fica na pasta do programa para quem quiser ligar a transcricao depois. Ele
+; se eleva sozinho, porque a pasta do programa nao aceita escrita comum.
+Source: "..\..\BAIXAR_MODELOS_WHISPER.bat"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+
 ; ── Ícone da aplicação ────────────────────────────────────────────────────────
 Source: "assets\app.ico"; DestDir: "{app}"; Flags: ignoreversion
 
@@ -118,6 +129,7 @@ Source: "{#BuildDir}\vc_redist.x64.exe"; DestDir: "{tmp}"; Flags: deleteafterins
 [Icons]
 ; Grupo no Menu Iniciar
 Name: "{group}\{#MyAppName}";                        Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\app.ico"
+Name: "{group}\Transcricao de fala - baixar os modelos"; Filename: "{app}\BAIXAR_MODELOS_WHISPER.bat"; IconFilename: "{app}\app.ico"
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}";  Filename: "{uninstallexe}"
 ; Atalho na Área de Trabalho (marcado por padrão na task "desktopicon")
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\app.ico"; Tasks: desktopicon

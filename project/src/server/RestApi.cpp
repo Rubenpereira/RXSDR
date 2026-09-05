@@ -517,6 +517,40 @@ void RestApi::install(QHttpServer* server)
         return QHttpServerResponse("application/json", QJsonDocument(r).toJson());
     });
 
+    // ---- transcricao de fala -------------------------------------------
+    server->route("/api/whisper/start", QHttpServerRequest::Method::Post,
+        [this](const QHttpServerRequest& req) {
+            auto j = QJsonDocument::fromJson(req.body()).object();
+            QJsonObject r = onWhisperStart
+                ? onWhisperStart(j.value("idioma").toString("pt"),
+                                 j.value("nucleos").toInt(4),
+                                 j.value("modelo").toString("base"),
+                                 j.value("janelaSeg").toInt(5))
+                : QJsonObject{{"ok",false},{"error","indisponivel"}};
+            if (!r.contains("ok")) r.insert("ok", true);
+            return QHttpServerResponse("application/json", QJsonDocument(r).toJson());
+        });
+    server->route("/api/whisper/stop", QHttpServerRequest::Method::Post, [this]() {
+        QJsonObject r = onWhisperStop ? onWhisperStop() : QJsonObject{{"ok",false}};
+        if (!r.contains("ok")) r.insert("ok", true);
+        return QHttpServerResponse("application/json", QJsonDocument(r).toJson());
+    });
+    server->route("/api/whisper/status", QHttpServerRequest::Method::Get, [this]() {
+        QJsonObject r = onWhisperStatus ? onWhisperStatus() : QJsonObject{{"ok",false}};
+        if (!r.contains("ok")) r.insert("ok", true);
+        return QHttpServerResponse("application/json", QJsonDocument(r).toJson());
+    });
+
+    // POST /api/dc  { "on": true|false }
+    server->route("/api/dc", QHttpServerRequest::Method::Post,
+        [this](const QHttpServerRequest& req) {
+            auto j = QJsonDocument::fromJson(req.body()).object();
+            QJsonObject r = onDcRemove ? onDcRemove(j.value("on").toBool(false))
+                                       : QJsonObject{{"ok",false}};
+            if (!r.contains("ok")) r.insert("ok", true);
+            return QHttpServerResponse("application/json", QJsonDocument(r).toJson());
+        });
+
     // ---- trazer o IQ gravado para o computador de quem esta olhando -----
     //
     // O radio pode estar noutra maquina. Gravar POR CIMA DA REDE seria pior:

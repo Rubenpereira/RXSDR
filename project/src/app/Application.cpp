@@ -11,6 +11,7 @@
 #include "../sdr/RtlTcpClient.h"
 #include "../sdr/SdrplayDevice.h"
 #include "../sdr/ExtIoDevice.h"
+#include "../decoders/WhisperManager.h"
 #include "../dsp/FftProcessor.h"
 #include "../dsp/DemodSSB.h"
 #include "../dsp/DemodAM.h"
@@ -128,22 +129,34 @@ int64_t zonaProibida(uint32_t taxa)
     return std::min<int64_t>(kZonaProibidaHz, std::max<int64_t>(proporcional, 2000));
 }
 
-int64_t centroComDesvioDoLo(int64_t centroPedido, int64_t vfo, bool amostragemDireta,
-                            uint32_t taxa)
+// DESLIGADO EM 28/08/2026, E O MOTIVO E DE USO, NAO DE ENGENHARIA.
+//
+// O desvio funcionava: afastava o VFO do vazamento do oscilador e o apito
+// sumia. So que ele mexia na CACHOEIRA. Clicar perto do centro fazia a tela
+// escorregar para um lado, e conviver com isso alguns dias mostrou que o
+// remedio incomodava mais que a doenca. Nenhum outro SDR faz isso.
+//
+// No lugar dele entrou o botao DC do painel: quem estiver ouvindo o apito
+// liga, e o bloqueador de DC passa a valer tambem no caminho do audio.
+// Deixa de ser o programa decidindo por conta propria e passa a ser escolha
+// de quem escuta - que foi, alias, a pergunta que eu tinha feito antes de
+// escolher o automatico.
+//
+// O corpo antigo fica logo abaixo, comentado, porque a conta do teto da
+// amostragem direta e do piso do centro custou a ser acertada e nao quero
+// refaze-la se um dia isto voltar.
+int64_t centroComDesvioDoLo(int64_t centroPedido, int64_t /*vfo*/, bool /*amostragemDireta*/,
+                            uint32_t /*taxa*/)
 {
-    const int64_t zona   = zonaProibida(taxa);
-    const int64_t desvio = desvioLo(taxa);
+    return centroPedido;
 
-    if (std::llabs(centroPedido - vfo) >= zona) return centroPedido;
-
-    int64_t centro = vfo + desvio;
-
-    // Perto do teto da amostragem direta, desvia para o outro lado.
-    if (amostragemDireta && centro > kTetoDiretaHz) centro = vfo - desvio;
-    // E no fundo da escala, nunca para baixo.
-    if (centro < kPisoCentroHz) centro = vfo + desvio;
-
-    return centro;
+    // const int64_t zona   = zonaProibida(taxa);
+    // const int64_t desvio = desvioLo(taxa);
+    // if (std::llabs(centroPedido - vfo) >= zona) return centroPedido;
+    // int64_t centro = vfo + desvio;
+    // if (amostragemDireta && centro > kTetoDiretaHz) centro = vfo - desvio;
+    // if (centro < kPisoCentroHz) centro = vfo + desvio;
+    // return centro;
 }
 std::unique_ptr<Demodulator> createDemodForMode(const QString& mode)
 {
@@ -439,7 +452,10 @@ bool Application::start()
             // condicao bastava arrastar a sintonia ate o meio da cachoeira
             // para o vazamento do oscilador voltar para dentro da passagem -
             // que e exatamente o apito de 126.208.
-            const bool caiuSobreOLo = diff < zonaProibida(sr);
+            // Nao ha mais "cair sobre o LO": a cachoeira so se move quando a
+            // frequencia sai da tela de verdade. Ver centroComDesvioDoLo.
+            const bool caiuSobreOLo = false;
+            (void)sr;
             if (saiuDaTela || caiuSobreOLo) {
                 // Atualiza o modo direct sampling conforme a frequência ANTES de sintonizar.
                 // Isso evita que o sintonizador (tuner) tente sintonizar em HF e trave o dongle.
@@ -1173,6 +1189,67 @@ bool Application::start()
     hfdlDeco_ = std::make_unique<HfdlManager>(this);
     iqRec_    = std::make_unique<IqRecorder>();
 
+    // ── Transcricao de fala (Windows) ──────────────────────────────────────
+    whisper_ = std::make_unique<WhisperManager>(this);
+    // Mesmo caminho que o APRS e o HFDL usam para escrever na tela.
+    //
+    // Sem carimbo de hora/frequencia: a fala vai crua para o painel. O carimbo
+    // existia para dar contexto a linha solta, mas na leitura corrida ele
+    // atrapalha mais do que ajuda - o topo do painel ja mostra a sintonia.
+    auto mandarParaTela = [this](const QString& t) {
+        if (ws_) ws_->broadcastJson(QJsonObject{
+            {"t", "dec_line"}, {"decoder", "WHISPER"}, {"text", t}
+        });
+    };
+    connect(whisper_.get(), &WhisperManager::transcricao, this, mandarParaTela);
+    // Linha ainda crescendo: o painel SUBSTITUI a ultima linha em vez de
+    // empilhar - e o que da o efeito de legenda ao vivo.
+    connect(whisper_.get(), &WhisperManager::transcricaoParcial, this,
+            [this](const QString& t) {
+        if (ws_) ws_->broadcastJson(QJsonObject{
+            {"t", "dec_line"}, {"decoder", "WHISPER"}, {"text", t}, {"parcial", true}
+        });
+    });
+    // Acabou a fala: o que estiver escrito vira definitivo.
+    connect(whisper_.get(), &WhisperManager::fimDeFala, this, [this]() {
+        if (ws_) ws_->broadcastJson(QJsonObject{
+            {"t", "dec_line"}, {"decoder", "WHISPER"}, {"fecha", true}
+        });
+    });
+    connect(whisper_.get(), &WhisperManager::logLine, this, [this](const QString& t) {
+        if (ws_) ws_->broadcastJson(QJsonObject{
+            {"t", "dec_line"}, {"decoder", "WHISPER"}, {"text", t}
+        });
+    });
+
+    // Uma rota so para ajustar E iniciar.
+    //
+    // O tamanho da janela vale na hora, sem reiniciar nada. Idioma, modelo e
+    // nucleos so entram na proxima partida, porque o servidor recebe isso na
+    // linha de comando - o painel avisa quando for o caso.
+    rest_->onWhisperStart = [this](const QString& idioma, int nucleos,
+                                   const QString& modelo, int janelaSeg) -> QJsonObject {
+        if (!idioma.isEmpty()) whisper_->setIdioma(idioma);
+        if (nucleos > 0) whisper_->setNucleos(nucleos);
+        if (!modelo.isEmpty()) whisper_->setModelo(modelo);
+        if (janelaSeg > 0) whisper_->setJanelaSeg(janelaSeg);
+        const bool ok = whisper_->iniciar();
+        QJsonObject r = whisper_->statusJson();
+        r["ok"] = ok;
+        return r;
+    };
+    rest_->onWhisperStop = [this]() -> QJsonObject {
+        whisper_->parar();
+        QJsonObject r = whisper_->statusJson();
+        r["ok"] = true;
+        return r;
+    };
+    rest_->onWhisperStatus = [this]() -> QJsonObject {
+        QJsonObject r = whisper_->statusJson();
+        r["ok"] = true;
+        return r;
+    };
+
     connect(hfdlDeco_.get(), &HfdlManager::logLine, this, [this](const QString& linha) {
         ws_->broadcastJson(QJsonObject{
             {"t",       "dec_line"},
@@ -1248,6 +1325,14 @@ bool Application::start()
         return r;
     };
 
+    rest_->onDcRemove = [this](bool ligado) -> QJsonObject {
+        Config::instance().setDcRemove(ligado);
+        Config::instance().sync();
+        Logger::info(QStringLiteral("Remocao de DC no audio: %1")
+                         .arg(ligado ? "ligada" : "desligada"));
+        return QJsonObject{{"ok",true},{"dc",ligado}};
+    };
+
     rest_->onExtIoGui = [this](bool mostrar) -> QJsonObject {
         auto* e = dynamic_cast<ExtIoDevice*>(device_.get());
         if (!e) return QJsonObject{{"ok",false},{"error","o aparelho em uso nao e uma ExtIO"}};
@@ -1281,6 +1366,7 @@ bool Application::start()
         // pasta de dados dele. Sem mostrar isto, "me mande o run.log" vira
         // uma cacada - e o que chega e o arquivo antigo.
         o["logPath"] = Logger::caminhoArquivo();
+        o["dcRemove"] = cfg.dcRemove();
         // As taxas que o aparelho aceita, quando ele sabe dizer.
         //
         // So a ExtIO responde a isto hoje. A tela tem uma lista fixa que
@@ -1701,7 +1787,15 @@ void Application::wireDeviceCallback()
         // ---------------------------------------------------------------------
         const int64_t desvioVfo = static_cast<int64_t>(vfoHz)
                                 - static_cast<int64_t>(dev->centerFreq());
+        //  O botao DC do painel decide aqui.
+        //
+        //  Desligado (padrao): perto do centro o demodulador recebe o sinal SEM
+        //  filtrar - a portadora sobrevive, e o vazamento do oscilador aparece
+        //  como apito. Ligado: o filtro vale tambem para o audio, o apito some
+        //  e uma portadora exatamente em DC paga 35 dB. Cada um sabe o que
+        //  esta ouvindo; o programa nao tem como saber.
         const bool vfoSobreODc = usaBloqueadorDc
+            && !Config::instance().dcRemove()
             && std::llabs(desvioVfo) < static_cast<int64_t>(dev->sampleRate() / 500.0);
 
         // Só existe quando o demodulador vai precisar dela - fora disso não se
@@ -1995,6 +2089,13 @@ void Application::handleAudioCallback(const std::vector<int16_t>& pcm, uint32_t 
         audioT0_.store(0);
         audioUltimo_.store(0);
         return;
+    }
+
+    // Transcricao: recebe o audio COMO ELE E, antes de qualquer corte que os
+    // paineis de decodificador facam mais abaixo. Aqui dentro so se reamostra
+    // e se empilha - ver o cabecalho do WhisperManager.
+    if (whisper_ && whisper_->rodando()) {
+        whisper_->feedAudio(pcm.data(), pcm.size(), sps);
     }
 
     std::lock_guard<std::mutex> lk(audioBufferMutex_);

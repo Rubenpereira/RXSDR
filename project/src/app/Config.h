@@ -62,6 +62,12 @@ public:
     }
     int     ppm()           const { return s_.value("rx/ppm", 0).toInt(); }
     bool    iqCorrection()  const { return s_.value("rx/iqCorrection", true).toBool(); }
+    // Botao DC do painel: apaga o risco do oscilador tambem no audio.
+    //
+    // Fica DESLIGADO por padrao porque nao e de graca - ver o comentario no
+    // callback: uma portadora exatamente no centro perde 35 dB. Quem liga e
+    // quem esta ouvindo o apito e prefere pagar esse preco.
+    bool    dcRemove()      const { return s_.value("rx/dcRemove", false).toBool(); }
 
     double  smeterHfOffset()   const { return s_.value("smeter/hfOffset", 0.0).toDouble(); }
     double  smeterVhfOffset()  const { return s_.value("smeter/vhfOffset", 0.0).toDouble(); }
@@ -99,6 +105,7 @@ public:
     }
     void setPpm(int v)         { s_.setValue("rx/ppm", v); }
     void setIqCorrection(bool v) { s_.setValue("rx/iqCorrection", v); }
+    void setDcRemove(bool v)     { s_.setValue("rx/dcRemove", v); }
     void setSmeterHfOffset(double v)   { s_.setValue("smeter/hfOffset", v); }
     void setSmeterVhfOffset(double v)  { s_.setValue("smeter/vhfOffset", v); }
     void setSmeterS9Hf(int v)          { s_.setValue("smeter/s9Hf", v); }

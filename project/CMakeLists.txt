@@ -43,6 +43,7 @@ set(SOURCES
     src/sdr/SdrplayDevice.cpp
     src/sdr/ExtIoDevice.cpp
     src/app/IqRecorder.cpp
+    src/decoders/WhisperManager.cpp
     src/util/Caminhos.cpp
     src/dsp/FftProcessor.cpp
     src/dsp/Demodulator.cpp

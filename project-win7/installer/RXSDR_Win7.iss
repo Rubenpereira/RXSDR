@@ -4,7 +4,7 @@
 ; Compile com: ISCC RXSDR_Win7.iss
 
 #define MyAppName      "RXSDR"
-#define MyAppVersion   "1.0.58"
+#define MyAppVersion   "1.0.59"
 #define MyAppPublisher "PU1XTB — Ruben"
 #define MyAppURL       "https://github.com/ruben/RXSDR"
 #define MyAppExeName   "RXSDR.exe"
@@ -82,7 +82,11 @@ Source: "{#BuildDir}\sdrplay_api.dll"; DestDir: "{app}"; Flags: ignoreversion sk
 ; Pasta DECODERS — executaveis, DLLs e configs de todos os decoders
 ; (DSD-FME, ACARS, AIS-Catcher, DSDPlus, FMP24, FMPA, FMPP, Survey)
 ; ────────────────────────────────────────────────────────────────────────────
-Source: "{#DecDir}\*"; DestDir: "{app}\decoders"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
+; O whisper fica de fora: esta compilacao nao tem o subsistema de
+; decodificadores, entao a transcricao nao existe aqui - e os 607 MB dos
+; modelos estavam indo junto assim mesmo. Cinturao e suspensorio: o
+; COMPILAR_WIN7.bat ja nao copia, e aqui tambem nao entra.
+Source: "{#DecDir}\*"; DestDir: "{app}\decoders"; Excludes: "whisper\*,whisper,whisper-server.exe,hfdl_compat.h,hfdl_win_shim\*,hfdl_win_shim"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 
 
 [Icons]

@@ -1,5 +1,18 @@
 # Histórico de mudanças
 
+## 1.0.59
+
+Nova Versão RXSDR v1.0.59
+
+Incluído Transcrição de fala — só para versão Windows 10 e 11.
+
+A Transcrição de fala funciona muito bem em escutas de rádio comercial WFM, em Ondas Médias.  Também funciona em SSB e Ondas Curtas, porém se o sinal for fraco e com chiados o texto sairá com erros.
+
+Incluído botão DC no painel do radio.
+
+No centro da cachoeira costuma ter uma linha vertical que gera apito quando sintonizado exatamente nesse ponto, ao clicar no botão DC o apito irá sumir.
+
+
 ## 1.0.58
 
 As versões 1.0.51 a 1.0.57 foram compilações de teste do suporte a hardware

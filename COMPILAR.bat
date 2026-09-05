@@ -34,7 +34,14 @@ if not exist "%~dp0project\build\extio" mkdir "%~dp0project\build\extio"
 copy /Y "%~dp0project\extio\LEIAME.txt" "%~dp0project\build\extio\LEIAME.txt" >nul 2>&1
 
 echo Copiando decoders externos atualizados...
-xcopy /Y /S /I "%~dp0project\decoders" "%~dp0project\build\decoders" >nul
+REM  /D = so copia o que estiver MAIS NOVO que o destino.
+REM
+REM  Sem ele o xcopy reescrevia os 630 MB dos modelos do whisper a CADA
+REM  compilacao. Os arquivos nunca mudam, mas o Windows ficava com meio giga
+REM  de escrita pendente e o antivirus varrendo tudo de novo - e era por isso
+REM  que a primeira vez que se ligava o radio depois de compilar demorava uns
+REM  segundos. Da segunda em diante ja estava normal.
+xcopy /Y /S /I /D "%~dp0project\decoders" "%~dp0project\build\decoders" >nul
 
 echo Copiando dependencias do SDRplay...
 if not exist "%~dp0project\build\Release" mkdir "%~dp0project\build\Release" >nul 2>&1

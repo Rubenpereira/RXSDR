@@ -17,7 +17,14 @@ if errorlevel 1 (
 echo [OK] project\build\web atualizado
 
 rem Decoders externos (runners Python / .bat) — sincroniza sem recompilar
-xcopy /Y /S /I "%~dp0project\decoders" "%~dp0project\build\decoders" >nul 2>&1
+REM  /D = so copia o que estiver MAIS NOVO que o destino.
+REM
+REM  Sem ele o xcopy reescrevia os 630 MB dos modelos do whisper a cada
+REM  atualizacao. Eles nunca mudam, mas o Windows ficava com meio giga de
+REM  escrita pendente e o antivirus varrendo tudo - e era dai que vinha a
+REM  demora de uns segundos na PRIMEIRA vez que se ligava o radio depois de
+REM  atualizar. Da segunda em diante ja estava normal.
+xcopy /Y /S /I /D "%~dp0project\decoders" "%~dp0project\build\decoders" >nul 2>&1
 echo [OK] project\build\decoders atualizado
 
 rem Build Win7 (sem Qt)

@@ -111,6 +111,10 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
   box-shadow:0 0 6px rgba(255,180,0,0.35);text-shadow:0 0 6px rgba(255,200,0,0.6)}
 .af-block{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-dim)}
 /* SQL vira botao de 1 clique: ajusta o squelch rente ao piso de ruido */
+/* O DC aceso usa o mesmo ambar do AUTO ligado: no painel, ambar quer dizer
+   "isto esta agindo agora". */
+#dcBtn.dc-on{background:#3a2800;color:#ffcc00;border-color:#cc8800;
+  box-shadow:0 0 6px rgba(255,180,0,0.35);text-shadow:0 0 6px rgba(255,200,0,0.6)}
 .sql-btn{cursor:pointer;user-select:none;padding:0 4px;border-radius:3px;
   border:0.5px solid #ff9a1f;transition:color .15s,border-color .15s,text-shadow .15s}
 .sql-btn:hover{border-color:#25467a;color:#37c0d6}
@@ -1119,6 +1123,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
         <a onclick="openDecoderPanel('cw')" href="javascript:void(0)">CW / Morse</a>
         <a onclick="openDecoderPanel('hfdl')" href="javascript:void(0)">HFDL &mdash; ACARS em ondas curtas</a>
         <a onclick="openDecoderPanel('analise')" href="javascript:void(0)">Analisar sinal desconhecido</a>
+        <a onclick="openDecoderPanel('whisper')" href="javascript:void(0)">Transcri&ccedil;&atilde;o de fala</a>
       </div>
     </div>
     <div class="item menubar-dropdown-container" id="menuMemorias" style="cursor:pointer">
@@ -1162,7 +1167,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       </div>
     </div>
     <div style="flex:1"></div>
-    <div class="item" style="color:var(--accent-lcd)">RXSDR v1.0.58</div>
+    <div class="item" style="color:var(--accent-lcd)">RXSDR v1.0.59</div>
   </div>
 
   <!-- =============================== TOPO =============================== -->
@@ -1205,7 +1210,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
             <div class="step-opt" data-hz="1000000">1 MHz</div>
           </div>
         </div>
-        <button id="centerBtn" title="Centralizar sinal e VFO no centro do espectro">&gt;.&lt;</button><button id="autoBtn" title="Ajusta a cor desta banda para ficar igual ao padrao guardado">AUTO</button><button id="padraoBtn" title="Guarda a cor que esta na tela agora como padrao para todas as bandas">PADR&Atilde;O</button>
+        <button id="centerBtn" title="Centralizar sinal e VFO no centro do espectro">&gt;.&lt;</button><button id="dcBtn" onclick="alternarDc()" title="Apaga o apito do oscilador quando o VFO esta no centro. Cobra o preco de atenuar uma portadora que esteja exatamente no centro - por isso e botao, e nao automatico">DC</button><button id="autoBtn" title="Ajusta a cor desta banda para ficar igual ao padrao guardado">AUTO</button><button id="padraoBtn" title="Guarda a cor que esta na tela agora como padrao para todas as bandas">PADR&Atilde;O</button>
       </div>
     </div>
 
@@ -1426,7 +1431,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       <span class="cell" id="wfInfoAudio" style="display:none;color:#7fb0ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1"
             title="Saude do audio: folga do buffer, maior intervalo entre pacotes e quantas vezes faltou audio para tocar.">Audio: —</span>
       <span class="spacer"></span>
-      <span class="cell key">RXSDR V1.0.58</span>
+      <span class="cell key">RXSDR V1.0.59</span>
     </div>
 
     </div>
@@ -4002,6 +4007,7 @@ const Backend = {
             if (msg.decoder === 'ANALISE') AnaliseDecoder.appendLine(msg.text);
             if (msg.decoder === 'CW') { if (msg.cont) CwDecoder.appendTexto(msg.text); else CwDecoder.appendLine(msg.text); }
             if (msg.decoder === 'HFDL') { try { HfdlDecoder.anotar(msg.text); } catch (e) {} }
+            if (msg.decoder === 'WHISPER') { try { WhisperDecoder.appendLine(msg.text, msg.parcial, msg.fecha); } catch (e) {} }
           }
           // O HFDL manda a mensagem inteira de uma vez, ja montada no C++ a
           // partir das varias linhas que o dumphfdl escreve. Por isso tem um
@@ -5090,6 +5096,35 @@ const I18N_EN = {
   'Aguardando mensagem NAVTEX...':'Waiting for NAVTEX message...',
   'Aguardando chamada DSC...':'Waiting for DSC call...',
   'Analisador de sinal':'Signal analyser',
+  // ---- TRANSCRICAO DE FALA --------------------------------------------
+  'TRANSCREVER':'TRANSCRIBE',
+  'Idioma':'Language', 'Portugu\u00eas':'Portuguese', 'detectar':'detect',
+  'N\u00facleos':'Cores', 'Modelo':'Model', 'Atraso m\u00e1x':'Max delay',
+  'TETO do trecho. A linha ja aparece enquanto a pessoa fala e se fecha na pausa, entao este valor nao e mais a espera - ele so entra em quem fala sem parar, cortando o trecho ao chegar no teto':
+    'Chunk CEILING. The line already appears while the person is talking and closes on the pause, so this value is no longer the wait - it only kicks in for someone who talks without stopping, cutting the chunk when the ceiling is reached',
+  'r\u00e1pido':'fast', 'preciso':'accurate',
+  'O rapido acompanha o audio ao vivo. O preciso acerta mais palavras, mas leva mais tempo que o proprio audio e a fila comeca a descartar - so vale em maquina forte':
+    'The fast one keeps up with live audio. The accurate one gets more words right, but takes longer than the audio itself and the queue starts dropping - only worth it on a strong machine',
+  'Quantos nucleos a transcricao pode usar. Menos devolve processador ao radio; mais evita que a fila cresca':
+    'How many cores transcription may use. Fewer gives CPU back to the radio; more keeps the queue from growing',
+  'Transcreve ao vivo o que esta sendo falado na frequencia: a linha vai se formando enquanto a pessoa fala e se fecha quando ela para. Funciona bem em AM e FM comercial, razoavelmente em NFM forte, e mal em sinal fraco. Diante de chiado nao inventa frase - devolve uma etiqueta e o painel a descarta. SO FUNCIONA NA VERSAO WINDOWS.':
+    'Transcribes live what is being spoken on the frequency: the line takes shape while the person is talking and closes when they stop. Works well on AM and commercial FM, reasonably on strong NFM, and badly on weak signals. Faced with noise it does not invent sentences - it returns a tag and the panel discards it. WINDOWS VERSION ONLY.',
+  'a maquina nao esta acompanhando - trechos estao sendo descartados':
+    'the machine is not keeping up - chunks are being dropped',
+  'Salvar em texto':'Save as text',
+  'Trechos ouvidos':'Chunks heard', 'Falas transcritas':'Speech transcribed',
+  'Na fila':'Queued', 'escutando':'listening',
+  'Tempo do trecho':'Chunk time',
+  'carregando o modelo, isso leva alguns segundos...':
+    'loading the model, this takes a few seconds...',
+  'falta instalar - rode o COMPILAR_WHISPER.bat':
+    'not installed - run COMPILAR_WHISPER.bat',
+  'o radio recusou':'the radio refused',
+  'o radio nao respondeu em /api/whisper/ - este programa nao tem a transcricao: e o caso da versao Windows 7 e de instalacoes anteriores ao recurso':
+    'the radio did not answer at /api/whisper/ - this program does not have transcription: that is the case of the Windows 7 build and of installs older than the feature',
+  'Transcri\u00e7\u00e3o de fala':'Speech transcription',
+  'Passa para texto o que esta sendo falado na frequencia. Funciona bem em AM e FM de emissora, razoavelmente em NFM forte, e mal em sinal fraco - transcreve bem o que voce mesmo entende bem. Diante de chiado ele nao inventa frase: devolve uma etiqueta e o painel a descarta. Em SSB nao ha squelch, entao quem decide onde ha voz e um detector proprio, e nao o nivel do audio. O texto sai carimbado com hora UTC, frequencia e modo. SO NA VERSAO WINDOWS: nas caixas a conta disputaria processador com o radio e traria os picotes de volta.':
+    'Turns into text what is being spoken on the frequency. It works well on AM and FM broadcast, reasonably on strong NFM, and badly on weak signals - it transcribes well what you yourself understand well. Faced with noise it does not invent sentences: it returns a tag and the panel discards it. On SSB there is no squelch, so what decides where there is speech is a dedicated detector, not the audio level. The text comes stamped with UTC time, frequency and mode. WINDOWS ONLY: on the boxes the work would compete with the radio and bring the audio dropouts back.',
   // ---- GRAVAR IQ -------------------------------------------------------
   'pedindo ao radio...':'asking the radio...',
   'encerrando...':'stopping...',
@@ -5197,6 +5232,8 @@ const I18N_EN = {
   // .dmr-log-box, que estao em I18N_NAO_MEXER. Traduzir o que a janela diz
   // sobre o decodificador e uma coisa; traduzir o que ele leu do ar seria
   // adulterar dado recebido.
+  'Apaga o apito do oscilador quando o VFO esta no centro. Cobra o preco de atenuar uma portadora que esteja exatamente no centro - por isso e botao, e nao automatico':
+    'Removes the oscillator whistle when the VFO sits at the centre. It costs the attenuation of a carrier exactly at the centre - which is why it is a button, not automatic',
   'Iniciar':'Start', 'Mapa':'Map', 'Enviar':'Send', 'apagar':'clear',
   'Invertido':'Inverted', 'Excl.':'Del.', 'passo':'step',
   'Para':'To', 'Seu indicativo':'Your callsign', 'Tom':'Tone',
@@ -6968,6 +7005,242 @@ const IqPanel = (() => {
   return { buildPanelHTML, init, onClose, iniciar, parar, armar, apagar, listarArquivos };
 })();
 
+/* =========================================================
+   TRANSCRICAO DE FALA - whisper.cpp
+   =========================================================
+   Passa para texto o que esta sendo falado na frequencia sintonizada.
+
+   SO NA VERSAO WINDOWS, e de proposito: nas caixas o Amlogic ja faz a conta
+   do radio inteiro, e disputar processador com ele traria de volta os
+   picotes no audio que custaram tanto para acabar.
+
+   Quem transcreve e um servidor local com o modelo carregado - o painel so
+   liga, desliga e mostra. O texto chega pelo mesmo caminho dos outros
+   decodificadores, ja carimbado com hora, frequencia e modo.
+   ========================================================= */
+const WhisperDecoder = (() => {
+  let _timer = null;
+  let _linhas = [];
+  let _ultimo = {};
+  // A ultima linha ainda esta crescendo? Se sim, o proximo parcial reescreve
+  // ela em vez de empilhar uma nova.
+  let _emFormacao = false;
+
+  const el = (id) => document.getElementById(id);
+
+  function post(rota, corpo) {
+    return fetch(rota, { method:'POST', headers:{'Content-Type':'application/json'},
+                         body: JSON.stringify(corpo || {}) })
+           .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+  }
+
+  function aviso(txt, cor) {
+    const e = el('wh-estado');
+    if (e) { e.textContent = T(txt); e.style.color = cor || '#7fb0ff'; }
+  }
+
+  function alternar() {
+    if (_ultimo.rodando) {
+      aviso('encerrando...', '#ffb74d');
+      post('/api/whisper/stop').then(pintar).catch(semResposta);
+    } else {
+      aviso('carregando o modelo, isso leva alguns segundos...', '#ffb74d');
+      post('/api/whisper/start', { idioma: (el('wh-idioma')||{}).value || 'pt',
+                                   nucleos: Number((el('wh-nucleos')||{}).value) || 4,
+                                   modelo:  (el('wh-modelo')||{}).value || 'base',
+                                   janelaSeg: Number((el('wh-janela')||{}).value) || 5 })
+        .then(function(j){
+          if (!j.ok) aviso(j.erro || j.error || 'o radio recusou', '#ff8a8a');
+          else pintar(j);
+        }).catch(semResposta);
+    }
+  }
+
+  // Mudar o atraso vale na hora: a mesma rota ajusta e, se estiver parado,
+  // inicia. Modelo e nucleos so entram na proxima partida, porque o servidor
+  // recebe isso na linha de comando.
+  function aplicar() {
+    if (!_ultimo.rodando) return;
+    post('/api/whisper/start', {
+      idioma: (el('wh-idioma')||{}).value || 'pt',
+      nucleos: Number((el('wh-nucleos')||{}).value) || 4,
+      modelo:  (el('wh-modelo')||{}).value || 'base',
+      janelaSeg: Number((el('wh-janela')||{}).value) || 5
+    }).then(pintar).catch(function(){});
+  }
+
+  function semResposta(e) {
+    aviso('o radio nao respondeu em /api/whisper/ - este programa nao tem a ' +
+          'transcricao: e o caso da versao Windows 7 e de instalacoes anteriores ' +
+          'ao recurso',
+          '#ff8a8a');
+    console.warn('[whisper]', e);
+  }
+
+  function pintar(j) {
+    if (!j) return;
+    _ultimo = j;
+    const b = el('wh-btn');
+    if (b) {
+      b.textContent = j.rodando ? T('PARAR') : T('TRANSCREVER');
+      b.style.color = j.rodando ? '#ff8a8a' : '#7CFC00';
+      b.style.borderColor = j.rodando ? '#8b2e2e' : '#2e8b57';
+    }
+    const linha = (id, v) => { const e = el(id); if (e) e.textContent = v; };
+    linha('wh-trechos', j.trechos || 0);
+    linha('wh-falas',   j.falas   || 0);
+    linha('wh-fila',    j.fila    || 0);
+    // O numero que diz se a maquina esta dando conta: quanto ela levou para
+    // transcrever e de quanto audio o trecho era. Passando de um para o
+    // outro, a fila cresce - e nao ha ajuste de janela que salve.
+    linha('wh-tempo', j.msUltimo
+      ? (j.msUltimo/1000).toFixed(1) + ' s / ' + (j.msAudioUltimo/1000).toFixed(1) + ' s'
+      : '-');
+
+    if (j.erro) aviso(j.erro, '#ff8a8a');
+    else if (!j.instalado)
+      aviso('falta instalar - rode o COMPILAR_WHISPER.bat', '#ffb74d');
+    else if (j.rodando) aviso('escutando', '#7CFC00');
+    else aviso('parado');
+  }
+
+  function atualizar() {
+    fetch('/api/whisper/status')
+      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(pintar).catch(function(){});
+  }
+
+  // Chamado pelo roteador de dec_line quando chega texto do C++.
+  //
+  // Tres tipos de recado, e a diferenca entre eles e o que faz a transcricao
+  // parecer ao vivo:
+  //   parcial  -> a frase ainda esta sendo dita: REESCREVE a ultima linha
+  //   fecha    -> a pessoa parou: o que esta escrito vira definitivo
+  //   nenhum   -> linha pronta (ou aviso do proprio radio): empilha normal
+  function appendLine(t, parcial, fecha) {
+    if (fecha) { _emFormacao = false; return; }
+    if (!t) return;
+    if (parcial) {
+      if (_emFormacao) _linhas[_linhas.length - 1] = t;
+      else { _linhas.push(t); _emFormacao = true; }
+    } else {
+      // Linha pronta por cima da que estava se formando: e a mesma frase,
+      // agora revisada com o audio inteiro.
+      if (_emFormacao) { _linhas[_linhas.length - 1] = t; _emFormacao = false; }
+      else _linhas.push(t);
+    }
+    if (_linhas.length > 400) _linhas.shift();
+    const c = el('wh-terminal');
+    if (!c) return;
+    c.textContent = _linhas.join('\n');
+    c.scrollTop = c.scrollHeight;
+  }
+
+  function limpar() { _linhas = []; _emFormacao = false;
+                      const c = el('wh-terminal'); if (c) c.textContent = ''; }
+
+  function salvar() {
+    // O registro de escuta so vale se sair do programa. Um txt simples abre
+    // em qualquer lugar e se manda por qualquer meio.
+    const b = new Blob([_linhas.join('\n')], {type:'text/plain;charset=utf-8'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(b);
+    a.download = 'RXSDR_transcricao_' +
+      new Date().toISOString().slice(0,19).replace(/[:T]/g,'') + 'Z.txt';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }
+
+  const AJUDA_WH =
+'Transcreve ao vivo o que esta sendo falado na frequencia: a linha vai se formando enquanto a pessoa fala e se fecha quando ela para. Funciona bem em AM e FM comercial, razoavelmente em NFM forte, e mal em sinal fraco. Diante de chiado nao inventa frase - devolve uma etiqueta e o painel a descarta. SO FUNCIONA NA VERSAO WINDOWS.';
+
+  function buildPanelHTML() {
+    const bx = 'padding:4px 10px;font-size:11px;font-weight:bold;cursor:pointer;' +
+               'border-radius:4px;background:#07120a;border:1px solid #2e8b57;color:#7CFC00';
+    const kv = (rot,id) =>
+      '<span style="opacity:.7">' + rot + '</span> <span id="' + id +
+      '" style="color:#cfe3ff">0</span>';
+    return `
+      <div class="dec-info" style="margin-bottom:6px">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:5px">
+          <button id="wh-btn" onclick="WhisperDecoder.alternar()" style="${bx}">TRANSCREVER</button>
+          <label>Idioma
+            <select id="wh-idioma" style="background:#0a1420;border:1px solid #25467a;color:#cfe3ff;font-size:11px;border-radius:3px;padding:1px 3px">
+              <option value="pt" selected>Português</option>
+              <option value="en">English</option>
+              <option value="es">Español</option>
+              <option value="auto">detectar</option>
+            </select>
+          </label>
+          <label title="O rapido acompanha o audio ao vivo. O preciso acerta mais palavras, mas leva mais tempo que o proprio audio e a fila comeca a descartar - so vale em maquina forte">Modelo
+            <select id="wh-modelo" style="background:#0a1420;border:1px solid #25467a;color:#cfe3ff;font-size:11px;border-radius:3px;padding:1px 3px">
+              <option value="base" selected>rápido</option>
+              <option value="small">preciso</option>
+            </select>
+          </label>
+          <label title="TETO do trecho. A linha ja aparece enquanto a pessoa fala e se fecha na pausa, entao este valor nao e mais a espera - ele so entra em quem fala sem parar, cortando o trecho ao chegar no teto">Atraso m&aacute;x
+            <select id="wh-janela" onchange="WhisperDecoder.aplicar()" style="background:#0a1420;border:1px solid #25467a;color:#cfe3ff;font-size:11px;border-radius:3px;padding:1px 3px">
+              <option value="5" selected>5 s</option>
+              <option value="8">8 s</option>
+              <option value="12">12 s</option>
+              <option value="20">20 s</option>
+            </select>
+          </label>
+          <label title="Quantos nucleos a transcricao pode usar. Menos devolve processador ao radio; mais evita que a fila cresca">Núcleos
+            <select id="wh-nucleos" style="background:#0a1420;border:1px solid #25467a;color:#cfe3ff;font-size:11px;border-radius:3px;padding:1px 3px">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="4" selected>4</option>
+            </select>
+          </label>
+          <button onclick="WhisperDecoder.limpar()" style="${bx};border-color:#6c1e2e;color:#ff9a9a;background:#150708">Limpar</button>
+          <button onclick="WhisperDecoder.salvar()" style="${bx};border-color:#25467a;color:#7fb0ff;background:#0a1420">Salvar em texto</button>
+        </div>
+        <div style="font-size:10px;display:flex;gap:14px;flex-wrap:wrap">
+          ${kv('Trechos ouvidos','wh-trechos')}
+          ${kv('Falas transcritas','wh-falas')}
+          ${kv('Na fila','wh-fila')}
+          ${kv('Tempo do trecho','wh-tempo')}
+        </div>
+        <div id="wh-estado" style="margin-top:5px;font-size:10px;color:#7fb0ff">parado</div>
+        <div style="margin-top:4px;font-size:10px;opacity:.7">${T(AJUDA_WH)}</div>
+      </div>
+      <div class="dec-terminal" id="wh-terminal" style="font-size:11px;white-space:pre-wrap;word-break:break-word"></div>`;
+  }
+
+  function init() {
+    if (_timer) clearInterval(_timer);
+    _emFormacao = false;
+    _timer = setInterval(atualizar, 1500);
+    // Abre e ja comeca, como os outros decodificadores.
+    //
+    // A primeira versao deixava rodando com a janela fechada, pensando em
+    // deixar o radio anotando a noite toda. Nao e o uso: quem transcreve esta
+    // sentado olhando. E transcricao ligada sem ninguem vendo e processador
+    // gasto a toa, com risco de picote no audio em troca de nada.
+    fetch('/api/whisper/status')
+      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function(j){
+        pintar(j);
+        if (!j.rodando) alternar();
+      })
+      .catch(semResposta);
+  }
+
+  function onClose() {
+    if (_timer) { clearInterval(_timer); _timer = null; }
+    _emFormacao = false;
+    // Fechar devolve o radio ao normal, como nos outros paineis. O servidor
+    // encerra junto e a memoria do modelo volta para a maquina.
+    if (_ultimo.rodando) {
+      post('/api/whisper/stop').catch(function(){});
+    }
+  }
+
+  return { buildPanelHTML, init, onClose, alternar, limpar, salvar, appendLine, aplicar };
+})();
+
+
 
 
 /* =========================================================
@@ -8375,6 +8648,31 @@ function avisoDoAparelho(txt){
   b.textContent = txt;
 }
 
+/* Botao DC.
+
+   O radio NAO desloca mais a cachoeira para fugir do vazamento do oscilador -
+   isso funcionava, mas fazia a tela escorregar quando se clicava perto do
+   centro, e nenhum SDR por ai se comporta assim. No lugar, este botao: quem
+   estiver ouvindo o apito liga, e o filtro que ja limpava a linha vertical da
+   tela passa a valer tambem no caminho do audio.
+
+   Nao e de graca, e por isso e botao: uma portadora exatamente no centro
+   perde 35 dB com o filtro ligado. Quem escuta sabe se esta nesse caso; o
+   programa nao tem como saber.                                             */
+function alternarDc(){
+  const b = document.getElementById('dcBtn');
+  const ligar = !(b && b.classList.contains('dc-on'));
+  fetch('/api/dc', { method:'POST', headers:{'Content-Type':'application/json'},
+                     body: JSON.stringify({ on: ligar }) })
+    .then(r=>r.json()).then(function(j){ marcarDc(!!j.dc); })
+    .catch(function(){ avisoDoAparelho('nao consegui falar com o radio para mudar o DC'); });
+}
+
+function marcarDc(ligado){
+  const b = document.getElementById('dcBtn');
+  if (b) b.classList.toggle('dc-on', !!ligado);
+}
+
 // ── Sincronismo do VFO com sintonia externa ────────────────────────────────
 // A pagina lia o VFO do backend so uma vez, ao carregar. Uma sintonia vinda de
 // fora (BuscaFreq, rigctl, outra aba) movia o hardware e a cachoeira, mas o
@@ -8417,6 +8715,7 @@ function avisoDoAparelho(txt){
       aplicarTaxasDoAparelho(st);
       avisoDoAparelho(st.deviceError || '');
       mostrarLinhaExtIo(String(st.deviceType || ''));
+      if (typeof st.dcRemove === 'boolean') marcarDc(st.dcRemove);
       // O caminho do run.log continua vindo no status e continua sendo a
       // primeira linha do proprio arquivo; so nao ocupa mais espaco na tela.
       if (st.logPath) window._rxsdrLogPath = st.logPath;
@@ -8465,7 +8764,8 @@ const DECODERS = [
   {id:'analise',name:'Analisador', freq:'onde voce estiver', mod:'mede tons, shift e velocidade'},
   {id:'hfdl',  name:'HFDL',      freq:'2 a 22 MHz',          mod:'PSK 300-1800 bps, varios canais de uma vez'},
   {id:'scan',  name:'SCAN',      freq:'a faixa que voce escolher', mod:'varredura por squelch, canais maritimos prontos'},
-  {id:'iq',    name:'GRAVAR IQ',  freq:'onde o radio estiver',      mod:'sinal cru, antes de qualquer filtro'}
+  {id:'iq',    name:'GRAVAR IQ',  freq:'onde o radio estiver',      mod:'sinal cru, antes de qualquer filtro'},
+  {id:'whisper',name:'TRANSCRICAO', freq:'onde o radio estiver',     mod:'fala em texto, so no Windows'}
 ];
 
 function buildDecoderContent(d){
@@ -8493,6 +8793,8 @@ function buildDecoderContent(d){
     return ScanDecoder.buildPanelHTML();
   } else if(d.id==='iq'){
     return IqPanel.buildPanelHTML();
+  } else if(d.id==='whisper'){
+    return WhisperDecoder.buildPanelHTML();
   }
   let body = `<div class="dec-info" style="margin-bottom:6px">
     <b>Freq:</b> ${d.freq} &nbsp; <b>Mod:</b> ${d.mod} &nbsp;
@@ -8568,6 +8870,10 @@ function openDecoderPanel(id){
     panel.style.width = '560px';
     panel.style.height = '430px';
   }
+  if (id === 'whisper') {
+    panel.style.width = '620px';
+    panel.style.height = '460px';
+  }
 
   // O ANALISADOR nasce encostado na direita, e nao na cascata.
   // Ele existe para ser lido AO LADO do decodificador - voce compara o que ele
@@ -8628,6 +8934,7 @@ function openDecoderPanel(id){
   if (id === 'hfdl') HfdlDecoder.init();
   if (id === 'scan') ScanDecoder.init();
   if (id === 'iq')   IqPanel.init();
+  if (id === 'whisper') WhisperDecoder.init();
 }
 
 function closeDecoderPanel(id){
@@ -8648,6 +8955,7 @@ function closeDecoderPanel(id){
   if (id === 'hfdl') HfdlDecoder.onClose();
   if (id === 'scan') ScanDecoder.onClose();
   if (id === 'iq')   IqPanel.onClose();
+  if (id === 'whisper') WhisperDecoder.onClose();
 }
 
 function makeDecoderPanelDraggable(panel) {
