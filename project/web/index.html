@@ -10281,6 +10281,14 @@ const DsdDecoder = (() => {
 
   let ts1 = { active: false, voice: false, type: '-', src: '-', tgt: '-', vFrames: 0, dFrames: 0, fec: 0, cg: 0, lastActive: 0, lastVoice: 0 };
   let ts2 = { active: false, voice: false, type: '-', src: '-', tgt: '-', vFrames: 0, dFrames: 0, fec: 0, cg: 0, lastActive: 0, lastVoice: 0 };
+  // Ultimo slot que o dsd-fme anunciou.
+  //
+  // A LINHA DO QUADRO DE VOZ NAO DIZ O SLOT. Visto no console, em chamada
+  // privada, o que chega e "Sync: +DMR MS/DM MODE/MONO | Color Code=01 | VC*"
+  // - sem nenhuma mencao a slot. Quem diz o slot e a linha da chamada, que
+  // veio antes: " SLOT 1  TGT=9999996 SRC=7242213  Private Call ". Entao o
+  // quadro e somado no slot que estava anunciado.
+  let _ultimoSlot = 0;
 
   const el = id => document.getElementById(id);
 
@@ -10430,6 +10438,7 @@ const DsdDecoder = (() => {
     // Reset slot details
     ts1 = { active: false, type: '-', src: '-', tgt: '-', vFrames: 0, dFrames: 0, fec: 0, cg: 0, lastActive: 0 };
     ts2 = { active: false, type: '-', src: '-', tgt: '-', vFrames: 0, dFrames: 0, fec: 0, cg: 0, lastActive: 0 };
+    _ultimoSlot = 0;
     currentCC = null;
 
     // Adiciona uma linha inicial informativa no terminal
@@ -10526,6 +10535,16 @@ const DsdDecoder = (() => {
   }
 
   function parseDsdLine(line) {
+    // TIRA AS CORES ANTES DE LER.
+    //
+    // O dsd-fme escreve colorido: o que chega e
+    //   \x1b[32m SLOT 1  TGT=9999996 SRC=7242213  Private Call \x1b[0m
+    // e nao o texto limpo. Visto no console do navegador, com o proprio
+    // radio no ar. Os codigos de cor tem colchete dentro deles, e qualquer
+    // regra que procure colchete - ou que conte caractere - tropeca neles.
+    // Aqui eles somem antes de qualquer comparacao.
+    line = line.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '');
+
     // 1. Color Code
     let ccMatch = line.match(/Color\s*Code\s*=\s*(\d+)/i) || line.match(/CC\s*=\s*(\d+)/i) || line.match(/CC\s+(\d+)/i) || line.match(/Color\s*Code\s+(\d+)/i);
     if (ccMatch) {
@@ -10538,6 +10557,32 @@ const DsdDecoder = (() => {
     else if (line.includes('[slot2]')) slotNum = 2;
     else if (line.toLowerCase().includes('slot 1') || line.toLowerCase().includes('slot1')) slotNum = 1;
     else if (line.toLowerCase().includes('slot 2') || line.toLowerCase().includes('slot2')) slotNum = 2;
+
+    // QUEM E QUADRO DE VOZ - decidido ANTES de contar.
+    //
+    // Aqui estava o defeito: o contador procurava a palavra "Voice" na linha,
+    // e o DSD-FME nao escreve isso. O que ele faz e marcar EM MAIUSCULAS o
+    // slot que esta com voz - [SLOT1] ou [SLOT2] - ao lado dos quadros VC1..VC6.
+    // Como nenhum dos dois ramos casava, a linha de voz nao caia nem em V nem
+    // em D: por isso apareciam 0 V / 0 D com a lampada VOZ acesa.
+    //
+    // A marca em maiusculas ja era usada para acender a lampada, e funciona.
+    // Agora ela conta o quadro tambem - uma fonte so para as duas coisas.
+    let voiceSlot = 0;
+    if (line.indexOf('[SLOT1]') !== -1) voiceSlot = 1;
+    else if (line.indexOf('[SLOT2]') !== -1) voiceSlot = 2;
+
+    // VC* TAMBEM E QUADRO DE VOZ.
+    //
+    // Eu esperava VC1..VC6 e escrevi \bVC\d\b. Em chamada privada o dsd-fme
+    // escreve "| VC*" - com asterisco, sem numero -, e a regra nao casava.
+    // Por isso a lampada VOZ acendia na Rodovia, que e repetidora, e nao
+    // acendia no HT falando direto.
+    const ehQuadroVoz = (voiceSlot > 0) || /\bVC[\d*]/.test(line) ||
+                        /voice\s*frame/i.test(line) || /\[voice\]/i.test(line);
+
+    if (voiceSlot > 0) _ultimoSlot = voiceSlot;
+    else if (slotNum > 0) _ultimoSlot = slotNum;
 
     if (slotNum > 0) {
       let ts = slotNum === 1 ? ts1 : ts2;
@@ -10557,10 +10602,13 @@ const DsdDecoder = (() => {
       else if (line.match(/Data/i)) ts.type = 'Dados';
       else if (line.match(/Voice/i)) ts.type = 'Voz';
 
-      // Increment Frame Counter
-      if (line.match(/Voice\s*Frame/i) || line.match(/\[voice\]/i) || (line.includes('Voice') && !line.includes('Synthesis'))) {
-        ts.vFrames++;
-      } else if (line.match(/Data\s*Frame/i) || line.match(/\[data\]/i) || line.includes('Data')) {
+      // Contador de quadros - VOZ OU DADOS, nunca os dois na mesma linha.
+      //
+      // A voz e contada mais abaixo, no slot que a marca em maiusculas indica:
+      // uma linha pode citar um slot e trazer a voz do outro, e somar no slot
+      // errado seria pior do que nao somar.
+      if (!ehQuadroVoz &&
+          (line.match(/Data\s*Frame/i) || line.match(/\[data\]/i) || line.includes('Data'))) {
         ts.dFrames++;
       }
 
@@ -10577,12 +10625,16 @@ const DsdDecoder = (() => {
       }
     }
 
-    // Voz ativa: DSD-FME marca o slot com voz em MAIUSCULAS [SLOT1]/[SLOT2] junto aos quadros VC1..VC6
-    let voiceSlot = 0;
-    if (line.indexOf('[SLOT1]') !== -1) voiceSlot = 1;
-    else if (line.indexOf('[SLOT2]') !== -1) voiceSlot = 2;
-    if (voiceSlot > 0) {
-      let tsv = voiceSlot === 1 ? ts1 : ts2;
+    // Voz ativa e quadro de voz somado.
+    //
+    // Tres fontes, nesta ordem: a marca em maiusculas, o slot citado na
+    // propria linha e, por ultimo, o slot que estava anunciado. A terceira e
+    // a que faz a chamada privada funcionar - ali a linha de voz nao diz slot
+    // nenhum, e sem essa memoria o quadro se perdia.
+    const slotDaVoz = voiceSlot || slotNum || _ultimoSlot;
+    if (slotDaVoz > 0 && ehQuadroVoz) {
+      let tsv = slotDaVoz === 1 ? ts1 : ts2;
+      tsv.vFrames++;
       tsv.voice = true;
       tsv.lastVoice = Date.now();
       tsv.active = true;

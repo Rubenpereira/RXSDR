@@ -1,5 +1,7 @@
 #include "DsdManager.h"
 
+#include <QRegularExpression>
+
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
@@ -169,8 +171,14 @@ bool DsdManager::start()
              << QStringLiteral("-V") << QStringLiteral("3") << QStringLiteral("-i")
              << QStringLiteral("-") << QStringLiteral("-o") << udpOut;
 
+        // -xr: "Expect inverted DMR signal", conferido na ajuda do proprio
+        //      dsd-fme.exe. Aqui estava -P, que NAO tem nada a ver com
+        //      polaridade: na ajuda do binario, "-P  Enable Per Call WAV file
+        //      saving". Por isso o botao Invertido nunca inverteu nada - o
+        //      audio saia igual nos dois, e de quebra o decodificador passava
+        //      a gravar um .wav por chamada sem ninguem pedir.
         if (invertPolarity_) {
-            args << QStringLiteral("-P");   // inverter polaridade
+            args << QStringLiteral("-xr");
         }
     } else {
         // Fallback para DSDPlus tradicional (requer VAC)
@@ -444,7 +452,15 @@ void DsdManager::onReadyReadStdout()
 {
     if (!process_) return;
     const QByteArray data = process_->readAllStandardOutput();
-    const QStringList lines = QString::fromUtf8(data).split('\n', Qt::SkipEmptyParts);
+    // Separa no \r TAMBEM, e nao so no \n.
+    //
+    // O dsd-fme reescreve a linha de status por cima dela mesma, com
+    // retorno de carro e sem quebra de linha. Cortando so no \n, varias
+    // atualizacoes chegavam grudadas numa string so - e o painel contava
+    // um quadro onde havia varios.
+    const QStringList lines = QString::fromUtf8(data)
+                                 .split(QRegularExpression(QStringLiteral("[\r\n]")),
+                                        Qt::SkipEmptyParts);
     for (const QString& line : lines)
         emit logLine(QStringLiteral("[DSD] ") + line.trimmed());
 }
@@ -453,7 +469,15 @@ void DsdManager::onReadyReadStderr()
 {
     if (!process_) return;
     const QByteArray data = process_->readAllStandardError();
-    const QStringList lines = QString::fromUtf8(data).split('\n', Qt::SkipEmptyParts);
+    // Separa no \r TAMBEM, e nao so no \n.
+    //
+    // O dsd-fme reescreve a linha de status por cima dela mesma, com
+    // retorno de carro e sem quebra de linha. Cortando so no \n, varias
+    // atualizacoes chegavam grudadas numa string so - e o painel contava
+    // um quadro onde havia varios.
+    const QStringList lines = QString::fromUtf8(data)
+                                 .split(QRegularExpression(QStringLiteral("[\r\n]")),
+                                        Qt::SkipEmptyParts);
     for (const QString& line : lines)
         emit logLine(QStringLiteral("[DSD-ERR] ") + line.trimmed());
 }

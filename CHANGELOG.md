@@ -12,6 +12,10 @@ Incluído botão DC no painel do radio.
 
 No centro da cachoeira costuma ter uma linha vertical que gera apito quando sintonizado exatamente nesse ponto, ao clicar no botão DC o apito irá sumir.
 
+Corrigido no decodificador DMR: o contador de quadros ficava parado em 0 V quando a transmissão era de voz — só os dados eram somados. Agora conta as duas coisas, e no time-slot certo.
+
+Corrigido também o botão Invertido do DMR: ele não estava invertendo nada — o áudio saía igual nos dois. Agora inverte de verdade.
+
 
 ## 1.0.58
 
