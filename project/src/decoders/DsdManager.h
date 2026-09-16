@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <QProcess>
 #include <QMutex>
 #include <QJsonObject>
@@ -37,9 +38,21 @@ public:
     bool start();
     void stop();
 
-    // Polaridade do sinal (reinicia com flag -P para dsd-fme)
+    // Polaridade do sinal (reinicia com -xr para dsd-fme)
     void     togglePolarity();
     bool     invertPolarity() const { return invertPolarity_; }
+
+    // Qual protocolo o dsd-fme deve procurar.
+    //
+    // Ate aqui o painel se chamava "DMR / P25 / NXDN" mas chamava o dsd-fme
+    // com -fs, que na ajuda do proprio binario e "DMR TDMA BS and MS Simplex":
+    // SO DMR. Qualquer coisa que nao fosse DMR nunca seria identificada.
+    void     setModo(const QString& m);
+    QString  modo() const { return modo_; }
+    // Nem todo modo tem opcao de sinal invertido no dsd-fme - so DMR, dPMR e
+    // X2-TDMA tem. Nos outros os botoes Normal/Invertido nao fazem nada, e o
+    // painel os desabilita em vez de fingir que fazem.
+    static bool aceitaInversao(const QString& m);
 
     // Estado
     State   state() const { return state_; }
@@ -88,6 +101,9 @@ private:
     State   state_          = State::Stopped;
     QString lastError_;
     bool    invertPolarity_ = false;
+    QString modo_ = QStringLiteral("dmr");
+    // Monta os argumentos de protocolo + modulacao + inversao.
+    static QStringList argumentosDoModo(const QString& m, bool invertido);
     int     inputDevice_    = 1;
 
     QUdpSocket* m_udpSock = nullptr;

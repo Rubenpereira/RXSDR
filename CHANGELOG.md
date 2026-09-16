@@ -1,5 +1,19 @@
 # Histórico de mudanças
 
+## 1.0.60
+
+Nova Versão RXSDR v1.0.60
+
+Incluído o IF DISPLAY, uma janela de zoom que aparece à esquerda da cachoeira.
+
+Ela mostra 20 kHz em torno da frequência sintonizada, com espectro e cachoeira próprios, e a faixa passante do filtro marcada em amarelo — que muda de lado conforme o modo, ficando abaixo da frequência em LSB e acima em USB. Serve para ver de perto o sinal que você está escutando sem precisar mexer no zoom da cachoeira principal.
+
+O botão IF DISPLAY fica ao lado do TETRA e pisca em laranja enquanto estiver ligado. Ao ligar, a cachoeira principal encolhe e a janela entra; ao desligar, a janela some e a cachoeira volta a ocupar toda a largura. A largura da janela tem três tamanhos, e o rádio lembra se ela ficou ligada.
+
+Corrigido no decodificador DMR: linha sem color code válido não conta mais como quadro decodificado, e o texto do topo do painel só diz "voz" quando há voz mesmo.
+
+Incluído no painel DMR um seletor de modo com os protocolos que o decodificador sabe procurar — DMR, P25, NXDN, dPMR, Fusion, D-STAR, M17 e outros —, além de um registro dos protocolos vistos e das mensagens decodificadas, com horário.
+
 ## 1.0.59
 
 Nova Versão RXSDR v1.0.59

@@ -45,6 +45,7 @@ public:
     std::function<QJsonObject(const QJsonObject&)>           onDsdStart;
     std::function<QJsonObject()>                             onDsdStop;
     std::function<QJsonObject()>                             onDsdTogglePolarity;
+    std::function<QJsonObject(const QString&)>               onDsdSetModo;
     std::function<QJsonObject(int)>                          onDsdSetPcmHz;
 
 

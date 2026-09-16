@@ -514,7 +514,45 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
 .decoder-btn-old:hover{background:linear-gradient(180deg,#4a2a4a,#3a1a3a);box-shadow:0 0 12px rgba(255,150,255,0.4)}
 
 /* --- ESPECTRO + CACHOEIRA --- */
-.display{flex:1;display:flex;flex-direction:column;min-height:0;background:#000;overflow:hidden}
+.display{flex:1;display:flex;flex-direction:column;min-height:0;min-width:0;background:#000;overflow:hidden}
+
+/* ── JANELA DE ZOOM (IF display) ──────────────────────────────────────────
+   Uma faixa fixa de 20 kHz em torno da sintonia, a esquerda da cachoeira.
+   Ligada/desligada pelo botao ZOOM. Quando ligada, ela ENTRA na linha e a
+   cachoeira principal encolhe; quando desligada some e a cachoeira volta a
+   ocupar tudo. Nao ha custo de processamento novo: e a mesma FFT que ja
+   desenha a cachoeira, so que recortada. */
+.display-row{flex:1;display:flex;min-height:0;overflow:hidden}
+/* Contorno azul: o mesmo #20aadd das molduras dos widgets do topo. Sem ele a
+   janela se confundia com a cachoeira ao lado - tudo preto, tudo continuo, e
+   nao se via onde uma acabava e a outra comecava. */
+.zoom-pane{display:none;flex:0 0 var(--zoom-w,300px);min-width:0;
+  flex-direction:column;background:#000;overflow:hidden;
+  border:1px solid #20aadd;border-radius:4px;
+  box-shadow:0 0 8px rgba(32,170,221,.25)}
+.zoom-pane.on{display:flex}
+.zoom-head{display:flex;align-items:center;gap:6px;padding:2px 6px;
+  background:#060c08;border-bottom:1px solid var(--border);
+  font-family:sans-serif;font-size:10px;color:#7fb0ff;flex-shrink:0}
+.zoom-head select{background:#0a1420;border:1px solid #25467a;color:#cfe3ff;
+  font-size:10px;border-radius:3px;padding:0 2px;margin-left:auto}
+.zoom-spec-wrap{position:relative;flex:0 0 34%;overflow:hidden;
+  border-bottom:1px solid var(--border)}
+.zoom-wf-wrap{position:relative;flex:1;overflow:hidden}
+#zoomSpecCanvas,#zoomWfCanvas{display:block;width:100%;height:100%}
+.zoom-btn{padding:2px 10px;font-size:11px;font-weight:bold;cursor:pointer;
+  border-radius:4px;background:#07121a;border:1px solid #20aadd;color:#20aadd}
+/* Ligado: pisca em laranja, no mesmo ritmo de 0,9 s do AGC. A ideia e a
+   mesma daquele - o que esta ativo e mexendo no que voce ve tem de se
+   anunciar sozinho, sem voce precisar procurar. */
+@keyframes pulseIfDisplay {
+  0%,100% { color:#ff9a1f; border-color:#ff9a1f;
+            box-shadow:0 0 6px rgba(255,154,31,.45); }
+  50%     { color:#ffd9a0; border-color:#ffc06a;
+            box-shadow:0 0 14px rgba(255,154,31,.95); }
+}
+.zoom-btn.on{background:#20140a;
+  animation:pulseIfDisplay 0.9s infinite ease-in-out}
 .spectrum-wrap{position:relative;flex:0 0 30%;border-bottom:1px solid var(--border);overflow:hidden}
 .waterfall-wrap{position:relative;flex:1;overflow:hidden}
 #spectrum,#waterfall{display:block;width:100%;height:100%}
@@ -813,8 +851,14 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
   background: #020603; border-color: #166e33;
   box-shadow: 0 0 25px rgba(22,110,51,0.4);
 }
-/* DMR/DSD: janela menor (sem o antigo painel de PCM) - cabe melhor no celular */
-#dpanel-dsd { height: 300px; min-height: 200px; }
+/* DMR/DSD: 300 -> 440 px.
+   A janela tinha 300 px de quando o painel era so os dois cartoes de slot.
+   Depois entraram o seletor de Modo, a linha de Protocolos vistos e a caixa
+   de Registro de dados - somados, uns 133 px. Com 300 os botoes Normal e
+   Invertido caiam para fora da area visivel.
+   O min-height fica em 200: o corpo do painel rola sozinho, entao quem
+   estiver numa tela pequena continua podendo encolher a janela. */
+#dpanel-dsd { height: 440px; min-height: 200px; }
 .decoder-panel.dp-digital .decoder-panel-head {
   background: #3e1215; border-color: #220a0b;
 }
@@ -1167,7 +1211,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       </div>
     </div>
     <div style="flex:1"></div>
-    <div class="item" style="color:var(--accent-lcd)">RXSDR v1.0.59</div>
+    <div class="item" style="color:var(--accent-lcd)">RXSDR v1.0.60</div>
   </div>
 
   <!-- =============================== TOPO =============================== -->
@@ -1378,6 +1422,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       </div>
       <button class="dmr-btn" id="openDMR" onclick="openDecoderPanel('dsd')" title="Abrir painel DMR/P25/NXDN (DSD+)">DMR</button>
       <button class="tetra-btn" id="openTETRA" onclick="openDecoderPanel('tetra')" title="Abrir painel TETRA (π/4-DQPSK 36 kbps)">TETRA</button>
+      <button class="zoom-btn" id="openZoomPane" onclick="ZoomPane.alternar()" title="IF Display: 20 kHz em torno da sintonia, a esquerda da cachoeira">IF DISPLAY</button>
 
     </div>
     <div class="ctrl-group">
@@ -1385,6 +1430,22 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
   </div>
 
   <!-- =============================== ESPECTRO + CACHOEIRA =============================== -->
+  <div class="display-row">
+
+  <!-- Janela de zoom: nasce escondida, o botao ZOOM a liga -->
+  <div class="zoom-pane" id="zoomPane">
+    <div class="zoom-head">
+      <span id="zoomPaneTitulo">IF Display &mdash; 20 kHz</span>
+      <select id="zoomPaneTam" onchange="ZoomPane.setTamanho(this.value)" title="Largura da janela">
+        <option value="220">estreita</option>
+        <option value="300" selected>média</option>
+        <option value="420">larga</option>
+      </select>
+    </div>
+    <div class="zoom-spec-wrap"><canvas id="zoomSpecCanvas"></canvas></div>
+    <div class="zoom-wf-wrap"><canvas id="zoomWfCanvas"></canvas></div>
+  </div>
+
   <div class="display">
     <div class="spectrum-wrap">
       <canvas id="spectrum"></canvas>
@@ -1431,11 +1492,12 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       <span class="cell" id="wfInfoAudio" style="display:none;color:#7fb0ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1"
             title="Saude do audio: folga do buffer, maior intervalo entre pacotes e quantas vezes faltou audio para tocar.">Audio: —</span>
       <span class="spacer"></span>
-      <span class="cell key">RXSDR V1.0.59</span>
+      <span class="cell key">RXSDR V1.0.60</span>
     </div>
 
     </div>
   </div>
+  </div><!-- /.display-row -->
 
   <!-- =============================== STATUS =============================== -->
   <div class="statusbar">
@@ -4071,6 +4133,154 @@ const Backend = {
   }
 };
 
+
+/* =========================================================
+   JANELA DE ZOOM - 20 kHz em torno da sintonia
+   =========================================================
+   Recorta a MESMA fftData que alimenta a cacheira principal. Nada de FFT
+   nova, nada de trafego novo: so um segundo desenho de uns 300 pixels de
+   largura, que nem as caixas sentem.
+
+   A faixa e FIXA em 20 kHz por escolha do dono do radio - igual ao IF
+   Display do SDR-Console. Em SSB isso mostra a portadora e as duas bandas
+   laterais com folga; em NFM mostra o canal inteiro e os vizinhos.
+   ========================================================= */
+const ZoomPane = (() => {
+  const SPAN_HZ = 20000;          // fixo, por decisao de projeto
+  let ligado = false;
+  let spec = null, specCtx = null, wf = null, wfCtx2 = null;
+  let buf = null, bufCtx = null;  // buffer de rolagem da cachoeira
+
+  function el(id){ return document.getElementById(id); }
+
+  function init(){
+    spec = el('zoomSpecCanvas'); wf = el('zoomWfCanvas');
+    if (!spec || !wf) return;
+    specCtx = spec.getContext('2d');
+    wfCtx2  = wf.getContext('2d');
+    buf = document.createElement('canvas');
+    bufCtx = buf.getContext('2d');
+
+    const tam = localStorage.getItem('rxsdr_zoom_tam');
+    if (tam) { document.documentElement.style.setProperty('--zoom-w', tam + 'px');
+               const sel = el('zoomPaneTam'); if (sel) sel.value = tam; }
+    if (localStorage.getItem('rxsdr_zoom_on') === '1') alternar(true);
+  }
+
+  function alternar(forcar){
+    ligado = (forcar === true) ? true : !ligado;
+    const pane = el('zoomPane'), btn = el('openZoomPane');
+    if (pane) pane.classList.toggle('on', ligado);
+    if (btn)  btn.classList.toggle('on', ligado);
+    try { localStorage.setItem('rxsdr_zoom_on', ligado ? '1' : '0'); } catch(e){}
+    // A cachoeira principal mudou de largura: quem mede sao os canvas dela.
+    if (typeof resize === 'function') resize();
+    redimensionar();
+  }
+
+  function setTamanho(px){
+    document.documentElement.style.setProperty('--zoom-w', px + 'px');
+    try { localStorage.setItem('rxsdr_zoom_tam', String(px)); } catch(e){}
+    if (typeof resize === 'function') resize();
+    redimensionar();
+  }
+
+  function redimensionar(){
+    if (!spec || !wf) return;
+    [spec, wf].forEach(c => { c.width = c.clientWidth; c.height = c.clientHeight; });
+    if (buf && (buf.width !== wf.width || buf.height !== wf.height)) {
+      buf.width = Math.max(1, wf.width); buf.height = Math.max(1, wf.height);
+      bufCtx.fillStyle = '#000020'; bufCtx.fillRect(0, 0, buf.width, buf.height);
+    }
+  }
+
+  // Nivel em dB na frequencia pedida, lido da FFT da cachoeira principal.
+  // Fora da janela do dongle devolve o piso - acontece quando a sintonia
+  // esta na borda e os 20 kHz passam do que o hardware cobre.
+  function dbEm(hz, bins, span){
+    if (!bins) return -160;
+    const f = (hz - centerFreqHz) / span * bins + bins / 2;
+    if (f < 0 || f > bins - 1) return -160;
+    const i = Math.floor(f), frac = f - i;
+    const j = Math.min(bins - 1, i + 1);
+    return fftData[i] * (1 - frac) + fftData[j] * frac;
+  }
+
+  function frame(linhas){
+    if (!ligado || !spec || !wf) return;
+    const bins = fftData.length;
+    if (!bins) return;
+    const span = Number(document.getElementById('cfgSampleRate')?.value || 1024000);
+    const f0 = currentFreqHz - SPAN_HZ / 2;
+
+    // ---- espectro ----
+    const W = spec.width, H = spec.height;
+    if (W < 2 || H < 2) return;
+    specCtx.fillStyle = '#000';
+    specCtx.fillRect(0, 0, W, H);
+
+    // FAIXA PASSANTE, E ELA MUDA DE LADO CONFORME O MODO.
+    //
+    // Em USB toda a banda fica ACIMA da frequencia sintonizada; em LSB, toda
+    // ABAIXO; nos simetricos - AM, FM, CW - centrada. Eu tinha desenhado
+    // sempre centrada, e em LSB a sombra aparecia em cima do sinal em vez de
+    // ao lado dele. A regra e a MESMA do updateMarkerPosition, de proposito:
+    // se um dia mudar la, tem de mudar aqui junto.
+    const modoZ = (typeof activeMode === 'function' ? activeMode() : '').toUpperCase();
+    let desloc = -0.5;
+    if (modoZ === 'USB') desloc = 0;
+    else if (modoZ === 'LSB') desloc = -1;
+    const fa = currentFreqHz + desloc * currentBwHz;
+    const xF1 = (fa - f0) / SPAN_HZ * W;
+    const xF2 = (fa + currentBwHz - f0) / SPAN_HZ * W;
+    specCtx.fillStyle = 'rgba(255,220,0,.12)';
+    specCtx.fillRect(xF1, 0, Math.max(1, xF2 - xF1), H);
+
+    specCtx.beginPath();
+    for (let x = 0; x < W; x++) {
+      const db = dbEm(f0 + (x / (W - 1)) * SPAN_HZ, bins, span);
+      let n = (db - (wfRefLevel - wfRange)) / wfRange;
+      n = Math.max(0, Math.min(1, n));
+      const y = H - n * H;
+      if (x === 0) specCtx.moveTo(x, y); else specCtx.lineTo(x, y);
+    }
+    specCtx.strokeStyle = '#39ff14';
+    specCtx.lineWidth = 1;
+    specCtx.stroke();
+
+    // linha da sintonia
+    const xC = (currentFreqHz - f0) / SPAN_HZ * W;
+    specCtx.strokeStyle = 'rgba(255,255,255,.55)';
+    specCtx.beginPath(); specCtx.moveTo(xC, 0); specCtx.lineTo(xC, H); specCtx.stroke();
+
+    // ---- cachoeira ----
+    const n = Math.max(0, Math.min(10, Math.round(linhas || 0)));
+    if (n > 0 && buf.width > 1) {
+      bufCtx.imageSmoothingEnabled = false;
+      bufCtx.drawImage(buf, 0, 0, buf.width, buf.height - n, 0, n, buf.width, buf.height - n);
+      const linha = bufCtx.createImageData(buf.width, n);
+      for (let x = 0; x < buf.width; x++) {
+        const db = dbEm(f0 + (x / (buf.width - 1)) * SPAN_HZ, bins, span);
+        const c = colorFor(db);
+        for (let y = 0; y < n; y++) {
+          const o = (y * buf.width + x) * 4;
+          linha.data[o] = c[0]; linha.data[o+1] = c[1]; linha.data[o+2] = c[2];
+          linha.data[o+3] = 255;
+        }
+      }
+      bufCtx.putImageData(linha, 0, 0);
+    }
+    wfCtx2.drawImage(buf, 0, 0, wf.width, wf.height);
+    wfCtx2.strokeStyle = 'rgba(255,255,255,.35)';
+    wfCtx2.beginPath();
+    wfCtx2.moveTo(xC * wf.width / W, 0); wfCtx2.lineTo(xC * wf.width / W, wf.height);
+    wfCtx2.stroke();
+  }
+
+  return { init, alternar, setTamanho, redimensionar, frame,
+           get ligado(){ return ligado; } };
+})();
+
 function resize(){
   [specCanvas, wfCanvas].forEach(c=>{
     c.width = c.clientWidth;
@@ -4081,6 +4291,7 @@ function resize(){
     scaleCanvas.width = scaleCanvas.clientWidth;
     scaleCanvas.height = scaleCanvas.clientHeight;
   }
+  if (typeof ZoomPane !== 'undefined') ZoomPane.redimensionar();
   // Recreate the waterfall offscreen buffer on resize to avoid distortion
   wfOffscreenCanvas.width = wfBufWidth();
   wfOffscreenCanvas.height = wfCanvas.height;
@@ -5236,6 +5447,17 @@ const I18N_EN = {
     'Removes the oscillator whistle when the VFO sits at the centre. It costs the attenuation of a carrier exactly at the centre - which is why it is a button, not automatic',
   'Iniciar':'Start', 'Mapa':'Map', 'Enviar':'Send', 'apagar':'clear',
   'Invertido':'Inverted', 'Excl.':'Del.', 'passo':'step',
+  'estreita':'narrow', 'm\u00e9dia':'medium', 'larga':'wide',
+  'IF Display: 20 kHz em torno da sintonia, a esquerda da cachoeira':
+    'IF Display: 20 kHz around the tuned frequency, left of the waterfall',
+  'Largura da janela':'Window width',
+  'Autom\u00e1tico':'Automatic', 'P25 Fase 1':'P25 Phase 1', 'P25 Fase 2':'P25 Phase 2',
+  'Protocolos vistos:':'Protocols seen:', 'zerar':'reset',
+  'Registro de dados:':'Data log:',
+  'Troncalizado P25/DMR':'Trunked P25/DMR',
+  'trocar de modo reinicia o decodificador':'changing mode restarts the decoder',
+  'este modo nao tem opcao de sinal invertido no dsd-fme':
+    'this mode has no inverted-signal option in dsd-fme',
   'Para':'To', 'Seu indicativo':'Your callsign', 'Tom':'Tone',
   'Porta web:':'Web port:',
   '\ud83e\uddf9 Limpar Texto':'\ud83e\uddf9 Clear text',
@@ -5273,6 +5495,10 @@ const I18N_EN = {
     'Limits the scan to the visible width so the waterfall never shifts',
   // DMR
   'Decodificador DMR \u2014 pronto':'DMR decoder \u2014 ready',
+  'Decodificador DMR \u2014 voz no TS1 e no TS2':'DMR decoder \u2014 voice on TS1 and TS2',
+  'Decodificador DMR \u2014 voz no TS1':'DMR decoder \u2014 voice on TS1',
+  'Decodificador DMR \u2014 voz no TS2':'DMR decoder \u2014 voice on TS2',
+  'Decodificador DMR \u2014 sincronizado, sem voz':'DMR decoder \u2014 synced, no voice',
   'Diagnostico: aguardando audio...':'Diagnostics: waiting for audio...',
   '4FSK histograma: --':'4FSK histogram: --',
   'Ouvir:':'Listen:', 'Ts1 e Ts2 (normal)':'Ts1 and Ts2 (normal)',
@@ -5715,6 +5941,7 @@ function frame(t){
     const linesToDraw = Math.floor(wfAccumulator);
     const clampedLines = Math.min(10, linesToDraw);
     drawWaterfall(clampedLines);
+    if (typeof ZoomPane !== 'undefined') ZoomPane.frame(clampedLines);
     wfAccumulator -= linesToDraw;
     if (linesToDraw > 10) {
       wfAccumulator = 0; // Evita efeito turbo ao retornar abas em background
@@ -5752,6 +5979,7 @@ function frame(t){
     // Se a cachoeira não avançou de frame nesta iteração, redesenhamos os overlays dela em 30 fps
     if (!drewWf) {
       drawWaterfall(0);
+      if (typeof ZoomPane !== 'undefined') ZoomPane.frame(0);
     }
     
     lastT = t;
@@ -10254,6 +10482,9 @@ function applyDefaultGain(){
   } catch (_) {}
   Backend.connectWs();
   resize();
+  // Depois do resize: a janela de zoom precisa medir os proprios canvas, e
+  // se ela ficou ligada da ultima sessao volta ligada agora.
+  try { ZoomPane.init(); } catch (e) {}
   updateWfFooter();
   updateVfoLabels();
   // Carrega as memorias depois do resto: se o arquivo estiver grande ou o
@@ -10290,6 +10521,76 @@ const DsdDecoder = (() => {
   // quadro e somado no slot que estava anunciado.
   let _ultimoSlot = 0;
 
+  // O QUE FOI RECONHECIDO, E QUANDO.
+  //
+  // Nada disso ficava registrado em lugar nenhum: o terminal da janela esta
+  // desligado - repintar a cada linha travava o audio - e as linhas do
+  // dsd-fme nunca vao para o run.log. Quem deixasse o modo Automatico rodando
+  // a tarde inteira voltava sem saber o que o radio tinha pegado.
+  //
+  // Guardado no proprio navegador, entao sobrevive a fechar a janela e a
+  // recarregar a pagina.
+  let _protos = {};
+  try { _protos = JSON.parse(localStorage.getItem('rxsdr_dsd_protocolos') || '{}'); } catch (e) { _protos = {}; }
+
+  function anotarProtocolo(nome) {
+    const agora = new Date().toTimeString().slice(0, 5);
+    if (!_protos[nome]) _protos[nome] = { ini: agora, fim: agora };
+    _protos[nome].fim = agora;
+    try { localStorage.setItem('rxsdr_dsd_protocolos', JSON.stringify(_protos)); } catch (e) {}
+    pintarProtocolos();
+  }
+
+  function pintarProtocolos() {
+    const e = el('dsd-protos');
+    if (!e) return;
+    const nomes = Object.keys(_protos);
+    e.textContent = nomes.length
+      ? nomes.map(n => n + ' ' + _protos[n].ini + '\u2013' + _protos[n].fim).join('  \u00b7  ')
+      : '--';
+  }
+
+  function zerarProtocolos() {
+    _protos = {};
+    _mensagens = [];
+    try { localStorage.removeItem('rxsdr_dsd_protocolos'); } catch (e) {}
+    try { localStorage.removeItem('rxsdr_dsd_mensagens'); } catch (e) {}
+    pintarProtocolos();
+    pintarMensagens();
+  }
+
+  // O QUE FOI DECODIFICADO DE VERDADE, com hora.
+  //
+  // Das centenas de linhas por segundo que o dsd-fme escreve, quase tudo e
+  // sincronismo e rajada vazia - IDLE, CSBK, R34C. O que interessa a quem
+  // escuta e a minoria que tem remetente e destinatario, como
+  //   "Slot 1 Data Header - Indiv - Confirmed Delivery - Source: 8704 Target: 8197"
+  // Sao essas que ficam guardadas aqui.
+  let _mensagens = [];
+  try { _mensagens = JSON.parse(localStorage.getItem('rxsdr_dsd_mensagens') || '[]'); } catch (e) { _mensagens = []; }
+
+  function anotarMensagem(txt) {
+    const t = txt.trim();
+    if (!t) return;
+    if (_mensagens.length && _mensagens[_mensagens.length - 1].t === t) return;  // repetida
+    _mensagens.push({ h: new Date().toTimeString().slice(0, 8), t: t });
+    if (_mensagens.length > 40) _mensagens.shift();
+    try { localStorage.setItem('rxsdr_dsd_mensagens', JSON.stringify(_mensagens)); } catch (e) {}
+    pintarMensagens();
+  }
+
+  function pintarMensagens() {
+    const e = el('dsd-msgs');
+    if (!e) return;
+    const estavaNoFim = (e.scrollTop + e.clientHeight >= e.scrollHeight - 4);
+    e.textContent = _mensagens.length
+      ? _mensagens.map(m => m.h + '  ' + m.t).join('\n')
+      : '--';
+    // So acompanha o fim se o usuario ja estava no fim - se ele subiu para ler
+    // uma mensagem antiga, a caixa nao o arranca de la.
+    if (estavaNoFim) e.scrollTop = e.scrollHeight;
+  }
+
   const el = id => document.getElementById(id);
 
   function buildPanelHTML() {
@@ -10304,7 +10605,11 @@ const DsdDecoder = (() => {
       </style>
       <div id="dsd-scroll-wrap" style="flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column;">
       <!-- Cabeçalho de Status -->
-      <div style="background:#020a12; padding:6px 8px; border-bottom:1px solid #1a3a5a; flex-shrink:0;">
+      <!-- ESTICA. Antes era flex-shrink:0, e como todos os blocos da area
+           rolavel tinham altura fixa, a sobra da janela virava um retangulo
+           preto vazio entre os cartoes de slot e os botoes do rodape. Agora a
+           sobra vem para ca e quem a recebe e a caixa do registro. -->
+      <div style="background:#020a12; padding:6px 8px; border-bottom:1px solid #1a3a5a; flex:1 1 auto; min-height:0; display:flex; flex-direction:column;">
         <div id="dsd-main-title" style="color:#90caf9; font-family:'Segoe UI',sans-serif; font-size:12px; font-weight:bold; margin-bottom:2px;">
           Decodificador DMR — pronto
         </div>
@@ -10317,6 +10622,35 @@ const DsdDecoder = (() => {
         <div id="dsd-hist" style="color:#e0e0e0; font-family:sans-serif; font-size:10px;">
           4FSK histograma: --
         </div>
+        <div style="color:#9ccc65; font-family:sans-serif; font-size:10px; margin-top:2px;">
+          Protocolos vistos: <span id="dsd-protos">--</span>
+          <a href="javascript:void(0)" onclick="DsdDecoder.zerarProtocolos()" style="color:#7fb0ff; margin-left:6px; font-size:9px;">zerar</a>
+        </div>
+        <div style="color:#b0bec5; font-family:sans-serif; font-size:10px; margin-top:2px;">Registro de dados:</div>
+        <pre id="dsd-msgs" style="margin:2px 0 0 0; flex:1 1 auto; min-height:64px; overflow:auto; background:#000; border:1px solid #143050; padding:3px 5px; color:#9ccc65; font-family:'Consolas',monospace; font-size:9px; white-space:pre-wrap; word-break:break-word;">--</pre>
+      </div>
+
+      <!-- Protocolo que o dsd-fme deve procurar -->
+      <div style="display:flex; align-items:center; gap:6px; padding:4px 8px; background:#010c15; border-bottom:1px solid #1a3a5a; font-family:sans-serif; font-size:10px; color:#b0bec5; flex-shrink:0;">
+        <span>Modo:</span>
+        <select id="dsd-modo" onchange="DsdDecoder.setModo(this.value)" style="background:#0a1420;border:1px solid #25467a;color:#cfe3ff;font-size:10px;border-radius:3px;padding:1px 3px">
+          <option value="dmr" selected>DMR</option>
+          <option value="auto">Automático</option>
+          <option value="p25p1">P25 Fase 1</option>
+          <option value="p25p2">P25 Fase 2</option>
+          <option value="nxdn96">NXDN96 &mdash; 12,5 kHz</option>
+          <option value="nxdn48">NXDN48 / IDAS &mdash; 6,25 kHz</option>
+          <option value="dpmr">dPMR</option>
+          <option value="ysf">Yaesu Fusion</option>
+          <option value="dstar">D-STAR</option>
+          <option value="m17">M17</option>
+          <option value="x2tdma">X2-TDMA</option>
+          <option value="provoice">ProVoice</option>
+          <option value="edacs">EDACS</option>
+          <option value="edacsea">EDACS EA</option>
+          <option value="trunk">Troncalizado P25/DMR</option>
+        </select>
+        <span style="opacity:.65">trocar de modo reinicia o decodificador</span>
       </div>
 
       <!-- Filtro de Ouvir Slots -->
@@ -10433,6 +10767,8 @@ const DsdDecoder = (() => {
   }
 
   function init() {
+    pintarProtocolos();
+    pintarMensagens();
     applyStartSettings();
 
     // Reset slot details
@@ -10578,8 +10914,42 @@ const DsdDecoder = (() => {
     // escreve "| VC*" - com asterisco, sem numero -, e a regra nao casava.
     // Por isso a lampada VOZ acendia na Rodovia, que e repetidora, e nao
     // acendia no HT falando direto.
-    const ehQuadroVoz = (voiceSlot > 0) || /\bVC[\d*]/.test(line) ||
-                        /voice\s*frame/i.test(line) || /\[voice\]/i.test(line);
+    // "Color Code=XX" QUER DIZER QUE NADA FOI DECODIFICADO.
+    //
+    // O dsd-fme tem duas formas para a mesma linha: com o color code lido
+    // - "Color Code=03" - e com ele perdido, "Color Code=XX". A segunda e a
+    // assinatura da TRAVA FALSA: mandado esperar DMR invertido, o decodificador
+    // acha o sincronismo no ruido, nao consegue ler o color code, declara VC1
+    // para sempre nos DOIS slots ao mesmo tempo, e o vocoder sintetiza aquele
+    // barulho estranho. Visto em 170,556 MHz, com 432 e 434 quadros contados
+    // em poucos segundos - numa decodificacao de verdade os quadros andam de
+    // VC1 a VC6 e o color code e um numero.
+    //
+    // Sem validacao nao ha o que contar nem o que acender.
+    const semValidacao = /Color\s*Code\s*=\s*XX/i.test(line);
+
+    // QUAL PROTOCOLO O dsd-fme RECONHECEU.
+    //
+    // Ele escreve o nome na linha de sincronismo, com + ou - conforme a
+    // polaridade: "Sync: +DMR", "Sync: +P25p1", "+YSF", "+dPMR"... Os nomes
+    // sao os do proprio binario. Trava falsa - Color Code=XX - nao entra no
+    // registro, senao o modo Automatico anotaria protocolo em cima de ruido.
+    if (!semValidacao) {
+      const mp = line.match(/Sync:\s*[+\-]?\s*(P25p[12]|X2-TDMA|NXDN\d*|dPMR|DSTAR|YSF|M17|EDACS(?:\s*EA)?|ProVoice|DMR)/i);
+      if (mp) anotarProtocolo(mp[1].toUpperCase().replace('DSTAR', 'D-STAR'));
+    }
+
+    // Mensagem com conteudo: tem remetente/destinatario, ou e um cabecalho de
+    // dados, ou um opcode de controle nomeado. Sincronismo e erro de FEC ficam
+    // de fora - sao ruido de registro.
+    if (!/Sync:/i.test(line) && !/FEC\s*ERR|CRC\s*ERR/i.test(line) &&
+        (/\b(SRC|TGT)\s*=|Source:|Target:|Data\s*Header|\(P_/i.test(line))) {
+      anotarMensagem(line.replace(/^\[DSD(?:-ERR)?\]\s*/i, ''));
+    }
+
+    const ehQuadroVoz = !semValidacao &&
+                        ((voiceSlot > 0) || /\bVC[\d*]/.test(line) ||
+                         /voice\s*frame/i.test(line) || /\[voice\]/i.test(line));
 
     if (voiceSlot > 0) _ultimoSlot = voiceSlot;
     else if (slotNum > 0) _ultimoSlot = slotNum;
@@ -10607,7 +10977,7 @@ const DsdDecoder = (() => {
       // A voz e contada mais abaixo, no slot que a marca em maiusculas indica:
       // uma linha pode citar um slot e trazer a voz do outro, e somar no slot
       // errado seria pior do que nao somar.
-      if (!ehQuadroVoz &&
+      if (!ehQuadroVoz && !semValidacao &&
           (line.match(/Data\s*Frame/i) || line.match(/\[data\]/i) || line.includes('Data'))) {
         ts.dFrames++;
       }
@@ -10725,16 +11095,29 @@ const DsdDecoder = (() => {
     if (ts2Spk) ts2Spk.classList.toggle('on', !!(ts2.active && ts2.voice));
 
     // Banner de Título
+    // O BANNER DIZIA "voz" OLHANDO PARA active, E NAO PARA voice.
+    //
+    // active quer dizer so que apareceu sincronismo no slot; voice e que
+    // significa quadro de voz validado. Com a trava falsa em 170,556 MHz o
+    // banner anunciava "voz no TS1 e no TS2" enquanto nada estava sendo
+    // decodificado - e foi isso que me fez ler a tela errado duas vezes.
+    // Agora "voz" so aparece quando ha voz mesmo; sincronismo sem voz tem
+    // frase propria.
+    //
+    // Passa pelo T() porque e texto escrito em tempo de execucao: o idioma
+    // percorre a tela uma vez, quando o painel abre, e nao veria isto depois.
     const mainTitle = el('dsd-main-title');
     if (mainTitle) {
-      if (ts1.active && ts2.active) {
-        mainTitle.textContent = "Decodificador DMR — voz no TS1 e no TS2";
-      } else if (ts1.active) {
-        mainTitle.textContent = "Decodificador DMR — voz no TS1";
-      } else if (ts2.active) {
-        mainTitle.textContent = "Decodificador DMR — voz no TS2";
+      if (ts1.voice && ts2.voice) {
+        mainTitle.textContent = T("Decodificador DMR — voz no TS1 e no TS2");
+      } else if (ts1.voice) {
+        mainTitle.textContent = T("Decodificador DMR — voz no TS1");
+      } else if (ts2.voice) {
+        mainTitle.textContent = T("Decodificador DMR — voz no TS2");
+      } else if (ts1.active || ts2.active) {
+        mainTitle.textContent = T("Decodificador DMR — sincronizado, sem voz");
       } else {
-        mainTitle.textContent = "Decodificador DMR — pronto";
+        mainTitle.textContent = T("Decodificador DMR — pronto");
       }
     }
 
@@ -10790,6 +11173,7 @@ const DsdDecoder = (() => {
         currentInverted = !!data.inverted;
         updateUI(data);
         updatePolarityUI(currentInverted);
+        aplicarModo(data);
       })
       .catch(err => {
         console.error("Erro no status do DSD:", err);
@@ -10834,6 +11218,38 @@ const DsdDecoder = (() => {
     } else {
       updateTerminal();
     }
+  }
+
+  // Trocar o protocolo procurado pelo dsd-fme.
+  //
+  // Reinicia o decodificador, porque isso e argumento de linha de comando.
+  function setModo(v) {
+    fetch('/api/dsd/modo', { method: 'POST',
+                             headers: {'Content-Type':'application/json'},
+                             body: JSON.stringify({ modo: v }) })
+      .then(r => r.json())
+      .then(data => { aplicarModo(data); })
+      .catch(err => console.error("Erro ao trocar de modo:", err));
+  }
+
+  // Reflete o modo vindo do radio e liga/desliga os botoes de polaridade.
+  //
+  // So DMR, dPMR e X2-TDMA tem opcao de sinal invertido no dsd-fme. Nos outros
+  // os botoes nao teriam efeito nenhum - desabilita-los e mais honesto do que
+  // deixar o dono do radio clicando e concluindo que ha defeito.
+  function aplicarModo(data) {
+    if (!data) return;
+    const sel = el('dsd-modo');
+    if (sel && data.modo && sel.value !== data.modo) sel.value = data.modo;
+    const pode = (data.aceitaInversao === undefined) ? true : !!data.aceitaInversao;
+    ['dsd-btn-normal', 'dsd-btn-inverted'].forEach(function(id) {
+      const b = el(id);
+      if (!b) return;
+      b.disabled = !pode;
+      b.style.opacity = pode ? '1' : '0.35';
+      b.style.cursor  = pode ? 'pointer' : 'not-allowed';
+      b.title = pode ? '' : T('este modo nao tem opcao de sinal invertido no dsd-fme');
+    });
   }
 
   function setPolarity(invert) {
@@ -10912,6 +11328,8 @@ const DsdDecoder = (() => {
     appendLine,
     clearTerminal,
     setPolarity,
+    setModo,
+    zerarProtocolos,
     adjustPcm,
     startDecoder,
     stop

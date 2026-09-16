@@ -191,6 +191,20 @@ void RestApi::install(QHttpServer* server)
         return QHttpServerResponse("application/json", QJsonDocument(r).toJson());
     });
 
+    // POST /api/dsd/modo  { "modo": "dmr" | "auto" | "p25p1" | ... }
+    //
+    // Trocar de protocolo reinicia o dsd-fme: e argumento de linha de comando,
+    // nao ha como mudar com ele no ar.
+    server->route("/api/dsd/modo", QHttpServerRequest::Method::Post,
+        [this](const QHttpServerRequest& req) {
+            const auto j = QJsonDocument::fromJson(req.body()).object();
+            const QString m = j.value("modo").toString();
+            QJsonObject r = onDsdSetModo ? onDsdSetModo(m)
+                                         : QJsonObject{{"ok",false},{"error","indisponível"}};
+            if (!r.contains("ok")) r.insert("ok", true);
+            return QHttpServerResponse("application/json", QJsonDocument(r).toJson());
+        });
+
     // POST /api/dsd/pcmhz  { "hz": 8000 }  — ajuste em tempo real da taxa UDP do DSD-FME (debug)
     server->route("/api/dsd/pcmhz", QHttpServerRequest::Method::Post,
         [this](const QHttpServerRequest& req) {

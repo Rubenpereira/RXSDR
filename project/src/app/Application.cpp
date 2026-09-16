@@ -756,8 +756,14 @@ bool Application::start()
     // do fluxo original e mantem o painel vivo.
     connect(dsdDeco_.get(), &DsdManager::logLine, this, [this](const QString& line) {
         static const QRegularExpression interessa(
+            // O filtro era so de DMR - e por isso, com o modo Automatico, as
+            // linhas de P25, NXDN, YSF e companhia eram descartadas aqui,
+            // antes de chegar ao painel. Agora passa tambem a linha de
+            // sincronismo e o nome de cada protocolo, que e o que diz QUAL
+            // modo foi reconhecido.
             QStringLiteral("(Color\\s*Code|\\bCC\\b|SRC|RID|Source|TGT|\\bTG\\b|Target|"
-                           "Group\\s*Call|Priv\\w*\\s*Call|Private|Voice|Data|Slot|TS[12])"),
+                           "Group\\s*Call|Priv\\w*\\s*Call|Private|Voice|Data|Slot|TS[12]|"
+                           "Sync|P25p[12]|X2-TDMA|NXDN|dPMR|DSTAR|YSF|M17|EDACS|ProVoice)"),
             QRegularExpression::CaseInsensitiveOption);
         if (!interessa.match(line).hasMatch()) return;
 
@@ -812,6 +818,11 @@ bool Application::start()
 
     rest_->onDsdTogglePolarity = [this]() -> QJsonObject {
         dsdDeco_->togglePolarity();
+        return dsdDeco_->statusJson();
+    };
+
+    rest_->onDsdSetModo = [this](const QString& m) -> QJsonObject {
+        dsdDeco_->setModo(m);
         return dsdDeco_->statusJson();
     };
 

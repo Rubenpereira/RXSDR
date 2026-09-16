@@ -103,6 +103,8 @@ QJsonObject DsdManager::statusJson() const
     o["state"]          = stateString();
     o["binaryPresent"]  = binaryExists();
     o["inverted"]       = invertPolarity_;
+    o["modo"]           = modo_;
+    o["aceitaInversao"] = aceitaInversao(modo_);
     o["pcmHz"]          = m_udpVoicePcmHz;
     if (!lastError_.isEmpty())
         o["error"] = lastError_;
@@ -161,25 +163,13 @@ bool DsdManager::start()
 
     if (isDsdFme) {
         const QString udpOut = QStringLiteral("udp:127.0.0.1:%1").arg(m_udpListenPort);
-        // -fs: DMR BS/MS
-        // -l: desliga filtragem de entrada DMR
-        // -mg: otimizações GFSK
+        // Protocolo, modulacao e inversao saem da tabela abaixo.
         // -V 3: TDMA voz sintetizada em TS1 e TS2
         // -i -: entrada via stdin
         // -o udp:127.0.0.1:<porta>: saída de áudio via UDP
-        args << QStringLiteral("-fs") << QStringLiteral("-l") << QStringLiteral("-mg")
+        args << argumentosDoModo(modo_, invertPolarity_)
              << QStringLiteral("-V") << QStringLiteral("3") << QStringLiteral("-i")
              << QStringLiteral("-") << QStringLiteral("-o") << udpOut;
-
-        // -xr: "Expect inverted DMR signal", conferido na ajuda do proprio
-        //      dsd-fme.exe. Aqui estava -P, que NAO tem nada a ver com
-        //      polaridade: na ajuda do binario, "-P  Enable Per Call WAV file
-        //      saving". Por isso o botao Invertido nunca inverteu nada - o
-        //      audio saia igual nos dois, e de quebra o decodificador passava
-        //      a gravar um .wav por chamada sem ninguem pedir.
-        if (invertPolarity_) {
-            args << QStringLiteral("-xr");
-        }
     } else {
         // Fallback para DSDPlus tradicional (requer VAC)
         if (inputDevice_ > 0) {
@@ -219,6 +209,76 @@ void DsdManager::stop()
 
     state_ = State::Stopped;
     emit stateChanged(state_);
+}
+
+// Tabela de modos - TODAS as opcoes vieram da ajuda embutida no dsd-fme.exe,
+// nao de suposicao.
+//
+//   -fa Auto Detection          -fs DMR TDMA BS and MS Simplex
+//   -f1 P25 Phase 1             -f2 P25 Phase 2 (6000 sps)
+//   -fi NXDN48 (6.25 kHz)       -fn NXDN96 (12.5 kHz)
+//   -fm dPMR                    -fy YSF        -fd DSTAR     -fz M17
+//   -fx X2-TDMA                 -fp ProVoice   -fh EDACS     -fe EDACS EA
+//   -ft Troncalizado P25p1/P25p2/DMR
+//
+// A MODULACAO ACOMPANHA O MODO, senao nao adianta escolher o protocolo:
+//   -mg GFSK  (o que o DMR ja usava aqui, e funciona - nao se mexe)
+//   -m2 P25p2 6000 sps QPSK (obrigatorio para a Fase 2)
+//   -ma auto  (para os demais: eu nao tenho como testar cada um, e deixar o
+//              proprio dsd-fme escolher e mais honesto que eu chutar)
+//
+// O -l, que desliga a filtragem de entrada, fica so no DMR - era assim antes
+// e o DMR e o unico modo comprovadamente testado aqui.
+QStringList DsdManager::argumentosDoModo(const QString& m, bool invertido)
+{
+    QStringList a;
+    QString protocolo, modulacao = QStringLiteral("-ma"), inversao;
+
+    if      (m == QLatin1String("auto"))     protocolo = QStringLiteral("-fa");
+    else if (m == QLatin1String("p25p1"))    protocolo = QStringLiteral("-f1");
+    else if (m == QLatin1String("p25p2"))  { protocolo = QStringLiteral("-f2");
+                                             modulacao = QStringLiteral("-m2"); }
+    else if (m == QLatin1String("nxdn96"))   protocolo = QStringLiteral("-fn");
+    else if (m == QLatin1String("nxdn48"))   protocolo = QStringLiteral("-fi");
+    else if (m == QLatin1String("dpmr"))   { protocolo = QStringLiteral("-fm");
+                                             inversao  = QStringLiteral("-xd"); }
+    else if (m == QLatin1String("ysf"))      protocolo = QStringLiteral("-fy");
+    else if (m == QLatin1String("dstar"))    protocolo = QStringLiteral("-fd");
+    else if (m == QLatin1String("m17"))      protocolo = QStringLiteral("-fz");
+    else if (m == QLatin1String("x2tdma")) { protocolo = QStringLiteral("-fx");
+                                             inversao  = QStringLiteral("-xx"); }
+    else if (m == QLatin1String("provoice")) protocolo = QStringLiteral("-fp");
+    else if (m == QLatin1String("edacs"))    protocolo = QStringLiteral("-fh");
+    else if (m == QLatin1String("edacsea"))  protocolo = QStringLiteral("-fe");
+    else if (m == QLatin1String("trunk"))    protocolo = QStringLiteral("-ft");
+    else {  // dmr - o caminho de sempre, intocado
+        protocolo = QStringLiteral("-fs");
+        modulacao = QStringLiteral("-mg");
+        inversao  = QStringLiteral("-xr");
+        a << protocolo << QStringLiteral("-l") << modulacao;
+        if (invertido) a << inversao;
+        return a;
+    }
+
+    a << protocolo << modulacao;
+    if (invertido && !inversao.isEmpty()) a << inversao;
+    return a;
+}
+
+bool DsdManager::aceitaInversao(const QString& m)
+{
+    return m == QLatin1String("dmr") || m == QLatin1String("dpmr")
+        || m == QLatin1String("x2tdma");
+}
+
+void DsdManager::setModo(const QString& m)
+{
+    if (m.isEmpty() || m == modo_) return;
+    modo_ = m;
+    if (state_ == State::Running) {
+        stop();
+        start();   // o protocolo e argumento de linha de comando: so na partida
+    }
 }
 
 void DsdManager::togglePolarity()
