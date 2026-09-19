@@ -556,6 +556,15 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
 .spectrum-wrap{position:relative;flex:0 0 30%;border-bottom:1px solid var(--border);overflow:hidden}
 .waterfall-wrap{position:relative;flex:1;overflow:hidden}
 #spectrum,#waterfall{display:block;width:100%;height:100%}
+
+/* ── TOQUE: o navegador NAO pode confiscar o gesto ───────────────────────
+   Sem touch-action:none, arrastar o dedo na cachoeira rola a pagina em vez
+   de mover a banda, e a pinca vira zoom do navegador inteiro. Esta regra
+   diz ao navegador que esses elementos tratam os proprios gestos.
+   Vale para dedo e caneta; no mouse nao muda nada. */
+#spectrum,#waterfall,#zoomSpecCanvas,#zoomWfCanvas,
+.display-splitter,.bw-handle-left,.filter-edge-left,.filter-edge-right,
+.tune-marker,.decoder-panel-head{touch-action:none}
 .regua-memorias{position:absolute;top:0;left:0;right:0;height:17px;
   overflow:hidden;pointer-events:none;z-index:6;
   border-bottom:1px solid rgba(90,150,220,.18)}
@@ -1211,7 +1220,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       </div>
     </div>
     <div style="flex:1"></div>
-    <div class="item" style="color:var(--accent-lcd)">RXSDR v1.0.60</div>
+    <div class="item" style="color:var(--accent-lcd)">RXSDR v1.0.61</div>
   </div>
 
   <!-- =============================== TOPO =============================== -->
@@ -1492,7 +1501,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       <span class="cell" id="wfInfoAudio" style="display:none;color:#7fb0ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1"
             title="Saude do audio: folga do buffer, maior intervalo entre pacotes e quantas vezes faltou audio para tocar.">Audio: —</span>
       <span class="spacer"></span>
-      <span class="cell key">RXSDR V1.0.60</span>
+      <span class="cell key">RXSDR V1.0.61</span>
     </div>
 
     </div>
@@ -1712,9 +1721,6 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
 </div>
 <!-- =============================== PAINÉIS DECODER FLUTUANTES =============================== -->
 <div id="decoder-panels-container"></div>
-
-  </div>
-</div>
 
 <!-- =============================== MODAL ALERTA DE CONEXÃO =============================== -->
 <div class="modal-bg" id="alertModal">
@@ -4280,6 +4286,96 @@ const ZoomPane = (() => {
   return { init, alternar, setTamanho, redimensionar, frame,
            get ligado(){ return ligado; } };
 })();
+
+
+/* =========================================================
+   PINCA DE DOIS DEDOS - amplia a cachoeira
+   =========================================================
+   Nao existe equivalente no mouse, entao esta parte e codigo novo. Ela mexe
+   no MESMO controle Zoom que ja existe: afastar os dedos ao dobro dobra a
+   ampliacao, e o slider acompanha - quem olha ve o controle se mover junto,
+   em vez de um zoom escondido que ninguem sabe desfazer.
+
+   Registrado DEPOIS dos manipuladores de arrasto de proposito: o primeiro
+   dedo comeca um arrasto normal, e quando o segundo encosta este bloco
+   cancela o arrasto e assume. Sem isso a banda deslizaria junto com a pinca.
+   ========================================================= */
+(function(){
+  const pontos = new Map();     // pointerId -> {x, y}
+  let distIni = 0, zoomIni = 0;
+
+  function distancia(){
+    const v = Array.from(pontos.values());
+    return Math.hypot(v[0].x - v[1].x, v[0].y - v[1].y);
+  }
+
+  function desceu(e){
+    pontos.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pontos.size === 2) {
+      distIni = distancia();
+      const s = document.getElementById('zoomSlider');
+      zoomIni = Number(s ? s.value : 0);
+      // Virou pinca: o arrasto de um dedo que estava em curso morre aqui.
+      isWfDragging = false; isSpecDragging = false; isBwDragging = false;
+      wfHasMoved = false;   specHasMoved = false;
+      try { wfCanvas.style.cursor = 'crosshair'; } catch (err) {}
+    }
+  }
+
+  function moveu(e){
+    if (!pontos.has(e.pointerId)) return;
+    pontos.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pontos.size !== 2 || !distIni) return;
+    const s = document.getElementById('zoomSlider');
+    if (!s) return;
+    const fator = distancia() / distIni;
+    const min = Number(s.min || 0), max = Number(s.max || 10);
+    // O zoom da cachoeira e (1 + valor do slider), entao multiplicar ali e
+    // o que faz o gesto parecer natural.
+    let v = (1 + zoomIni) * fator - 1;
+    v = Math.max(min, Math.min(max, v));
+    if (Math.abs(v - Number(s.value)) > 0.01) {
+      s.value = v;
+      s.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    e.preventDefault();
+  }
+
+  function subiu(e){
+    pontos.delete(e.pointerId);
+    if (pontos.size < 2) distIni = 0;
+  }
+
+  [wfCanvas, specCanvas].forEach(function(c){
+    if (!c) return;
+    c.addEventListener('pointerdown', desceu);
+    c.addEventListener('pointermove', moveu);
+    c.addEventListener('pointerup', subiu);
+    c.addEventListener('pointercancel', subiu);
+    c.addEventListener('pointerleave', subiu);
+  });
+})();
+
+/* Rede de seguranca: se o navegador tomar o gesto para si - raro com
+   touch-action:none, mas acontece - as bandeiras de arrasto ficariam presas
+   e o radio continuaria achando que o dedo esta na tela. */
+window.addEventListener('pointercancel', function(){
+  if (isWfDragging || isSpecDragging || isBwDragging) {
+    isWfDragging = false; isSpecDragging = false; isBwDragging = false;
+    wfHasMoved = false;   specHasMoved = false;
+    try {
+      wfCanvas.style.cursor = 'crosshair';
+      specCanvas.style.cursor = 'crosshair';
+      updateMarkerPosition(currentFreqHz);
+    } catch (err) {}
+  }
+});
+
+/* Toque longo abre o menu de contexto do Android em cima da cachoeira.
+   Ninguem quer isso no meio de um arrasto. */
+[wfCanvas, specCanvas].forEach(function(c){
+  if (c) c.addEventListener('contextmenu', function(ev){ ev.preventDefault(); });
+});
 
 function resize(){
   [specCanvas, wfCanvas].forEach(c=>{
@@ -8168,7 +8264,7 @@ function formatBwTooltip(hz) {
 }
 let isSplitterDragging = false;
 
-window.addEventListener('mousemove', (e) => {
+window.addEventListener('pointermove', (e) => {
   currentMouseX = e.clientX;
   if (isBwDragging) {
     const dx = e.clientX - bwDragStartX;
@@ -8248,7 +8344,7 @@ let wfDragCenterHz = 0;
 let wfDragTimeout = null;
 let wfHasMoved = false;
 
-wfCanvas.addEventListener('mousedown', (e) => {
+wfCanvas.addEventListener('pointerdown', (e) => {
   if (e.button !== 0) return;
   
   // Check if hovering filter edges
@@ -8284,7 +8380,7 @@ wfCanvas.addEventListener('mousedown', (e) => {
   wfCanvas.style.cursor = 'grabbing';
 });
 
-wfCanvas.addEventListener('mousemove', (e) => {
+wfCanvas.addEventListener('pointermove', (e) => {
   const rect = wfCanvas.getBoundingClientRect();
   const mouseX = e.clientX - rect.left;
   
@@ -8320,7 +8416,7 @@ wfCanvas.addEventListener('mousemove', (e) => {
   }
 });
 
-wfCanvas.addEventListener('mouseleave', () => {
+wfCanvas.addEventListener('pointerleave', () => {
   wfMouseX = null;
   wfMouseY = null;
 });
@@ -8336,9 +8432,19 @@ function updateWfDragMarker(e) {
   const hzPerPixel = zoomedSpan / rect.width;
   
   const hzShift = -Math.round(dx * hzPerPixel);
-  
+
+  // O VFO ANDA DE STEP EM STEP, o centro desliza liso.
+  //
+  // Sao duas coisas diferentes no mesmo arrasto: o centro e a banda passando
+  // por baixo do dedo, e tem de acompanhar o dedo sem degrau; o VFO e uma
+  // frequencia sintonizada, e frequencia sintonizada respeita o passo. Sem
+  // isso o visor mostrava coisas como 7.135.243 Hz com o STEP em 5 kHz.
+  //
+  // O arredondamento e ABSOLUTO, e nao sobre o deslocamento: assim o VFO cai
+  // sempre num multiplo do passo, do mesmo jeito que ja acontecia ao clicar.
+  const passo = Math.max(1, tuningStepHz || 1000);
   wfDragCenterHz = wfDragStartCenterHz + hzShift;
-  wfDragHz = wfDragStartFreqHz + hzShift;
+  wfDragHz = Math.round((wfDragStartFreqHz + hzShift) / passo) * passo;
   
   // Update local variables in real-time
   currentFreqHz = wfDragHz;
@@ -8368,7 +8474,7 @@ let specHasMoved = false;   // true = houve arrasto real (> 4px); false = simple
 let specDragStartX = 0;     // posição X do mousedown para medir deslocamento
 let specMarkerHz = null;    // quando não-null: marcador desacoplado do VFO (após arrasto no espectro)
 
-specCanvas.addEventListener('mousedown', (e) => {
+specCanvas.addEventListener('pointerdown', (e) => {
   if (e.button !== 0) return;
 
   // Check if hovering filter edges
@@ -8408,7 +8514,7 @@ specCanvas.addEventListener('mousedown', (e) => {
   updateMarkerPosition(specDragHz);
 });
 
-specCanvas.addEventListener('mousemove', (e) => {
+specCanvas.addEventListener('pointermove', (e) => {
   const rect = specCanvas.getBoundingClientRect();
   const mouseX = e.clientX - rect.left;
   
@@ -8438,7 +8544,7 @@ specCanvas.addEventListener('mousemove', (e) => {
   }
 });
 
-window.addEventListener('mouseup', (e) => {
+window.addEventListener('pointerup', (e) => {
   if (isWfDragging) {
     isWfDragging = false;
     wfCanvas.style.cursor = 'crosshair';
@@ -8630,18 +8736,18 @@ if (stepSelectEl) {
     if (tooltip) tooltip.classList.remove('visible');
   }
 
-  if (bwHandle) bwHandle.addEventListener('mousedown', startBwDrag);
+  if (bwHandle) bwHandle.addEventListener('pointerdown', startBwDrag);
   if (leftEdge) {
-    leftEdge.addEventListener('mousedown', startBwDrag);
+    leftEdge.addEventListener('pointerdown', startBwDrag);
     leftEdge.addEventListener('mouseenter', () => bwHandle && bwHandle.classList.add('visible'));
-    leftEdge.addEventListener('mouseleave', () => {
+    leftEdge.addEventListener('pointerleave', () => {
       if (!isBwDragging) bwHandle && bwHandle.classList.remove('visible');
     });
   }
   if (rightEdge) {
-    rightEdge.addEventListener('mousedown', startBwDrag);
+    rightEdge.addEventListener('pointerdown', startBwDrag);
     rightEdge.addEventListener('mouseenter', () => bwHandle && bwHandle.classList.add('visible'));
-    rightEdge.addEventListener('mouseleave', () => {
+    rightEdge.addEventListener('pointerleave', () => {
       if (!isBwDragging) bwHandle && bwHandle.classList.remove('visible');
     });
   }
@@ -8684,7 +8790,7 @@ if (stepSelectEl) {
   const spectrumWrap = document.querySelector('.spectrum-wrap');
   const displayContainer = document.querySelector('.display');
   if (splitter && spectrumWrap && displayContainer) {
-    splitter.addEventListener('mousedown', (e) => {
+    splitter.addEventListener('pointerdown', (e) => {
       if (e.button !== 0) return;
       isSplitterDragging = true;
       splitter.classList.add('active');
@@ -8713,7 +8819,7 @@ if (stepSelectEl) {
   const btn0 = document.getElementById('audioBtn');
   if (btn0) {
     btn0.addEventListener('mouseenter', () => { sobre = true;  });
-    btn0.addEventListener('mouseleave', () => { sobre = false; });
+    btn0.addEventListener('pointerleave', () => { sobre = false; });
   }
   setInterval(() => {
     const b = document.getElementById('audioBtn');
@@ -9193,7 +9299,7 @@ function makeDecoderPanelDraggable(panel) {
   head.style.cursor = 'move';
   
   let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
-  head.onmousedown = dragMouseDown;
+  head.onpointerdown = dragMouseDown;
 
   function dragMouseDown(e) {
     e = e || window.event;
@@ -9207,8 +9313,8 @@ function makeDecoderPanelDraggable(panel) {
     pos3 = e.clientX;
     pos4 = e.clientY;
     
-    document.onmouseup = closeDragElement;
-    document.onmousemove = elementDrag;
+    document.onpointerup = closeDragElement;
+    document.onpointermove = elementDrag;
     
     // Traz o painel clicado para a frente de todos os outros
     document.querySelectorAll('.decoder-panel').forEach(p => {
@@ -9238,8 +9344,8 @@ function makeDecoderPanelDraggable(panel) {
   }
 
   function closeDragElement() {
-    document.onmouseup = null;
-    document.onmousemove = null;
+    document.onpointerup = null;
+    document.onpointermove = null;
   }
 }
 
@@ -9266,7 +9372,7 @@ function makePanelResizable(panel) {
     if (dir === 'se') { handle.style.cursor = 'nwse-resize'; handle.style.width = b; handle.style.height = b; handle.style.bottom = '0'; handle.style.right = '0'; }
     if (dir === 'sw') { handle.style.cursor = 'nesw-resize'; handle.style.width = b; handle.style.height = b; handle.style.bottom = '0'; handle.style.left = '0'; }
     
-    handle.addEventListener('mousedown', function(e) {
+    handle.addEventListener('pointerdown', function(e) {
       e.preventDefault();
       e.stopPropagation();
       const startX = e.clientX;
@@ -9292,12 +9398,12 @@ function makePanelResizable(panel) {
       }
       
       function stopDrag() {
-        document.removeEventListener('mousemove', doDrag);
-        document.removeEventListener('mouseup', stopDrag);
+        document.removeEventListener('pointermove', doDrag);
+        document.removeEventListener('pointerup', stopDrag);
       }
       
-      document.addEventListener('mousemove', doDrag);
-      document.addEventListener('mouseup', stopDrag);
+      document.addEventListener('pointermove', doDrag);
+      document.addEventListener('pointerup', stopDrag);
     });
     panel.appendChild(handle);
   });
@@ -14217,7 +14323,7 @@ async function gravarStop(){
   const m=document.getElementById('gravarModal'); const h=document.getElementById('gravarHeader');
   if(!m||!h) return;
   let drag=false, ox=0, oy=0;
-  h.addEventListener('mousedown', e=>{
+  h.addEventListener('pointerdown', e=>{
     if(e.target.id==='gravarClose') return;
     drag=true;
     const r=m.getBoundingClientRect();
@@ -14226,14 +14332,14 @@ async function gravarStop(){
     ox=e.clientX-r.left; oy=e.clientY-r.top;
     e.preventDefault();
   });
-  document.addEventListener('mousemove', e=>{
+  document.addEventListener('pointermove', e=>{
     if(!drag) return;
     let nx=e.clientX-ox, ny=e.clientY-oy;
     nx=Math.max(0, Math.min(window.innerWidth-60, nx));
     ny=Math.max(0, Math.min(window.innerHeight-30, ny));
     m.style.left=nx+'px'; m.style.top=ny+'px';
   });
-  document.addEventListener('mouseup', ()=>{ drag=false; });
+  document.addEventListener('pointerup', ()=>{ drag=false; });
 })();
 </script>
 

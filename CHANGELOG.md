@@ -1,5 +1,17 @@
 # Histórico de mudanças
 
+## 1.0.61
+
+Nova Versão RXSDR v1.0.61
+
+Agora o rádio funciona com o toque dos dedos e com caneta, além do mouse.
+
+Isso vale para a versão web — Windows e TV box — usada em tablet ou em tela sensível ao toque. Dá para sintonizar tocando na cachoeira ou no espectro, arrastar a banda com o dedo, ajustar a largura do filtro arrastando as bordas, mover o divisor entre espectro e cachoeira, e arrastar as janelas dos decodificadores. Dois dedos afastando e aproximando ampliam a cachoeira, movendo o controle Zoom junto.
+
+Não há nada para ligar ou configurar: o mesmo rádio atende mouse, dedo e caneta ao mesmo tempo, e no computador nada mudou.
+
+Corrigido: ao arrastar a cachoeira, o VFO andava em hertz quebrados, mostrando por exemplo 7.135.243 Hz com o STEP em 5 kHz. Agora o VFO respeita o passo escolhido, como já acontecia ao clicar. A cachoeira continua deslizando sem degraus — quem anda de passo em passo é a frequência sintonizada.
+
 ## 1.0.60
 
 Nova Versão RXSDR v1.0.60
