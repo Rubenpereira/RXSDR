@@ -289,6 +289,45 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
 }
 .vfo-freq .vfo-digit.ghost { opacity: 0.16; }
 .vfo-side.powered .vfo-freq .vfo-digit.ghost { opacity: 0.22; }
+/* ── Setas de MHz no VFO ─────────────────────────────────────────────────────
+   Uma seta em cima (sobe) e uma embaixo (desce) de cada casa inteira: 1 GHz,
+   100 MHz, 10 MHz e 1 MHz. A area de toque e maior que o triangulo desenhado
+   e avanca um pouco sobre o numero, para o dedo acertar no tablet; o meio do
+   numero continua abrindo a janela de digitar a frequencia.
+   O espaco sai do respiro do painel (8px -> 4px), nao da altura da linha. */
+#vfoA{padding:10px 0}
+/* ── Mostrador do VFO em tela estreita (tablet de 1280) ──────────────────────
+   A caixa do VFO encolhe com a tela, mas o numero tinha tamanho fixo (42px):
+   em 1280 ele ficava 34px mais largo que a caixa e a casa do GHz saia cortada.
+   Agora a letra diminui SO o necessario para caber (uns 36px em 1280), medindo
+   a largura da propria caixa, e nunca abaixo de 30px. Em tela larga continua 42px.
+   Nessa faixa estreita as etiquetas do modo (NFM/AGC) e o RX ja ficavam
+   escondidas pelo corte; agora saem de vez, para o numero usar o espaco.
+   Navegador antigo sem "container query" ignora as duas regras e fica como
+   era antes. */
+.toprow .vfo-main .vfo-side{container-type:inline-size}
+#vfoA{font-size:clamp(30px, calc(100cqi / 6.45), 42px)}
+@container (max-width: 300px){
+  .vfo-leftlabels, #vfoRxTx{display:none}
+}
+.toprow .vfo-main .vfo-side,.toprow .vfo-main .vfo-side.powered{padding-top:4px;padding-bottom:4px}
+#vfoA .vfo-mhz{position:relative;display:inline-block}
+/* a casa fantasma (zero a esquerda) apaga so o numero, nao as setas */
+#vfoA .vfo-digit.vfo-mhz.ghost{opacity:1}
+#vfoA .vfo-mhz.ghost .vfo-num{opacity:.16}
+.vfo-side.powered #vfoA .vfo-mhz.ghost .vfo-num{opacity:.22}
+.vfo-arr{position:absolute;left:-1px;right:-1px;height:22px;cursor:pointer;
+  touch-action:none;-webkit-tap-highlight-color:transparent;z-index:1}
+.vfo-arr.up{top:-12px}
+.vfo-arr.dn{bottom:-12px}
+.vfo-arr::after{content:'';position:absolute;left:50%;transform:translateX(-50%);
+  border-left:6px solid transparent;border-right:6px solid transparent;
+  opacity:.55;transition:opacity .12s,filter .12s}
+.vfo-arr.up::after{top:3px;border-bottom:7px solid #37c0d6}
+.vfo-arr.dn::after{bottom:3px;border-top:7px solid #37c0d6}
+.vfo-mhz.ghost .vfo-arr::after{opacity:.3}
+.vfo-arr:hover::after,.vfo-mhz.ghost .vfo-arr:hover::after{opacity:1}
+.vfo-arr.ativa::after{opacity:1;filter:drop-shadow(0 0 3px #37c0d6)}
 .vfo-side.powered .vfo-freq {
   color: #140C06;
   text-shadow: 0 1px 1px rgba(255, 255, 255, 0.25);
@@ -1220,7 +1259,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       </div>
     </div>
     <div style="flex:1"></div>
-    <div class="item" style="color:var(--accent-lcd)">RXSDR v1.0.61</div>
+    <div class="item" style="color:var(--accent-lcd)">RXSDR v1.0.62</div>
   </div>
 
   <!-- =============================== TOPO =============================== -->
@@ -1501,7 +1540,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       <span class="cell" id="wfInfoAudio" style="display:none;color:#7fb0ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1"
             title="Saude do audio: folga do buffer, maior intervalo entre pacotes e quantas vezes faltou audio para tocar.">Audio: —</span>
       <span class="spacer"></span>
-      <span class="cell key">RXSDR V1.0.61</span>
+      <span class="cell key">RXSDR V1.0.62</span>
     </div>
 
     </div>
@@ -3002,6 +3041,10 @@ function clampFreq(hz){
   return Math.max(100000, Math.min(1800000000, v));
 }
 
+// Seta de MHz do VFO pressionada agora: {step, dir}, ou null. Ver "Setas de MHz no VFO".
+let _vfoSeta = null;
+let _vfoSetaSoltouEm = 0;
+
 function renderVfo(hz){
   keepWaterfallAutoPattern();
   currentFreqHz = clampFreq(hz);
@@ -3024,8 +3067,15 @@ function renderVfo(hz){
   for (let i = 0; i < intPart.length; i++) {
     const exp = (intPart.length - 1 - i) + 6;   // 1e9,1e8,1e7,1e6 Hz
     const step = Math.pow(10, exp);
-    const cls = (i < firstSig) ? 'vfo-digit ghost' : 'vfo-digit';
-    html += `<span class="${cls}" data-step="${step}">${intPart[i]}</span>`;
+    const cls = (i < firstSig) ? 'vfo-digit vfo-mhz ghost' : 'vfo-digit vfo-mhz';
+    // Setas de MHz: acende a que estiver pressionada (o elemento e refeito a cada salto)
+    const nome = step >= 1e9 ? '1 GHz' : (step / 1e6) + ' MHz';
+    const acUp = (_vfoSeta && _vfoSeta.step === step && _vfoSeta.dir > 0) ? ' ativa' : '';
+    const acDn = (_vfoSeta && _vfoSeta.step === step && _vfoSeta.dir < 0) ? ' ativa' : '';
+    html += `<span class="${cls}" data-step="${step}">`
+          + `<i class="vfo-arr up${acUp}" data-dir="1" title="+${nome}"></i>`
+          + `<span class="vfo-num">${intPart[i]}</span>`
+          + `<i class="vfo-arr dn${acDn}" data-dir="-1" title="-${nome}"></i></span>`;
   }
   html += `<span class="vfo-digit dot">.</span>`;
   for (let j = 0; j < frac.length; j++) {
@@ -4042,12 +4092,26 @@ const Backend = {
     //  A regra e simples porque o RXSDR nunca serve HTTPS por conta propria:
     //  se a pagina chegou por https, e porque ha um proxy na frente.
     // ---------------------------------------------------------------------
+    //  CORRIGIDO: o que decide nao e o protocolo, e a PORTA.
+    //
+    //  A regra antiga usava https como sinal de "ha um proxy na frente". Mas
+    //  o proxy pode servir em HTTP puro - e serve: as caixas respondem na 80
+    //  com pagina, API e /ws, tudo pronto. Pelo criterio antigo, entrar por
+    //  http://IP calculava porta 80+1=81 e o WebSocket batia num lugar que
+    //  nao existe: a pagina abria e ficava morta, sem cachoeira e sem audio.
+    //  Era isso que obrigava a usar https e a engolir o aviso de certificado.
+    //
+    //  Porta 8070 e o radio em pessoa, e so nesse caso o WebSocket mora numa
+    //  porta separada. Qualquer outra porta quer dizer proxy, e ai o
+    //  WebSocket sai pelo MESMO endereco da pagina, cifrado ou nao.
     let url;
-    if (location.protocol === 'https:') {
-      url = `wss://${location.host}/ws`;          // mesma porta da pagina
-    } else {
-      const port = wsPort || (Number(location.port || 80) + 1);
+    const acessoDireto = (location.port === '8070');
+    if (acessoDireto) {
+      const port = wsPort || 8071;
       url = `ws://${location.hostname}:${port}/ws`;
+    } else {
+      const proto = (location.protocol === 'https:') ? 'wss' : 'ws';
+      url = `${proto}://${location.host}/ws`;
     }
     const ws = new WebSocket(url);
     ws.binaryType = 'arraybuffer';
@@ -7617,7 +7681,35 @@ document.getElementById('ssbAgcSlider')?.addEventListener('input', (e) => {
   Backend.gain(gainTenths).catch(() => {});
 });
 bindSlider('zoomSlider','zoomVal', v => Number(v).toFixed(1));
+// ── Zoom sempre em volta da frequencia sintonizada ──────────────────────────
+// O zoom amplia em volta do CENTRO da captura do dongle, nao em volta do VFO.
+// Com o VFO longe do centro, bastava ampliar um pouco para ele sair da tela.
+// Agora, ao mexer no Zoom (slider ou pinca no tablet), a pagina pede ao radio
+// para recentrar a captura no VFO - o mesmo que o botao >.< faz - e a
+// frequencia fica no meio da cachoeira enquanto se amplia.
+//
+// O pedido sai UMA vez por alvo: enquanto o dongle nao troca de centro, os
+// quadros da cachoeira ainda chegam com o centro antigo, e mexer no zoom
+// nesse meio tempo nao pode disparar uma rajada de retunes. Com o VFO ja no
+// centro (diferenca menor que 0,25% da largura visivel, invisivel na tela),
+// nada e pedido - o zoom so amplia, como antes.
+let _zoomCentroAlvo = null, _zoomCentroEm = 0;
+function centralizarVfoParaZoom(){
+  const vfo = currentFreqHz;
+  if (!vfo) return;
+  const sr = (typeof wfSpsHz !== 'undefined' && wfSpsHz > 0) ? wfSpsHz
+           : Number(document.getElementById('cfgSampleRate')?.value || 1024000);
+  const zoomVal = Number(document.getElementById('zoomSlider')?.value || 0);
+  const visivel = sr / (1 + zoomVal);
+  if (Math.abs(vfo - centerFreqHz) <= visivel * 0.0025) return;
+  const agora = performance.now();
+  if (_zoomCentroAlvo === vfo && agora - _zoomCentroEm < 1500) return;
+  _zoomCentroAlvo = vfo; _zoomCentroEm = agora;
+  specMarkerHz = null;
+  Backend.setCenter(vfo).catch(()=>{});
+}
 document.getElementById('zoomSlider')?.addEventListener('input', () => {
+  centralizarVfoParaZoom();
   updateMarkerPosition(currentFreqHz);
 });
 bindSlider('rangeSlider','rangeVal');
@@ -8165,6 +8257,56 @@ document.getElementById('vfoA').addEventListener('wheel', (e)=>{
     Backend.tune(currentFreqHz, activeMode()).catch(()=>{});
   }, _cabeNaJanela ? 15 : 80);
 }, { passive: false });
+// ── Setas de MHz no VFO ───────────────────────────────────────────────────────
+// Cada casa inteira do VFO (1 GHz, 100 MHz, 10 MHz, 1 MHz) anda na propria
+// escala, ignorando o STEP - as setas ao lado do olho magico continuam como
+// estao, para o ajuste fino. Toque = 1 salto. Segurar = repete depois de meio
+// segundo, e acelera depois de 8 saltos, para varrer depressa.
+//
+// O renderVfo refaz as casas a cada salto, entao o elemento que recebeu o
+// toque some no meio da repeticao: por isso o "soltar" e ouvido na janela
+// inteira, e nao na seta. Salto que sairia da faixa do radio e ignorado, em
+// vez de encostar no limite - como num radio de verdade.
+(function(){
+  const vfo = document.getElementById('vfoA');
+  if (!vfo) return;
+  let tEspera = null, tRep = null, n = 0;
+
+  function salto(){
+    if (!_vfoSeta) return;
+    const alvo = currentFreqHz + _vfoSeta.dir * _vfoSeta.step;
+    if (alvo < 100000 || alvo > 1800000000) return;
+    tuneFixo(_vfoSeta.dir * _vfoSeta.step);
+  }
+  function repetir(){
+    salto(); n++;
+    tRep = setTimeout(repetir, n < 8 ? 160 : 70);
+  }
+  function parar(){
+    if (!_vfoSeta) return;
+    clearTimeout(tEspera); clearTimeout(tRep); tEspera = tRep = null;
+    _vfoSeta = null;
+    _vfoSetaSoltouEm = Date.now();
+    renderVfo(currentFreqHz);          // apaga o destaque da seta
+  }
+
+  vfo.addEventListener('pointerdown', (e)=>{
+    const seta = e.target.closest('.vfo-arr');
+    if (!seta) return;
+    const casa = seta.closest('.vfo-digit');
+    e.preventDefault(); e.stopPropagation();
+    if (_vfoSeta || !casa) return;     // segundo dedo enquanto um ja segura: ignora
+    _vfoSeta = { step: Number(casa.dataset.step), dir: Number(seta.dataset.dir) };
+    n = 0;
+    salto();
+    tEspera = setTimeout(repetir, 450);
+  });
+  window.addEventListener('pointerup', parar);
+  window.addEventListener('pointercancel', parar);
+  window.addEventListener('blur', parar);
+  document.addEventListener('visibilitychange', parar);
+})();
+
 // ── Edição de frequência VFO — modal não-bloqueante (áudio continua) ─────────
 (function(){
   const modal  = document.getElementById('vfoEditModal');
@@ -8194,7 +8336,13 @@ document.getElementById('vfoA').addEventListener('wheel', (e)=>{
     await tuneTo(hz);
   }
 
-  document.getElementById('vfoA').addEventListener('click', openVfoEdit);
+  document.getElementById('vfoA').addEventListener('click', (e)=>{
+    // O toque numa seta de MHz termina num clique; ele nao deve abrir a
+    // janela de digitar a frequencia.
+    if (e.target.closest && e.target.closest('.vfo-arr')) return;
+    if (Date.now() - _vfoSetaSoltouEm < 400) return;
+    openVfoEdit();
+  });
   btnOk.addEventListener('click', confirmVfoEdit);
   btnCan.addEventListener('click', closeVfoEdit);
   inp.addEventListener('keydown', (e)=>{

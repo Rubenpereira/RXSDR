@@ -27,9 +27,9 @@ O RXSDR está estruturado e otimizado para as seguintes plataformas:
   - Versão customizada sem as dependências pesadas do Qt6 para máquinas antigas.
   - Executável com CRT estático: não exige vcruntime instalado no sistema.
 
-* TV Boxes (RK3229 e Allwinner H3/H313) - Via Docker:
-  - Distribuição padronizada e unificada utilizando containers Docker.
-  - Resolve conflitos de bibliotecas entre kernels antigos e o runtime moderno.
+* TV Boxes Amlogic (aarch64) - binário nativo:
+  - Compilado direto para ARM 64 bits e gerenciado pelo systemd.
+  - O nginx na frente cuida do endereço, da senha e do HTTPS.
 
 -------------------------------------------------------------------------------
 3. MODOS DE RECEPÇÃO
@@ -43,9 +43,8 @@ AM, FM, NFM, WFM, USB, LSB e CW.
 * Versão Windows (7/8/10/11):
   - DMR, P25, NXDN, D-Star, TETRA, ACARS, APRS e AIS.
 
-* Versão TV Box (Docker - RK3229 e Allwinner H3/H313):
-  Arquitetura otimizada para processadores ARMv7 com os decodificadores
-  principais:
+* Versão TV Box (Amlogic aarch64, nativo):
+  Com os decodificadores principais:
   - DMR, TETRA (incluído nativamente), ACARS e APRS.
 
 -------------------------------------------------------------------------------

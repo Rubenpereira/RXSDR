@@ -1,5 +1,19 @@
 # Histórico de mudanças
 
+## 1.0.62
+
+Nova Versão RXSDR v1.0.62
+
+Incluídas setas no mostrador do VFO, em cima e embaixo de cada casa de MHz para cima — 1 MHz, 10 MHz, 100 MHz e 1 GHz.
+
+A seta de cima sobe e a de baixo desce a frequência na escala daquela casa, sem depender do STEP: a seta sobre o 1 sobe 1 MHz, a sobre o 2 de 20 MHz sobe 10 MHz, e assim por diante. Um toque dá um salto; segurando, a frequência continua andando e acelera depois de alguns saltos, para varrer a faixa depressa. Funciona com mouse, dedo e caneta.
+
+As setas abaixo do olho mágico continuam como estavam sem alteração.
+
+Corrigido: em telas de 1280 de largura, como a de muitos tablets, o número do VFO era mais largo que o mostrador e a primeira casa saía cortada. Agora o número diminui só o necessário para caber inteiro; em telas maiores nada mudou.
+
+O Zoom agora amplia em volta da frequência sintonizada. Antes ele ampliava em volta do centro da cachoeira, e uma frequência longe do centro saía da tela logo no começo do zoom. Agora, ao mexer no Zoom — pelo controle ou com dois dedos no tablet —, o rádio recentra a cachoeira na frequência sintonizada, como faz o botão >.<, e ela fica no meio da tela enquanto se amplia.
+
 ## 1.0.61
 
 Nova Versão RXSDR v1.0.61
