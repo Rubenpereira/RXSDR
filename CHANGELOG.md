@@ -1,5 +1,23 @@
 # Histórico de mudanças
 
+## 1.0.63
+
+Nova Versão RXSDR v1.0.63
+
+Incluído o NR ESPECTRAL, um redutor de ruído novo, ligado por um botão próprio ao lado do IF DISPLAY.
+
+Ele trabalha frequência por frequência: divide o áudio em faixas estreitas e tira o chiado de cada uma separadamente, inclusive entre as notas da voz enquanto a pessoa fala.
+
+A setinha colada ao botão abre o ajuste de FORÇA, de 0 (suave) a 100 (forte), como o Depth do SDR#. Estação fraca, enterrada no chiado, pede força baixa — força alta demais deixa a voz abafada e picotada. Chiado forte com sinal bom aguenta força alta. O padrão é 40, e o volume é compensado conforme a força, para a voz não ficar baixa. Mexer na força não faz o filtro reaprender o chiado. É a mesma família de técnica do novo redutor do SDR#, feita com métodos públicos. Rende melhor em SSB, AM e CW. Ao ligar, ele leva cerca de um segundo aprendendo o chiado da frequência.
+
+O filtro roda no aparelho de quem está ouvindo — computador, tablet ou celular — e não no tv box ou Raspberry, então não pesa. O Slider "Redutor de Ruído" continua como estava; os dois são independentes. O rádio lembra se o NR ESPECTRAL ficou ligado.
+
+Em telas de 1280 de largura, os controles Range, Brilho e Speed ficaram um pouco mais curtos para o botão novo caber na mesma linha.
+
+Corrigidos os estalos rápidos que apareciam durante a fala quando o rádio era aberto pelo endereço da caixa (http://IP:8080). Nesse tipo de endereço o navegador não libera o tocador de áudio que tem folga contra atrasos, e o áudio caía num caminho antigo, montado pacote por pacote com só 20 ms de folga: qualquer atraso da rede abria um buraquinho, ouvido como um tic no meio da voz, em rajadas a cada 20 ms. Agora esse caso usa o mesmo tocador do caminho normal. Em teste com atrasos de rede simulados, os estalos no meio do áudio caíram de 21 para nenhum. Não tinha relação com o NR ESPECTRAL: os estalos existiam com ele desligado, mas o chiado os escondia.
+
+Volume mais alto e sem distorção. O máximo do controle Volume subiu cerca de 4 dB, e a saída ganhou um limitador que segura só os picos. Antes, no volume máximo, os picos da voz chegavam a mais que o dobro do permitido e eram cortados secos pela placa de som — alto, mas áspero. Agora, com o slider em 50%, o som sai cerca de 7 dB mais alto que antes, e no máximo fica acima do máximo antigo sem nenhum pico estourado. Quem usava o volume alto vai querer baixar um pouco o slider.
+
 ## 1.0.62
 
 Nova Versão RXSDR v1.0.62

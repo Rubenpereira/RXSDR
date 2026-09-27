@@ -536,6 +536,23 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
 .mute-btn.on{animation:mute-blink 0.6s ease-in-out infinite;font-weight:700}
 .slider-block{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text-dim)}
 .slider-block input{width:100px;accent-color:var(--accent-rx)}
+/* Tela estreita (tablet de 1280): Range, Brilho e Speed cedem 32px cada para
+   caber o botao NR ESPECTRAL na mesma linha, sem empurrar os botoes de modo
+   (LSB/USB/...) para uma segunda linha. */
+@media (max-width: 1400px){ .wf-param input[type=range]{width:68px} }
+/* NR ESPECTRAL: setinha colada ao botao + painel da forca */
+#btnNrEsp{border-top-right-radius:0;border-bottom-right-radius:0}
+.zoom-btn.nresp-aj{padding:2px 5px;margin-left:-4px;border-top-left-radius:0;border-bottom-left-radius:0;animation:none}
+.nresp-painel{display:none;position:fixed;z-index:9500;width:210px;padding:8px 10px;
+  background:#0a1420;border:1px solid #20aadd;border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,.6);
+  font-size:11px;color:#cfe3ff}
+.nresp-painel.on{display:block}
+.nresp-tit{font-weight:bold;color:#20aadd;margin-bottom:6px;letter-spacing:.5px}
+.nresp-lin,.nresp-ext{display:flex;justify-content:space-between}
+.nresp-lin span:last-child{color:#ff9a1f;font-weight:bold}
+#nrEspForca{width:100%;margin:6px 0 2px;accent-color:#ff9a1f;touch-action:none}
+.nresp-ext{font-size:9px;color:#7f93ad}
+.nresp-dica{margin-top:6px;font-size:9px;color:#7f93ad;line-height:1.35}
 .slider-val{color:var(--accent-lcd);min-width:30px;font-family:'Consolas',monospace}
 .wf-param{
   border:1px solid #0b6a2d;border-radius:6px;padding:2px 6px;background:rgba(0,40,12,0.28);
@@ -579,7 +596,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
   border-bottom:1px solid var(--border)}
 .zoom-wf-wrap{position:relative;flex:1;overflow:hidden}
 #zoomSpecCanvas,#zoomWfCanvas{display:block;width:100%;height:100%}
-.zoom-btn{padding:2px 10px;font-size:11px;font-weight:bold;cursor:pointer;
+.zoom-btn{padding:2px 10px;font-size:11px;font-weight:bold;cursor:pointer;white-space:nowrap;flex-shrink:0;
   border-radius:4px;background:#07121a;border:1px solid #20aadd;color:#20aadd}
 /* Ligado: pisca em laranja, no mesmo ritmo de 0,9 s do AGC. A ideia e a
    mesma daquele - o que esta ativo e mexendo no que voce ve tem de se
@@ -1259,7 +1276,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       </div>
     </div>
     <div style="flex:1"></div>
-    <div class="item" style="color:var(--accent-lcd)">RXSDR v1.0.62</div>
+    <div class="item" style="color:var(--accent-lcd)">RXSDR v1.0.63</div>
   </div>
 
   <!-- =============================== TOPO =============================== -->
@@ -1471,6 +1488,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       <button class="dmr-btn" id="openDMR" onclick="openDecoderPanel('dsd')" title="Abrir painel DMR/P25/NXDN (DSD+)">DMR</button>
       <button class="tetra-btn" id="openTETRA" onclick="openDecoderPanel('tetra')" title="Abrir painel TETRA (π/4-DQPSK 36 kbps)">TETRA</button>
       <button class="zoom-btn" id="openZoomPane" onclick="ZoomPane.alternar()" title="IF Display: 20 kHz em torno da sintonia, a esquerda da cachoeira">IF DISPLAY</button>
+      <button class="zoom-btn" id="btnNrEsp" onclick="NrEspectral.alternar()" title="NR Espectral: tira o chiado frequencia por frequencia, inclusive durante a fala. Melhor em SSB, AM e CW. Roda no seu aparelho, nao na caixa. Independente do slider Redutor de Ruido.">NR ESPECTRAL</button><button class="zoom-btn nresp-aj" id="btnNrEspAj" onclick="NrEspectral.abrirAjuste(event)" title="Ajustar a forca do NR Espectral">&#9662;</button>
 
     </div>
     <div class="ctrl-group">
@@ -1540,7 +1558,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       <span class="cell" id="wfInfoAudio" style="display:none;color:#7fb0ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1"
             title="Saude do audio: folga do buffer, maior intervalo entre pacotes e quantas vezes faltou audio para tocar.">Audio: —</span>
       <span class="spacer"></span>
-      <span class="cell key">RXSDR V1.0.62</span>
+      <span class="cell key">RXSDR V1.0.63</span>
     </div>
 
     </div>
@@ -1784,6 +1802,14 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
   </div>
 </div>
 
+<!-- ── Painel da forca do NR ESPECTRAL (abre pela setinha ao lado do botao) ── -->
+<div id="nrEspPainel" class="nresp-painel">
+  <div class="nresp-tit">NR ESPECTRAL &mdash; for&ccedil;a</div>
+  <div class="nresp-lin"><span>For&ccedil;a</span><span id="nrEspForcaVal">40</span></div>
+  <input type="range" min="0" max="100" step="1" value="40" id="nrEspForca">
+  <div class="nresp-ext"><span>suave</span><span>forte</span></div>
+  <div class="nresp-dica">Esta&ccedil;&atilde;o fraca: deixe mais suave. Chiado forte com sinal bom: suba.</div>
+</div>
 <!-- ── Modal edição de frequência VFO ── -->
 <div id="vfoEditModal">
   <div id="vfoEditBox">
@@ -3337,6 +3363,7 @@ var AudioOut = {
     txt += ' | folga ' + (this._alvoMs || 180);
     if (this.buracosAudio) txt += ' | faltas ' + this.buracosAudio;
     if (!this.worklet) txt += ' | SEM WORKLET';
+    else if (this.modoTocador === 'script') txt += ' | TOCADOR: SCRIPT (http)';
 
     const t = Object.keys(d.trocas).map(k => k + ':' + d.trocas[k]).join(' ');
     if (t) txt += ' | mute ' + t;
@@ -3379,7 +3406,13 @@ var AudioOut = {
     // Curva de volume: expoente 1.5 em vez de 2.0. Com 2.0 a metade de baixo
     // do slider ficava praticamente inaudivel (1% dava -72 dB). O maximo
     // continua 2.5 (o mesmo headroom de antes).
-    return Math.pow(val / 100, 1.5) * 2.5;
+    // 26/09: maximo 2.5 -> 8.0. O autor tem dificuldade de audicao e gosta do
+    // radio forte; com o volume do PC no talo, achou baixo. Um limitador
+    // (1a tentativa) deixava 60-100% todos iguais. Agora a saida passa por uma
+    // SATURACAO SUAVE (ver init): ate a metade o som e limpo, e dai para cima
+    // cada ponto continua aumentando o volume, ate o maximo que a placa aguenta,
+    // arredondando os picos em vez de corta-los secos.
+    return Math.pow(val / 100, 1.5) * 8.0;
   },
   setVolume(v){
     if (!this.gain) return;
@@ -3426,7 +3459,34 @@ var AudioOut = {
     // trata como "tocando musica" e mantem o audio em segundo plano. Funciona
     // igual no PC. (Nao conectar tambem em ctx.destination para nao duplicar o som.)
     this._mediaDest = this.ctx.createMediaStreamDestination();
-    this.gain.connect(this._mediaDest);
+    // SATURACAO SUAVE depois do volume: linear ate 0,6 (sinal baixo passa
+    // intacto) e dai encosta devagar em 0,98 (tanh), sem nunca passar. E o
+    // que faz um amplificador valvulado empurrado: o som fica mais forte e
+    // "cheio" em vez de estalar. Substitui o corte seco da placa de som, que era
+    // o que acontecia antes no volume alto (picos de 2,24 cortados em 1,0).
+    // A curva cobre -8..+8 ('escalaSaida' divide por 8 antes).
+    // Medido com voz real (RMS no ouvido): volume 50% -17,4 -> -8,5 dB;
+    // 100% -9,1 (antes, com corte seco) -> -4,1 dB, pico sempre 0,98, e o
+    // volume sobe continuamente ate o fim do slider.
+    try {
+      this.escalaSaida = this.ctx.createGain();
+      this.escalaSaida.gain.value = 1 / 8;
+      this.arredonda = this.ctx.createWaveShaper();
+      const NC = 8192, curva = new Float32Array(NC);
+      for (let i = 0; i < NC; i++) {
+        const u = (i / (NC - 1) * 2 - 1) * 8, a = Math.abs(u);
+        const y = a < 0.6 ? a : 0.6 + 0.38 * Math.tanh((a - 0.6) / 0.38);
+        curva[i] = u < 0 ? -y : y;
+      }
+      this.arredonda.curve = curva;
+      this.arredonda.oversample = '4x';
+      this.gain.connect(this.escalaSaida);
+      this.escalaSaida.connect(this.arredonda);
+      this.arredonda.connect(this._mediaDest);
+    } catch (e) {
+      this.arredonda = null;
+      this.gain.connect(this._mediaDest);
+    }
     let bgEl = document.getElementById('rxsdr-bg-audio');
     if (!bgEl) {
         bgEl = document.createElement('audio');
@@ -3471,7 +3531,16 @@ var AudioOut = {
     //  ser absorvida pelo buffer em vez de virar silencio. E a mesma arquitetura
     //  de um programa nativo.
     // ---------------------------------------------------------------------
-    if (!this.worklet && this.ctx.audioWorklet) {
+    // SEM WORKLET (pagina aberta em http://IP:8080): o navegador so libera o
+    // AudioWorklet em conexao segura (https ou o proprio computador). Desde a
+    // porta 8080 em http simples, quem abria pelo IP caia no caminho de
+    // RESERVA, que agenda cada pacote de 20 ms com so 20 ms de folga: qualquer
+    // atraso de chegada abria um buraquinho, e um buraco no meio de voz forte
+    // e um "tic" - medido em 26/09 no video do autor: rajadas de estalos a
+    // cada 20,00 ms exatos, so durante a fala, com e sem NR ESPECTRAL.
+    // Agora, sem worklet, o MESMO tocador (mesma classe, mesma folga que
+    // aprende) roda dentro de um ScriptProcessor, que funciona em http.
+    if (!this.worklet && (this.ctx.audioWorklet || this.ctx.createScriptProcessor)) {
       // Enquanto o addModule nao termina, this.worklet e null - e sem esta
       // marca cada pacote que chegasse nesse intervalo cairia no caminho de
       // RESERVA, que e o agendamento antigo, o dos picotes. Era uma janela
@@ -3601,6 +3670,10 @@ class RxsdrPlayer extends AudioWorkletProcessor {
 registerProcessor('rxsdr-player', RxsdrPlayer);
 `;
       try {
+        if (!this.ctx.audioWorklet) {
+          this.worklet = this._tocadorSemWorklet(codigo, 0.60);
+          this.modoTocador = 'script';
+        } else {
         const url = URL.createObjectURL(new Blob([codigo], { type: 'application/javascript' }));
         await this.ctx.audioWorklet.addModule(url);
         URL.revokeObjectURL(url);
@@ -3615,6 +3688,8 @@ registerProcessor('rxsdr-player', RxsdrPlayer);
           // falhando. Comeca larga e desce depois, quando a medicao permitir.
           processorOptions: { latencia: 0.60 }
         });
+        this.modoTocador = 'worklet';
+        }
         this.worklet.port.onmessage = (ev) => {
           const d = ev.data; if (!d) return;
           if (d.buraco) {
@@ -3657,6 +3732,30 @@ registerProcessor('rxsdr-player', RxsdrPlayer);
     // Aplica a tonalidade atual
     const toneVal = Number(document.getElementById('toneSlider')?.value ?? 50);
     this.applyTone(toneVal);
+  },
+  // Roda a classe RxsdrPlayer (o codigo do worklet, sem mudar uma linha) na
+  // thread principal, dentro de um ScriptProcessor. Os objetos 'port' imitam
+  // os do worklet, entao o resto do AudioOut conversa com ele do mesmo jeito.
+  // Bloco de 4096 (~93 ms): folga para a thread principal desenhar a cachoeira
+  // sem deixar o ScriptProcessor sem amostras.
+  _tocadorSemWorklet(codigo, latencia){
+    let Classe = null;
+    const portaNo = { onmessage: null, postMessage: null };
+    class Base {
+      constructor(){
+        this.port = { onmessage: null,
+                      postMessage: (m) => { if (portaNo.onmessage) portaNo.onmessage({ data: m }); } };
+      }
+    }
+    new Function('AudioWorkletProcessor', 'sampleRate', 'registerProcessor', codigo)
+      (Base, this.ctx.sampleRate, (nome, C) => { Classe = C; });
+    const proc = new Classe({ processorOptions: { latencia: latencia } });
+    const no = this.ctx.createScriptProcessor(4096, 1, 1);
+    no.onaudioprocess = (ev) => { proc.process(null, [[ev.outputBuffer.getChannelData(0)]]); };
+    portaNo.postMessage = (m) => { if (proc.port.onmessage) proc.port.onmessage({ data: m }); };
+    no.port = portaNo;
+    this._procSemWorklet = proc;           // referencia viva (o GC nao leva)
+    return no;
   },
   // Interpolacao de Hermite com estado entre chamadas. Existe so para o caso
   // de a placa de som nao estar em 48000 - no caso comum nem e chamado.
@@ -3899,6 +3998,10 @@ registerProcessor('rxsdr-player', RxsdrPlayer);
             this._nbEnv = this._nbEnv * 0.999 + absVal * 0.001; 
           }
         }
+      }
+      // ── NR ESPECTRAL (botao proprio; independente do slider abaixo) ─────
+      if (typeof NrEspectral !== 'undefined' && NrEspectral.ligado) {
+        f32 = NrEspectral.processar(f32, rate);
       }
       // ── Redutor de Ruído ────────────────────────────────────────────────
       const nrLevel = Number(document.getElementById('audioNrSlider')?.value ?? 0) / 100;
@@ -4203,6 +4306,294 @@ const Backend = {
   }
 };
 
+
+/* =========================================================================
+   NR ESPECTRAL - redutor de ruido frequencia por frequencia
+   -------------------------------------------------------------------------
+   Separado do slider "Redutor de Ruido" (que continua igual) e ligado pelo
+   botao NR ESPECTRAL. Roda aqui no navegador, no aparelho de quem ouve: a
+   caixa so manda o audio, nao faz conta nenhuma a mais.
+
+   O slider antigo decide UM ganho para o audio inteiro a cada 1,3 ms, entao
+   quando alguem fala o chiado passa junto. Este quebra o audio em faixas de
+   ~23 Hz (FFT de ~43 ms) e decide um ganho para CADA faixa: entre os
+   harmonicos da voz o chiado some mesmo durante a fala, e nas pausas o audio
+   desce ~45 dB. Mesma familia de tecnica do NINR do SDR# (analisado em
+   pesquisa_nr\), feita com metodos publicos:
+     - piso de ruido por estatistica minima (Martin), ~1 s de memoria
+     - ganho log-MMSE (Ephraim-Malah 1985) com decisao dirigida
+     - probabilidade de presenca de voz por faixa (estilo OM-LSA, Cohen)
+     - fase original preservada; so a amplitude de cada faixa muda
+   Atraso: ~43 ms. Custo: ~94 FFTs de 2048 pontos por segundo a 48 kHz.
+
+   FORCA (0-100, setinha ao lado do botao, como o "Depth" do SDR#): um so
+   controle move juntos a profundidade (10-45 dB), a margem do piso de ruido
+   e o quanto a faixa precisa sobressair para contar como voz. Medido com voz
+   limpa + chiado real de 80 m na mesma altura (0 dB): na forca 0 a
+   inteligibilidade (STOI) fica 0,62->0,61 e o chiado cai 6 dB; na 100 fica
+   0,62->0,52 e cai 15 dB. A versao inicial (1.0.63 em teste) equivalia a 100
+   fixo e, em estacao fraca, deixava a voz abafada e picotada.
+
+   Prototipo e medidas: pesquisa_nr\prototipo_nr_espectral.py
+   ========================================================================= */
+const NrEspectral = (() => {
+  // Ajustes: saem da FORCA (ver mapaForca). config({...}) serve para teste.
+  const FORCA_PADRAO = 40;
+  const cfg = { profundidade: 45, comp: 1.41, vies: 4.0, sppInf: -5, sppSup: 10, usarSpp: true };
+  let forca = FORCA_PADRAO;
+  function mapaForca(v) {
+    const t = Math.max(0, Math.min(100, v)) / 100;
+    return {
+      profundidade: 10 + 35 * t,              // dB que o chiado desce nas pausas
+      vies: 1.5 + 2.5 * t,                    // margem sobre o minimo do piso
+      sppInf: -15 + 10 * t, sppSup: 0 + 10 * t, // quando a faixa conta como voz
+      usarSpp: true,
+      comp: Math.pow(10, (1 + 5 * t) / 20)    // +1 a +6 dB: devolve o volume
+    };
+  }
+  Object.assign(cfg, mapaForca(forca));
+  const JANELA_PISO_S   = 1.0;     // memoria do piso de ruido
+  const U = 8;                     // sub-janelas da estatistica minima
+
+  let ligado = false;
+  let st = null;
+
+  // ---- FFT complexa radix-2, in-place -----------------------------------
+  function prepararFft(N) {
+    const bits = Math.log2(N) | 0;
+    const rev = new Uint32Array(N);
+    for (let i = 0; i < N; i++) {
+      let r = 0;
+      for (let b = 0; b < bits; b++) r |= ((i >> b) & 1) << (bits - 1 - b);
+      rev[i] = r;
+    }
+    const cs = new Float64Array(N / 2), sn = new Float64Array(N / 2);
+    for (let i = 0; i < N / 2; i++) { cs[i] = Math.cos(2 * Math.PI * i / N); sn[i] = -Math.sin(2 * Math.PI * i / N); }
+    return { rev, cs, sn };
+  }
+  function fft(re, im, T, inversa) {
+    const N = re.length, rev = T.rev;
+    for (let i = 0; i < N; i++) {
+      const j = rev[i];
+      if (j > i) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; }
+    }
+    const sg = inversa ? -1 : 1;
+    for (let tam = 2; tam <= N; tam <<= 1) {
+      const meio = tam >> 1, passo = N / tam;
+      for (let i = 0; i < N; i += tam) {
+        for (let j = 0, k = 0; j < meio; j++, k += passo) {
+          const wr = T.cs[k], wi = sg * T.sn[k];
+          const a = i + j, b = a + meio;
+          const xr = re[b] * wr - im[b] * wi, xi = re[b] * wi + im[b] * wr;
+          re[b] = re[a] - xr; im[b] = im[a] - xi;
+          re[a] += xr;        im[a] += xi;
+        }
+      }
+    }
+    if (inversa) for (let i = 0; i < N; i++) { re[i] /= N; im[i] /= N; }
+  }
+
+  // ---- E1(x), integral exponencial (Abramowitz-Stegun 5.1.53 e 5.1.56) ---
+  function e1(x) {
+    if (x <= 1) {
+      return -Math.log(x) - 0.57721566 + x * (0.99999193 + x * (-0.24991055
+             + x * (0.05519968 + x * (-0.00976004 + x * 0.00107857))));
+    }
+    return Math.exp(-x) / x * (x * x + 2.334733 * x + 0.250621) / (x * x + 3.330657 * x + 1.681534);
+  }
+
+  // ---- fila circular de saida -------------------------------------------
+  function criarFila(cap) { return { b: new Float32Array(cap), ini: 0, n: 0 }; }
+  function filaPoe(f, x, n) {
+    for (let i = 0; i < n; i++) {
+      if (f.n === f.b.length) { f.ini = (f.ini + 1) % f.b.length; f.n--; }
+      f.b[(f.ini + f.n) % f.b.length] = x[i]; f.n++;
+    }
+  }
+  function filaTira(f) { const v = f.b[f.ini]; f.ini = (f.ini + 1) % f.b.length; f.n--; return v; }
+
+  function criarEstado(rate) {
+    let N = 256; while (N < rate * 0.043) N <<= 1;
+    const H = N >> 2, K = (N >> 1) + 1;
+    const win = new Float64Array(N);
+    for (let i = 0; i < N; i++) win[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / N);
+    const V = Math.max(2, Math.round(JANELA_PISO_S * rate / H / U));
+    const kLo = Math.max(1, Math.floor(150 * N / rate)), kHi = Math.min(K - 1, Math.ceil(4000 * N / rate));
+    const mins = []; for (let u = 0; u < U; u++) mins.push(new Float64Array(K).fill(Infinity));
+    return {
+      rate, N, H, K, win, V, kLo, kHi, T: prepararFft(N),
+      anel: new Float64Array(N), pos: 0, novos: 0,
+      acc: new Float64Array(N),
+      saida: criarFila(Math.max(N * 4, rate * 2)),
+      re: new Float64Array(N), im: new Float64Array(N),
+      P: new Float64Array(K), Ps: null, sub: new Float64Array(K).fill(Infinity), cont: 0,
+      mins, uAt: 0, Nr: new Float64Array(K), tmp: new Float64Array(K),
+      Gp: new Float64Array(K).fill(1), gp: new Float64Array(K).fill(1), pprev: new Float64Array(K),
+      xi: new Float64Array(K), gam: new Float64Array(K), v: new Float64Array(K),
+      glsa: new Float64Array(K), g: new Float64Array(K),
+      Gmin: Math.pow(10, -cfg.profundidade / 20)
+    };
+  }
+
+  function mediaMovel(src, dst, K, largura) {
+    const r = largura >> 1;
+    for (let k = 0; k < K; k++) {
+      let s = 0, n = 0;
+      for (let j = k - r; j <= k + r; j++) if (j >= 0 && j < K) { s += src[j]; n++; }
+      dst[k] = s / n;
+    }
+  }
+
+  function quadro(s) {
+    const { N, K, win, re, im, P } = s;
+    // monta o quadro com as N amostras mais recentes, da mais antiga para a mais nova
+    for (let i = 0; i < N; i++) { re[i] = s.anel[(s.pos + i) % N] * win[i]; im[i] = 0; }
+    fft(re, im, s.T, false);
+    for (let k = 0; k < K; k++) P[k] = re[k] * re[k] + im[k] * im[k];
+
+    // 1) piso de ruido: minimo da PSD suavizada, em U sub-janelas de V quadros
+    if (!s.Ps) s.Ps = Float64Array.from(P);
+    else for (let k = 0; k < K; k++) s.Ps[k] = 0.8 * s.Ps[k] + 0.2 * P[k];
+    for (let k = 0; k < K; k++) if (s.Ps[k] < s.sub[k]) s.sub[k] = s.Ps[k];
+    if (++s.cont >= s.V) {
+      s.mins[s.uAt].set(s.sub); s.uAt = (s.uAt + 1) % U;
+      s.sub.fill(Infinity); s.cont = 0;
+    }
+    for (let k = 0; k < K; k++) {
+      let m = s.sub[k];
+      for (let u = 0; u < U; u++) if (s.mins[u][k] < m) m = s.mins[u][k];
+      s.tmp[k] = m * cfg.vies;
+    }
+    mediaMovel(s.tmp, s.Nr, K, 5);
+
+    // 2) ganho log-MMSE com decisao dirigida
+    const { xi, gam, v, glsa, g, Gp, gp, pprev, Gmin } = s;
+    let somaXi = 0;
+    for (let k = 0; k < K; k++) {
+      const nk = s.Nr[k] > 1e-20 ? s.Nr[k] : 1e-20;
+      let ga = P[k] / nk; if (ga > 1e4) ga = 1e4;
+      let x = 0.98 * Gp[k] * Gp[k] * gp[k] + 0.02 * (ga > 1 ? ga - 1 : 0);
+      if (x < 1e-3) x = 1e-3;
+      const vv = x * ga / (1 + x);
+      let gl = x / (1 + x) * Math.exp(0.5 * e1(vv > 1e-8 ? vv : 1e-8));
+      if (gl > 1) gl = 1;
+      xi[k] = x; gam[k] = ga; v[k] = vv; glsa[k] = gl;
+      if (k >= s.kLo && k <= s.kHi) somaXi += x;
+    }
+    // 3) presenca de voz: na faixa (media de 9 faixas) e no quadro inteiro
+    mediaMovel(xi, s.tmp, K, 9);
+    let fv = (10 * Math.log10(somaXi / (s.kHi - s.kLo + 1) + 1e-12) + 2) / 8;
+    fv = fv < 0 ? 0 : fv > 1 ? 1 : fv;
+    for (let k = 0; k < K; k++) {
+      let pl = (10 * Math.log10(s.tmp[k] + 1e-12) - cfg.sppInf) / (cfg.sppSup - cfg.sppInf);
+      pl = pl < 0 ? 0 : pl > 1 ? 1 : pl;
+      const q = 1 - pl * fv;
+      let p = cfg.usarSpp ? 1 / (1 + q / (1 - q + 1e-6) * (1 + xi[k]) * Math.exp(-v[k])) : 1;
+      if (!(p >= 0)) p = 0; if (p > 1) p = 1;
+      if (p < 0.6 * pprev[k]) p = 0.6 * pprev[k];      // a voz nao some de um quadro para o outro
+      pprev[k] = p;
+      g[k] = Math.pow(glsa[k], p) * Math.pow(Gmin, 1 - p);
+    }
+    mediaMovel(g, s.tmp, K, 3);
+    for (let k = 0; k < K; k++) {
+      const gk = s.tmp[k] > Gmin ? s.tmp[k] : Gmin;
+      re[k] *= gk; im[k] *= gk;
+      if (k > 0 && k < N / 2) { re[N - k] *= gk; im[N - k] *= gk; }
+      Gp[k] = glsa[k]; gp[k] = gam[k];
+    }
+
+    // 4) volta ao tempo (fase original) e soma com os quadros vizinhos
+    fft(re, im, s.T, true);
+    const esc = 1 / 1.5;                                 // soma de hann^2 com passo N/4
+    for (let i = 0; i < N; i++) s.acc[i] += re[i] * win[i] * esc;
+    filaPoe(s.saida, s.acc, s.H);
+    s.acc.copyWithin(0, s.H); s.acc.fill(0, N - s.H);
+  }
+
+  function processar(f32, rate) {
+    if (!ligado || !f32 || !f32.length) return f32;
+    if (!st || st.rate !== rate) st = criarEstado(rate);
+    const s = st, L = f32.length, out = new Float32Array(L);
+    for (let i = 0; i < L; i++) {
+      s.anel[s.pos] = f32[i]; s.pos = (s.pos + 1) % s.N;   // janela deslizante em anel
+      if (++s.novos >= s.H) { s.novos = 0; quadro(s); }
+    }
+    // O que ja saiu do filtro vai para a saida; no comeco (fila ainda vazia)
+    // completa com silencio - so acontece nos primeiros ~43 ms.
+    const falta = L - Math.min(L, s.saida.n);
+    for (let i = falta; i < L; i++) {
+      let y = filaTira(s.saida) * cfg.comp;
+      out[i] = y > 1 ? 1 : y < -1 ? -1 : y;
+    }
+    return out;
+  }
+
+  function atualizarBotao() {
+    if (typeof document === 'undefined') return;
+    const b = document.getElementById('btnNrEsp');
+    if (b) b.classList.toggle('on', ligado);
+  }
+  function alternar(forcar) {
+    ligado = (typeof forcar === 'boolean') ? forcar : !ligado;
+    st = null;                                           // recomeca aprendendo o chiado
+    try { localStorage.setItem('rxsdr_nresp_on', ligado ? '1' : '0'); } catch (e) {}
+    atualizarBotao();
+  }
+  function iniciar() {
+    let on = false;
+    try { on = localStorage.getItem('rxsdr_nresp_on') === '1'; } catch (e) {}
+    ligado = on; atualizarBotao();
+    let f = FORCA_PADRAO;
+    try { const g = localStorage.getItem('rxsdr_nresp_forca'); if (g !== null && g !== '') f = Number(g); } catch (e) {}
+    setForca(f, false);
+    const r = document.getElementById('nrEspForca');
+    if (r) r.addEventListener('input', () => setForca(r.value));
+    // fecha o painel ao tocar fora dele ou com Esc
+    document.addEventListener('pointerdown', (e) => {
+      const p = document.getElementById('nrEspPainel');
+      if (p && p.classList.contains('on') && !p.contains(e.target) && e.target.id !== 'btnNrEspAj') fecharAjuste();
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') fecharAjuste(); });
+  }
+  if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar);
+    else iniciar();
+  }
+  function config(o) { Object.assign(cfg, o || {}); st = null; return Object.assign({}, cfg); }
+
+  // Mexer na forca NAO reinicia o filtro (nao perde o chiado ja aprendido):
+  // os ajustes sao lidos a cada quadro; so a profundidade e guardada no estado.
+  function setForca(v, salvar) {
+    forca = Math.round(Math.max(0, Math.min(100, Number(v) || 0)));
+    Object.assign(cfg, mapaForca(forca));
+    if (st) st.Gmin = Math.pow(10, -cfg.profundidade / 20);
+    if (typeof document !== 'undefined') {
+      const r = document.getElementById('nrEspForca'), t = document.getElementById('nrEspForcaVal');
+      if (r && Number(r.value) !== forca) r.value = forca;
+      if (t) t.textContent = forca + '  (' + Math.round(cfg.profundidade) + ' dB)';
+    }
+    if (salvar !== false) { try { localStorage.setItem('rxsdr_nresp_forca', String(forca)); } catch (e) {} }
+  }
+
+  // ---- painel da forca (abre pela setinha ao lado do botao) --------------
+  function fecharAjuste() {
+    const p = typeof document !== 'undefined' && document.getElementById('nrEspPainel');
+    if (p) p.classList.remove('on');
+  }
+  function abrirAjuste(ev) {
+    if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+    const p = document.getElementById('nrEspPainel'), b = document.getElementById('btnNrEspAj');
+    if (!p || !b) return;
+    if (p.classList.contains('on')) { fecharAjuste(); return; }
+    p.classList.add('on');
+    const r = b.getBoundingClientRect(), w = p.offsetWidth;
+    let x = r.right - w; if (x < 6) x = 6; if (x + w > window.innerWidth - 6) x = window.innerWidth - 6 - w;
+    p.style.left = x + 'px'; p.style.top = (r.bottom + 6) + 'px';
+  }
+
+  return { processar, alternar, config, setForca, abrirAjuste, fecharAjuste,
+           get ligado() { return ligado; }, get forca() { return forca; } };
+})();
 
 /* =========================================================
    JANELA DE ZOOM - 20 kHz em torno da sintonia
