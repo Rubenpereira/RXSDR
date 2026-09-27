@@ -50,13 +50,16 @@ private:
     std::atomic<float>   peakDb_{-120.f};
     std::atomic<int64_t> lastIqMs_{0};
     bool powerOn_     = false;
-    bool hadWsClient_ = false;
+    std::atomic<bool> hadWsClient_{false};
     double phaseAcc_  = 0.0;
 
-    // Timer "sem clientes": encerra após 5 min sem nenhum cliente WS
-    std::thread          noClientTimer_;
-    std::atomic<bool>    noClientTimerRunning_{false};
-    std::chrono::steady_clock::time_point lastClientTime_;
+    // Vigia "sem clientes": encerra o RXSDR 10 s depois que a ultima aba do
+    // navegador fecha - igual a versao do Windows 10/11. Ver startNoClientTimer().
+    std::thread           noClientTimer_;
+    std::atomic<bool>     noClientTimerRunning_{false};
+    std::atomic<int>      wsClientes_{0};
+    std::atomic<int64_t>  semClienteDesdeMs_{0};
+    unsigned long         mainThreadId_ = 0;   // DWORD da thread do WinMain
 
     mutable std::mutex demodMutex_;
     std::vector<int16_t> audioBuffer_;

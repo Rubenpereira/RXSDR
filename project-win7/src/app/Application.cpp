@@ -96,6 +96,12 @@ std::string resolveDeviceEndpoint(const std::string& type, const std::string& se
     return host + ":" + std::to_string(cfg.rtltcpPort());
 }
 
+// Relogio em ms para o vigia "sem clientes" (cabe num atomic<int64_t>).
+int64_t agoraMsVigia() {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
 } // namespace
 
 Application::Application()  = default;
@@ -103,6 +109,9 @@ Application::~Application() { stop(); }
 
 bool Application::start() {
     Logger::info("RXSDR starting...");
+    // start() roda na thread do WinMain, a unica com laco de mensagens. O
+    // vigia "sem clientes" manda o WM_QUIT para ELA (ver startNoClientTimer).
+    mainThreadId_ = GetCurrentThreadId();
     dcBlock_.reset();
     const auto& cfg = Config::instance();
     port_  = cfg.httpPort();
@@ -123,18 +132,17 @@ bool Application::start() {
         Logger::warn("WS na porta padrão falhou, tentando dinamica");
         if (!ws_->listen(0)) { Logger::error("Falha ao iniciar WS"); return false; }
     }
-    lastClientTime_ = std::chrono::steady_clock::now();
-
+    // O WsServer chama isto COM o clientsMutex_ travado. Por isso aqui so se
+    // anotam numeros: nada de join() nem de chamar o ws_ de volta. A versao
+    // antiga fazia join() da thread do timer aqui dentro, enquanto a thread do
+    // timer esperava o mesmo mutex em clientCount() - as duas ficavam paradas
+    // para sempre (recarregar a pagina no momento errado travava o RXSDR).
     ws_->onClientsChanged = [this](int count) {
-        if (count > 0) {
-            hadWsClient_ = true;
-            lastClientTime_ = std::chrono::steady_clock::now();
-            stopNoClientTimer();
-        } else if (hadWsClient_) {
-            lastClientTime_ = std::chrono::steady_clock::now();
-            startNoClientTimer();
-        }
+        wsClientes_.store(count);
+        if (count > 0) hadWsClient_ = true;
+        else semClienteDesdeMs_.store(agoraMsVigia());
     };
+    startNoClientTimer();
 
     // REST
     rest_ = std::make_unique<RestApi>();
@@ -383,29 +391,43 @@ std::string Application::frontendUrl() const {
     return "http://127.0.0.1:" + std::to_string(port_);
 }
 
+// ---------------------------------------------------------------------------
+//  Vigia "sem clientes" - fecha o RXSDR quando o navegador fecha
+//
+//  CORRIGIDO 27/09/2026: na versao Win7 o RXSDR ficava preso no Gerenciador de
+//  Tarefas depois de fechar o navegador. Tres defeitos juntos:
+//   1. PostQuitMessage() era chamado DE DENTRO da thread do timer. Ele poe o
+//      WM_QUIT na fila da thread que chama - e essa thread nao tem laco de
+//      mensagens. O laco do WinMain nunca recebia nada: o programa nao fechava
+//      nunca. Agora vai por PostThreadMessage para a thread do WinMain.
+//   2. Esperava 5 minutos. O Windows 10/11 espera 10 s; agora igual.
+//   3. join() dentro do callback do WsServer (com o mutex dele travado) podia
+//      travar tudo. Agora e uma thread so, do inicio ao fim, que le numeros
+//      atomicos e nunca toca no WsServer.
+//  So conta depois que algum navegador conectou (hadWsClient_): o RXSDR nao
+//  fecha sozinho enquanto o navegador ainda esta abrindo.
+// ---------------------------------------------------------------------------
 void Application::startNoClientTimer() {
     if (noClientTimerRunning_) return;
     noClientTimerRunning_ = true;
     noClientTimer_ = std::thread([this]{
         while (noClientTimerRunning_) {
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
             if (!noClientTimerRunning_) break;
-            if (ws_ && ws_->clientCount() > 0) break;
-            auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
-                std::chrono::steady_clock::now() - lastClientTime_).count();
-            if (elapsed >= 300) { // 5 minutos
-                Logger::info("Sem clientes por 5 min, encerrando.");
-                PostQuitMessage(0);
+            if (!hadWsClient_ || wsClientes_.load() > 0) continue;
+            if (agoraMsVigia() - semClienteDesdeMs_.load() >= 10000) {
+                Logger::info("Sem clientes Web por 10 segundos, encerrando RXSDR automaticamente.");
+                PostThreadMessageA((DWORD)mainThreadId_, WM_QUIT, 0, 0);
                 break;
             }
         }
-        noClientTimerRunning_ = false;
     });
 }
 
 void Application::stopNoClientTimer() {
     noClientTimerRunning_ = false;
-    if (noClientTimer_.joinable()) noClientTimer_.join();
+    if (noClientTimer_.joinable() && noClientTimer_.get_id() != std::this_thread::get_id())
+        noClientTimer_.join();
 }
 
 void Application::applyConfigToDevice() {

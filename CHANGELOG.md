@@ -14,6 +14,10 @@ O tom medido aparece no texto só uma vez, logo ao abrir a janela; depois disso 
 
 Em teste com sinal gerado e chiado, o texto sai correto mesmo com o sinal na altura do ruído, e em 30 minutos só de chiado nenhum caractere de lixo foi impresso.
 
+Corrigido: na versão para Windows 7, o rádio achava o dongle e o botão ficava verde, mas não ligava — sem cachoeira, sem espectro e sem áudio, com "WS: offline" no rodapé. A versão para Windows 7 usa portas próprias (8080 e 8081), e a página procurava a ligação em tempo real no lugar errado. Agora ela encontra sozinha, tanto no Windows 7 quanto no Windows 10/11 e nos TV Box.
+
+Corrigido: na versão para Windows 7, o RXSDR ficava preso no Gerenciador de Tarefas depois de fechar o navegador, e era preciso encerrá-lo à mão. Agora ele fecha sozinho 10 segundos depois que a última aba do rádio é fechada, igual à versão do Windows 10/11.
+
 Removido: os arquivos de um RTTY antigo (minimodem), que não decodificava nada — apenas sorteava frases prontas — e ainda ia junto nos instaladores.
 
 ## 1.0.63

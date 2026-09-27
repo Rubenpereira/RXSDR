@@ -4208,22 +4208,36 @@ const Backend = {
     //  Porta 8070 e o radio em pessoa, e so nesse caso o WebSocket mora numa
     //  porta separada. Qualquer outra porta quer dizer proxy, e ai o
     //  WebSocket sai pelo MESMO endereco da pagina, cifrado ou nao.
-    let url;
+    //
+    //  CORRIGIDO 27/09: a versao Windows 7 NAO usa 8070/8071 - ela serve a
+    //  pagina na 8080 e o WebSocket na 8081 (Config.h do project-win7). Pela
+    //  regra acima, 8080 parecia proxy e o WebSocket ia para 8080/ws, onde
+    //  nao ha nada: o radio achava o dongle, o botao ficava verde, mas nao
+    //  vinha espectro nem audio ("WS: offline" no rodape).
+    //  Como 8080 tambem e a porta do proxy HTTP das caixas, a porta sozinha
+    //  nao decide. Entao, fora da 8070, tenta primeiro o caminho do proxy e,
+    //  se ele nunca abrir, alterna para a porta direta que o proprio radio
+    //  informa em /api/status (wsPort). Quem abriu uma vez fica nele.
+    //  Em https nao alterna: ws:// direto seria bloqueado pelo navegador.
+    const portaDireta = wsPort ||
+      (location.port === '8070' ? 8071 : (Number(location.port) || 80) + 1);
+    const urlDireta = `ws://${location.hostname}:${portaDireta}/ws`;
+    const protoProxy = (location.protocol === 'https:') ? 'wss' : 'ws';
+    const urlProxy = `${protoProxy}://${location.host}/ws`;
     const acessoDireto = (location.port === '8070');
-    if (acessoDireto) {
-      const port = wsPort || 8071;
-      url = `ws://${location.hostname}:${port}/ws`;
-    } else {
-      const proto = (location.protocol === 'https:') ? 'wss' : 'ws';
-      url = `${proto}://${location.host}/ws`;
-    }
+    const url = (acessoDireto || this._wsDireto) ? urlDireta : urlProxy;
     const ws = new WebSocket(url);
+    let abriu = false;
     ws.binaryType = 'arraybuffer';
     ws.onopen = () => {
+      abriu = true;
+      this._wsAchou = true;
       document.getElementById('statusWs').textContent = '●';
       document.getElementById('statusWsText').textContent = 'connected';
     };
     ws.onclose = () => {
+      if (!abriu && !acessoDireto && !this._wsAchou && location.protocol !== 'https:')
+        this._wsDireto = !this._wsDireto;
       document.getElementById('statusWs').textContent = '○';
       document.getElementById('statusWsText').textContent = 'offline';
       setTimeout(()=>this.connectWs(), 1200);
