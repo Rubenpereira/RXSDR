@@ -347,6 +347,23 @@ void RestApi::install(QHttpServer* server)
         return QHttpServerResponse(r);
     });
 
+    // ── RTTY (Baudot/ITA2) ────────────────────────────────────────────────
+    server->route("/api/rtty/status", QHttpServerRequest::Method::Get, [this]() {
+        QJsonObject o = onRttyStatus ? onRttyStatus() : QJsonObject{{"state","unavailable"}};
+        return QHttpServerResponse(o);
+    });
+    server->route("/api/rtty/start", QHttpServerRequest::Method::Post,
+        [this](const QHttpServerRequest& req) {
+            auto j = QJsonDocument::fromJson(req.body()).object();
+            QJsonObject r = onRttyStart ? onRttyStart(j)
+                                        : QJsonObject{{"ok",false},{"error","indisponivel"}};
+            return QHttpServerResponse(r);
+        });
+    server->route("/api/rtty/stop", QHttpServerRequest::Method::Post, [this]() {
+        QJsonObject r = onRttyStop ? onRttyStop() : QJsonObject{{"ok",false},{"error","indisponivel"}};
+        return QHttpServerResponse(r);
+    });
+
     // ── Memorias (bookmarks) ──────────────────────────────────────────────
     // Formato IGUAL ao do OpenWebRX: lista de objetos com name, frequency,
     // modulation, underlying, description e scannable. Manter compativel

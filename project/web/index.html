@@ -1228,6 +1228,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
         <a onclick="openDecoderPanel('packet')"href="javascript:void(0)">APRS</a>
         <a onclick="openDecoderPanel('ais')" href="javascript:void(0)">AIS</a>
         <a onclick="openDecoderPanel('sitorb')" href="javascript:void(0)">SITOR-B / NAVTEX</a>
+        <a onclick="openDecoderPanel('rtty')" href="javascript:void(0)">RTTY (radioteletipo)</a>
         <a onclick="openDecoderPanel('dsc')" href="javascript:void(0)">DSC (chamada seletiva)</a>
         <a onclick="openDecoderPanel('cw')" href="javascript:void(0)">CW / Morse</a>
         <a onclick="openDecoderPanel('hfdl')" href="javascript:void(0)">HFDL &mdash; ACARS em ondas curtas</a>
@@ -1276,7 +1277,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       </div>
     </div>
     <div style="flex:1"></div>
-    <div class="item" style="color:var(--accent-lcd)">RXSDR v1.0.63</div>
+    <div class="item" style="color:var(--accent-lcd)">RXSDR v1.0.64</div>
   </div>
 
   <!-- =============================== TOPO =============================== -->
@@ -1558,7 +1559,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       <span class="cell" id="wfInfoAudio" style="display:none;color:#7fb0ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1"
             title="Saude do audio: folga do buffer, maior intervalo entre pacotes e quantas vezes faltou audio para tocar.">Audio: —</span>
       <span class="spacer"></span>
-      <span class="cell key">RXSDR V1.0.63</span>
+      <span class="cell key">RXSDR V1.0.64</span>
     </div>
 
     </div>
@@ -4238,6 +4239,7 @@ const Backend = {
             if (msg.decoder === 'APRS') AprsDecoder.appendLine(msg.text);
             if (msg.decoder === 'AIS') AisDecoder.appendLine(msg.text);
             if (msg.decoder === 'SITOR-B') SitorBDecoder.appendLine(msg.text);
+            if (msg.decoder === 'RTTY') { if (msg.cont) RttyDecoder.appendTexto(msg.text); else RttyDecoder.appendLine(msg.text); }
             if (msg.decoder === 'DSC') DscDecoder.appendLine(msg.text);
             if (msg.decoder === 'ANALISE') AnaliseDecoder.appendLine(msg.text);
             if (msg.decoder === 'CW') { if (msg.cont) CwDecoder.appendTexto(msg.text); else CwDecoder.appendLine(msg.text); }
@@ -9632,6 +9634,7 @@ const DECODERS = [
   {id:'tetra', name:'TETRA',    freq:'380-470 MHz',  mod:'π/4-DQPSK 36 kbps'},    {id:'packet',name:'APRS',   freq:'VHF/HF',       mod:'AFSK/FSK AX.25'},
   {id:'ais',   name:'AIS',    freq:'161.975 / 162.025 MHz', mod:'GMSK 9600 bps'},
   {id:'sitorb',name:'SITOR-B', freq:'8415 kHz e outras',    mod:'FSK 100 bd, shift 170 Hz'},
+  {id:'rtty',  name:'RTTY',    freq:'14080 kHz e outras',   mod:'FSK 45,45 bd, shift 170 Hz, Baudot'},
   {id:'cw',    name:'CW / Morse', freq:'qualquer',           mod:'telegrafia, velocidade medida sozinha'},
   {id:'dsc',   name:'DSC',      freq:'8414.5 kHz e outras', mod:'FSK 100 bd, shift 170 Hz'},
   {id:'analise',name:'Analisador', freq:'onde voce estiver', mod:'mede tons, shift e velocidade'},
@@ -9654,6 +9657,8 @@ function buildDecoderContent(d){
     return AisDecoder.buildPanelHTML();
   } else if(d.id==='sitorb'){
     return SitorBDecoder.buildPanelHTML();
+  } else if(d.id==='rtty'){
+    return RttyDecoder.buildPanelHTML();
   } else if(d.id==='dsc'){
     return DscDecoder.buildPanelHTML();
   } else if(d.id==='cw'){
@@ -9728,7 +9733,7 @@ function openDecoderPanel(id){
   }
   // Painies com barra de controles, terminal e nota de rodape precisam de
   // altura; com o padrao antigo o texto explicativo ficava cortado.
-  if (id === 'sitorb' || id === 'dsc' || id === 'ais' || id === 'acars' || id === 'analise' || id === 'cw') {
+  if (id === 'sitorb' || id === 'rtty' || id === 'dsc' || id === 'ais' || id === 'acars' || id === 'analise' || id === 'cw') {
     panel.style.width = '660px';
     panel.style.height = '500px';
   }
@@ -9798,6 +9803,7 @@ function openDecoderPanel(id){
   if (id === 'acars') AcarsDecoder.init();
   if (id === 'ais')   AisDecoder.init();
   if (id === 'sitorb') SitorBDecoder.init();
+  if (id === 'rtty') RttyDecoder.init();
   if (id === 'cw') CwDecoder.init();
   if (id === 'dsc') DscDecoder.init();
   if (id === 'analise') AnaliseDecoder.init();
@@ -9822,6 +9828,7 @@ function closeDecoderPanel(id){
   if (id === 'packet') AprsDecoder.onClose();
   if (id === 'ais') AisDecoder.onClose();
   if (id === 'sitorb') SitorBDecoder.onClose();
+  if (id === 'rtty') RttyDecoder.onClose();
   if (id === 'cw') CwDecoder.onClose();
   if (id === 'dsc') DscDecoder.onClose();
   if (id === 'analise') AnaliseDecoder.onClose();
@@ -12995,6 +13002,303 @@ const SitorBDecoder = (() => {
            irParaCanal, reiniciar };
 })();
 
+// =========================================================================
+//  RTTY DECODER - radioteletipo (FSK assincrono, codigo Baudot ITA2)
+//  Decodificacao nativa no C++ (RttyCore). Existiu antes um "RTTY" via
+//  minimodem_runner.py, mas aquilo era um SIMULADOR que sorteava frases -
+//  este le o sinal de verdade.
+//
+//  Ao abrir: guarda como o radio estava (frequencia, modo, largura, passo e
+//  squelch) e entra em USB - pelo mesmo clique do botao USB, entao largura,
+//  squelch e passo ficam como se o usuario tivesse apertado. Ao fechar:
+//  devolve tudo. A frequencia so volta se foi o painel que mudou (escolhendo
+//  um canal da lista), igual ao SITOR-B: quem achou uma estacao girando o VFO
+//  nao perde o lugar ao fechar a janela.
+// =========================================================================
+const RttyDecoder = (() => {
+  let _pollTimer = null;
+  let _linhas = [];
+  let _aberta = false;
+  let _estadoAnterior = null;
+  let _sintonizou = false;
+  let _tomAnunciado = false;   // o tom medido vai para o texto so uma vez por abertura
+  const MAX = 500, LARGURA = 72;
+  const el = id => document.getElementById(id);
+
+  // meio = true: a frequencia publicada e o CENTRO do sinal (servicos como a
+  // DWD). O VFO vai 1500 Hz abaixo, e os dois tons caem no meio da faixa USB.
+  const CANAIS = [
+    { hz: 14080000, nome: '14080 kHz - 20 m radioamador', baud: 45.45, shift: 170 },
+    { hz: 7040000,  nome: '7040 kHz - 40 m radioamador',  baud: 45.45, shift: 170 },
+    { hz: 3580000,  nome: '3580 kHz - 80 m radioamador',  baud: 45.45, shift: 170 },
+    { hz: 21080000, nome: '21080 kHz - 15 m radioamador', baud: 45.45, shift: 170 },
+    { hz: 28080000, nome: '28080 kHz - 10 m radioamador', baud: 45.45, shift: 170 },
+    { hz: 10100800, nome: '10100,8 kHz - DWD Alemanha (meteorologia)', baud: 50, shift: 450, meio: true },
+    { hz: 11039000, nome: '11039 kHz - DWD Alemanha (meteorologia)',   baud: 50, shift: 450, meio: true },
+    { hz: 14467300, nome: '14467,3 kHz - DWD Alemanha (meteorologia)', baud: 50, shift: 450, meio: true },
+    { hz: 7646000,  nome: '7646 kHz - DWD Alemanha (meteorologia)',    baud: 50, shift: 450, meio: true },
+    { hz: 4583000,  nome: '4583 kHz - DWD Alemanha (meteorologia)',    baud: 50, shift: 450, meio: true },
+    { hz: 147300,   nome: '147,3 kHz - DWD Alemanha (ondas longas)',   baud: 50, shift: 450, meio: true }
+  ];
+  const BAUDS  = [45.45, 50, 75, 100];
+  const SHIFTS = [170, 200, 425, 450, 850];
+
+  function buildPanelHTML() {
+    const ops = '<option value="">- escolha para sintonizar -</option>' +
+      CANAIS.map((c, i) => '<option value="' + i + '">' + c.nome + '</option>').join('');
+    const opB = BAUDS.map(b => '<option value="' + b + '">' + String(b).replace('.', ',') + '</option>').join('');
+    const opS = SHIFTS.map(s => '<option value="' + s + '">' + s + ' Hz</option>').join('');
+    return `
+      <div class="dec-status-banner" style="background:#020603;padding:6px 10px;border-bottom:1px solid #10301a">
+        <div style="color:#ffaa00;font-family:'Segoe UI',sans-serif;font-size:12px;font-weight:bold;margin-bottom:2px">
+          Modo: RTTY | <span id="rtty-status" style="color:#ffaa00">Parado</span>
+        </div>
+        <div style="color:#b0f020;font-family:Consolas,monospace;font-size:12px;font-weight:bold">
+          FSK <span id="rtty-desc">45,45 baud, shift 170 Hz</span> - Baudot - recepcao em USB
+        </div>
+      </div>
+
+      <div class="dig-ctrl-bar" style="gap:4px 6px;flex-wrap:wrap">
+        <label style="font-size:10px">Canal</label>
+        <select id="rtty-canal" style="font-size:10px;max-width:230px" onchange="RttyDecoder.irParaCanal()">${ops}</select>
+        <label style="font-size:10px">Baud</label>
+        <select id="rtty-baud" style="font-size:10px" onchange="RttyDecoder.reiniciar()"
+                title="Velocidade. Radioamador usa 45,45; a DWD usa 50">${opB}</select>
+        <label style="font-size:10px">Shift</label>
+        <select id="rtty-shift" style="font-size:10px" onchange="RttyDecoder.reiniciar()"
+                title="Distancia entre os dois tons. Radioamador usa 170 Hz; a DWD usa 450">${opS}</select>
+        <label style="font-size:10px">Tom</label>
+        <input type="number" id="rtty-tom" value="1500" step="10" min="300" max="3000" style="width:56px;font-size:10px"
+               onchange="RttyDecoder.tomManual()" title="Frequencia no meio dos dois tons, em Hz. Com Auto ligado ele e medido sozinho">
+        <label style="font-size:10px" title="Mede o tom central sozinho nos primeiros segundos">
+          <input type="checkbox" id="rtty-auto" checked onchange="RttyDecoder.reiniciar()"> Auto
+        </label>
+        <label style="font-size:10px" title="Troca mark e space. Use se o texto sair como lixo - acontece com estacao em LSB">
+          <input type="checkbox" id="rtty-inv" onchange="RttyDecoder.reiniciar()"> Inverter
+        </label>
+        ${ArquivoAudio.botaoHTML('RTTY')}
+        <span id="rtty-stats" style="font-size:10px;color:#7fb0ff;margin-left:auto"></span>
+      </div>
+
+      <div style="height:calc(100% - 100px);width:100%;background:#020804;display:flex;flex-direction:column;padding:8px;box-sizing:border-box;flex:1">
+        <div id="rtty-terminal" class="dec-terminal" style="flex:1;overflow-y:auto;background:#010402;border:1px solid #20aa40;padding:8px;color:#30dd70;font-family:Consolas,monospace;font-size:12px;margin-bottom:6px;min-height:0;white-space:pre-wrap;word-break:break-word;box-shadow:inset 0 0 10px rgba(0,255,80,0.1)">Aguardando RTTY...</div>
+        <button onclick="RttyDecoder.limpar()" class="gt-btn" style="width:100%;padding:5px;background:#051a0b;border-color:#1e6c33;color:#40dd70;font-size:11px;font-weight:bold;cursor:pointer;border-radius:4px">Limpar</button>
+        <div style="color:#6a8a70;font-size:10px;margin-top:5px;line-height:1.4">
+          Radioamador: 45,45 baud, 170 Hz - mais movimento nos fins de semana de concurso.
+          DWD Alemanha: 50 baud, 450 Hz, previsao maritima o dia todo.
+          Texto em lixo? Marque Inverter. O tom e medido sozinho com Auto ligado.
+        </div>
+      </div>
+    `;
+  }
+
+  // ---- ajustes ------------------------------------------------------------
+  function paramsAtuais() {
+    return {
+      baudRate:   Number((el('rtty-baud')  || {}).value) || 45.45,
+      shift:      Number((el('rtty-shift') || {}).value) || 170,
+      centerFreq: Number((el('rtty-tom')   || {}).value) || 1500,
+      autoTom:    !!(el('rtty-auto') || {}).checked,
+      invert:     !!(el('rtty-inv')  || {}).checked,
+      usos:       true
+    };
+  }
+  function descrever() {
+    const p = paramsAtuais(), d = el('rtty-desc');
+    if (d) d.textContent = String(p.baudRate).replace('.', ',') + ' baud, shift ' + p.shift + ' Hz';
+  }
+  function carregarAjustes() {
+    try {
+      const g = k => localStorage.getItem('rtty-' + k);
+      if (g('baud')  && el('rtty-baud'))  el('rtty-baud').value  = g('baud');
+      if (g('shift') && el('rtty-shift')) el('rtty-shift').value = g('shift');
+      if (g('tom')   && el('rtty-tom'))   el('rtty-tom').value   = g('tom');
+      if (g('auto') !== null && el('rtty-auto')) el('rtty-auto').checked = (g('auto') !== '0');
+      if (g('inv')  !== null && el('rtty-inv'))  el('rtty-inv').checked  = (g('inv') === '1');
+    } catch (e) {}
+    descrever();
+  }
+  function guardarAjustes() {
+    try {
+      const p = paramsAtuais();
+      localStorage.setItem('rtty-baud', String(p.baudRate));
+      localStorage.setItem('rtty-shift', String(p.shift));
+      localStorage.setItem('rtty-tom', String(p.centerFreq));
+      localStorage.setItem('rtty-auto', p.autoTom ? '1' : '0');
+      localStorage.setItem('rtty-inv', p.invert ? '1' : '0');
+    } catch (e) {}
+  }
+
+  // ---- servidor -------------------------------------------------------------
+  function iniciar() {
+    descrever();
+    fetch('/api/rtty/start', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(paramsAtuais())
+    }).then(r => r.json()).then(mostrar).catch(() => mostrar(null));
+  }
+  function parar() {
+    fetch('/api/rtty/stop', { method: 'POST' }).then(r => r.json()).then(mostrar).catch(() => {});
+  }
+  function reiniciar() { guardarAjustes(); iniciar(); }   // o servidor para e recomeca sozinho
+  // Digitar um tom na mao desliga o Auto - senao o valor seria trocado logo.
+  function tomManual() {
+    const a = el('rtty-auto'); if (a) a.checked = false;
+    reiniciar();
+  }
+
+  function mostrar(d) {
+    const t = el('rtty-status'), st = el('rtty-stats');
+    if (!t) return;
+    if (!d || d.state === 'unavailable') {
+      t.textContent = d ? 'Indisponivel neste RXSDR' : 'Sem resposta'; t.style.color = '#ff8080';
+      if (st) st.textContent = ''; return;
+    }
+    const rodando = (d.state === 'running');
+    t.textContent = rodando ? 'Rodando' : 'Parado';
+    t.style.color = rodando ? '#7CFC00' : '#ffaa00';
+    if (st) {
+      st.textContent = !rodando ? '' :
+        (d.sync ? 'DECODIFICANDO' : 'procurando sinal') +
+        ' | tom ' + Math.round(d.centerFreq || 0) + ' Hz | ' +
+        (d.chars || 0) + ' caracteres, ' + (d.errors || 0) + ' erros de quadro';
+      st.style.color = d.sync ? '#7CFC00' : '#7fb0ff';
+    }
+  }
+  function pollStatus() {
+    fetch('/api/rtty/status').then(r => r.json()).then(mostrar).catch(() => mostrar(null));
+  }
+
+  // ---- terminal ---------------------------------------------------------------
+  function desenhar() {
+    const t = el('rtty-terminal'); if (!t) return;
+    t.textContent = _linhas.join('\n');
+    t.scrollTop = t.scrollHeight;
+  }
+  // Linhas de servico: iniciado, parado, tom medido.
+  function appendLine(line) {
+    if (!line) return;
+    const m = /tom central medido:\s*(\d+)\s*Hz/i.exec(line);
+    if (m && el('rtty-tom')) {
+      el('rtty-tom').value = m[1];   // sem onchange: nao reinicia nem desliga o Auto
+      try { localStorage.setItem('rtty-tom', m[1]); } catch (e) {}
+      el('rtty-tom').style.color = '#80ff80';
+      setTimeout(() => { if (el('rtty-tom')) el('rtty-tom').style.color = ''; }, 4000);
+    }
+    // O tom medido aparece no texto SO na primeira vez depois de abrir a
+    // janela. Depois disso ele so atualiza o campo Tom e a linha de estado:
+    // repetido no meio do texto, ele picotava a mensagem (pedido do autor,
+    // 27/09, depois de ouvir o CQ WW RTTY em 21.095).
+    if (m) { if (_tomAnunciado) return; _tomAnunciado = true; }
+    const t = el('rtty-terminal');
+    if (t && t.textContent.indexOf('Aguardando') === 0) _linhas = [];
+    _linhas.push('-- ' + String(line).replace(/^\[RTTY\]\s*/, '') + ' --');
+    _aberta = false;
+    if (_linhas.length > MAX) _linhas.splice(0, _linhas.length - MAX);
+    desenhar();
+  }
+  // Texto decodificado: chega letra a letra e e emendado na linha aberta,
+  // quebrando no ultimo espaco antes de 72 colunas (igual ao CW).
+  function appendTexto(pedaco) {
+    if (!pedaco) return;
+    const t = el('rtty-terminal');
+    if (t && t.textContent.indexOf('Aguardando') === 0) _linhas = [];
+    const partes = String(pedaco).split('\n');
+    for (let i = 0; i < partes.length; i++) {
+      if (i > 0) { _linhas.push(''); _aberta = true; }
+      if (!partes[i]) continue;
+      if (!_aberta || _linhas.length === 0) { _linhas.push(''); _aberta = true; }
+      _linhas[_linhas.length - 1] += partes[i];
+      while (_linhas[_linhas.length - 1].length > LARGURA) {
+        const linha = _linhas[_linhas.length - 1];
+        let corte = linha.lastIndexOf(' ', LARGURA);
+        if (corte < LARGURA / 2) corte = LARGURA;
+        _linhas[_linhas.length - 1] = linha.slice(0, corte).replace(/\s+$/, '');
+        _linhas.push(linha.slice(corte).replace(/^\s+/, ''));
+      }
+    }
+    // RTTY de radioamador manda CR+LF: nao empilha linhas vazias
+    while (_linhas.length > 2 && _linhas[_linhas.length - 1] === '' && _linhas[_linhas.length - 2] === '') _linhas.pop();
+    if (_linhas.length > MAX) _linhas.splice(0, _linhas.length - MAX);
+    desenhar();
+  }
+  function limpar() {
+    _linhas = []; _aberta = false;
+    const t = el('rtty-terminal'); if (t) t.textContent = T('Aguardando RTTY...');
+  }
+
+  // ---- sintonia ---------------------------------------------------------------
+  function irParaCanal() {
+    const sel = el('rtty-canal'); if (!sel || sel.value === '') return;
+    const c = CANAIS[Number(sel.value)]; if (!c) return;
+    if (el('rtty-baud'))  el('rtty-baud').value  = String(c.baud);
+    if (el('rtty-shift')) el('rtty-shift').value = String(c.shift);
+    const vfo = c.meio ? c.hz - 1500 : c.hz;
+    _sintonizou = true;
+    if (typeof renderVfo === 'function') renderVfo(vfo);
+    if (typeof Backend !== 'undefined' && Backend.tune) Backend.tune(vfo, 'USB', currentBwHz).catch(() => {});
+    reiniciar();
+  }
+
+  function botaoModo(nome) {
+    return Array.from(document.querySelectorAll('.mode-btn')).find(b => b.textContent.trim() === nome) || null;
+  }
+
+  function init() {
+    carregarAjustes();
+    _tomAnunciado = false;
+    const sql = el('sqlSlider');
+    try {
+      _estadoAnterior = {
+        freq: currentFreqHz,
+        mode: (typeof activeMode === 'function') ? activeMode() : 'USB',
+        bw:   currentBwHz,
+        step: tuningStepHz,
+        sql:  sql ? sql.value : null
+      };
+    } catch (e) { _estadoAnterior = null; }
+    _sintonizou = false;
+
+    // Entra em USB pelo proprio botao: largura, squelch aberto e passo ficam
+    // exatamente como se o usuario tivesse clicado.
+    const usb = botaoModo('USB');
+    if (usb) usb.click();
+
+    iniciar();
+    if (_pollTimer) clearInterval(_pollTimer);
+    _pollTimer = setInterval(pollStatus, 2000);
+  }
+
+  function onClose() {
+    if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+    parar();
+    const s = _estadoAnterior;
+    _estadoAnterior = null;
+    if (!s) return;
+    // 1) o botao do modo antigo (volta os padroes daquele modo)...
+    const b = botaoModo(s.mode);
+    if (b) b.click();
+    // 2) ...depois a largura, o passo e - se o painel mudou - a frequencia
+    //    exatas de antes...
+    if (typeof restoreReceiverState === 'function') {
+      restoreReceiverState({ freq: _sintonizou ? s.freq : currentFreqHz,
+                             mode: s.mode, bw: s.bw, step: s.step });
+    }
+    // 3) ...e por ultimo o squelch, que o clique no modo tinha mexido.
+    const sql = el('sqlSlider');
+    if (sql && s.sql !== null) {
+      sql.value = s.sql;
+      sql.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    if (typeof updateVfoModeDisplay === 'function') updateVfoModeDisplay();
+    if (typeof updateMarkerPosition === 'function') updateMarkerPosition(currentFreqHz);
+    _sintonizou = false;
+  }
+
+  return { buildPanelHTML, init, onClose, appendLine, appendTexto, limpar,
+           irParaCanal, reiniciar, tomManual };
+})();
+
 /* =========================================================
    ANALISADOR DE SINAL - identifica sinal desconhecido
    Nao decodifica: mede tons, deslocamento e velocidade, e
@@ -14296,15 +14600,6 @@ const AcarsDecoder = (() => {
   };
 })();
 
-
-// ═══════════════════════════════════════════════════════════════════════════
-//  RTTY DECODER — decoder FSK/Baudot nativo (C++ backend) + minimodem externo
-//  Painel dentro do SDR, lado esquerdo da cachoeira.
-//  Baud rates: 45.45, 50, 75, 100, 200  |  Shifts: 170, 200, 425, 450, 850 Hz
-//  Mark freq padrão HF USB: 2125 Hz.  Space = Mark + Shift.
-//  Decoder externo (opcional): minimodem.exe em build/decoders/
-//  GitHub: https://github.com/kamalmostafa/minimodem
-// ═══════════════════════════════════════════════════════════════════════════
 
 // ── APRS Decoder (Direwolf) ────────────────────────────────────────────────
 const AprsDecoder = (() => {

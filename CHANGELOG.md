@@ -1,5 +1,21 @@
 # Histórico de mudanças
 
+## 1.0.64
+
+Nova Versão RXSDR v1.0.64
+
+Incluído o decodificador de RTTY (radioteletipo), no menu Digital Decoder.
+
+Decodifica RTTY em código Baudot nas velocidades de 45,45, 50, 75 e 100 baud e com shift de 170, 200, 425, 450 ou 850 Hz. O tom do sinal é medido sozinho, então não é preciso acertar a sintonia no hertz; há ainda a opção de inverter mark e space para estações em LSB. As letras aparecem na tela conforme vão chegando.
+
+Ao abrir a janela, o rádio entra sozinho em USB. Ao fechar, volta exatamente como estava: modo, largura, passo e squelch. A lista de canais traz os trechos de RTTY de radioamador (80, 40, 20, 15 e 10 m) e a previsão marítima do serviço meteorológico alemão (DWD), já com a velocidade e o shift certos de cada um.
+
+O tom medido aparece no texto só uma vez, logo ao abrir a janela; depois disso ele atualiza apenas o campo Tom, sem picotar a mensagem. O decodificador também ficou preso à estação que está lendo: nas pausas entre chamadas, ou quando outra estação transmite ao lado (como em concurso), ele não pula mais de tom. Numa gravação real em 21.095 MHz, durante o CQ WW RTTY, as trocas de tom caíram de 12 para 2.
+
+Em teste com sinal gerado e chiado, o texto sai correto mesmo com o sinal na altura do ruído, e em 30 minutos só de chiado nenhum caractere de lixo foi impresso.
+
+Removido: os arquivos de um RTTY antigo (minimodem), que não decodificava nada — apenas sorteava frases prontas — e ainda ia junto nos instaladores.
+
 ## 1.0.63
 
 Nova Versão RXSDR v1.0.63

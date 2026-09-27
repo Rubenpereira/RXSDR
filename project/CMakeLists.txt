@@ -62,6 +62,8 @@ set(SOURCES
     src/decoders/SitorBCore.cpp
     src/decoders/CwCore.cpp
     src/decoders/CwManager.cpp
+    src/decoders/RttyCore.cpp
+    src/decoders/RttyManager.cpp
     src/decoders/PactorManager.cpp
     src/decoders/DscManager.cpp
     src/decoders/DscCore.cpp
@@ -104,6 +106,8 @@ set(HEADERS
     src/decoders/SitorBCore.h
     src/decoders/CwCore.h
     src/decoders/CwManager.h
+    src/decoders/RttyCore.h
+    src/decoders/RttyManager.h
     src/decoders/PactorManager.h
     src/decoders/DscCore.h
     src/decoders/AnaliseCore.h

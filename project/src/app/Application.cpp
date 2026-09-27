@@ -25,6 +25,7 @@
 #include "../decoders/AprsManager.h"
 #include "../decoders/AprsIsClient.h"
 #include "../decoders/SitorBManager.h"
+#include "../decoders/RttyManager.h"
 #include "../decoders/CwManager.h"
 #include "../decoders/PactorManager.h"
 #include "../decoders/DscManager.h"
@@ -984,6 +985,53 @@ bool Application::start()
         return r;
     };
 
+    // ── RTTY (Baudot/ITA2) ─────────────────────────────────────────────────
+    // Mesmo caminho do CW: mensagens de servico como linha, texto como fluxo
+    // ("cont"), para as letras aparecerem assim que sao lidas.
+    rttyDeco_ = std::make_unique<RttyManager>(this);
+
+    connect(rttyDeco_.get(), &RttyManager::logLine, this, [this](const QString& line) {
+        Logger::info(line);
+        ws_->broadcastJson(QJsonObject{
+            {"t",       "dec_line"},
+            {"decoder", "RTTY"},
+            {"text",    line}
+        });
+    });
+    connect(rttyDeco_.get(), &RttyManager::textoFluxo, this, [this](const QString& pedaco) {
+        ws_->broadcastJson(QJsonObject{
+            {"t",       "dec_line"},
+            {"decoder", "RTTY"},
+            {"text",    pedaco},
+            {"cont",    true}
+        });
+    });
+
+    rest_->onRttyStatus = [this]() { return rttyDeco_->statusJson(); };
+
+    rest_->onRttyStart = [this](const QJsonObject& j) -> QJsonObject {
+        RttyManager::Params p;
+        p.baudRate   = static_cast<float>(j.value("baudRate").toDouble(45.45));
+        p.shift      = static_cast<float>(j.value("shift").toDouble(170.0));
+        p.centerFreq = static_cast<float>(j.value("centerFreq").toDouble(1500.0));
+        p.invert     = j.value("invert").toBool(false);
+        p.autoTom    = j.value("autoTom").toBool(true);
+        p.usos       = j.value("usos").toBool(true);
+        rttyDeco_->stop();
+        rttyDeco_->setParams(p);
+        rttyDeco_->start();
+        QJsonObject r = rttyDeco_->statusJson();
+        r["ok"] = (rttyDeco_->state() == RttyManager::State::Running);
+        return r;
+    };
+
+    rest_->onRttyStop = [this]() -> QJsonObject {
+        rttyDeco_->stop();
+        QJsonObject r = rttyDeco_->statusJson();
+        r["ok"] = true;
+        return r;
+    };
+
     // ── PACTOR Decoder (Pactor-I FSK) ──────────────────────────────────────
     pactorDeco_ = std::make_unique<PactorManager>(this);
 
@@ -1079,6 +1127,8 @@ bool Application::start()
             analiseDeco_->feedAudio(pcm, n, sps);
         else if (alvo == QLatin1String("CW") && cwDeco_)
             cwDeco_->feedAudio(pcm, n, sps);
+        else if (alvo == QLatin1String("RTTY") && rttyDeco_)
+            rttyDeco_->feedAudio(pcm, n, sps);
         else
             return QJsonObject{{"ok",false},{"error","decoder desconhecido: " + alvo}};
 
@@ -1479,6 +1529,7 @@ void Application::stop()
     if (dsdDeco_) dsdDeco_->stop();
     if (aprsDeco_) aprsDeco_->stop();
     if (sitorBDeco_) sitorBDeco_->stop();
+    if (rttyDeco_) rttyDeco_->stop();
     if (pactorDeco_) pactorDeco_->stop();
     if (dscDeco_) dscDeco_->stop();
     if (analiseDeco_) analiseDeco_->stop();
@@ -2152,6 +2203,9 @@ void Application::handleAudioCallback(const std::vector<int16_t>& pcm, uint32_t 
         }
         if (cwDeco_ && cwDeco_->state() == CwManager::State::Running) {
             cwDeco_->feedAudio(chunk.data(), static_cast<int>(chunk.size()), sps);
+        }
+        if (rttyDeco_ && rttyDeco_->state() == RttyManager::State::Running) {
+            rttyDeco_->feedAudio(chunk.data(), static_cast<int>(chunk.size()), sps);
         }
         if (selcalDeco_ && selcalDeco_->state() == SelcalManager::State::Running) {
             selcalDeco_->feedAudio(chunk.data(), static_cast<int>(chunk.size()), sps);
