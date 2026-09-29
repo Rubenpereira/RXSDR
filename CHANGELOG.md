@@ -1,5 +1,33 @@
 # Histórico de mudanças
 
+## 1.0.66
+
+Nova Versão RXSDR v1.0.66
+
+Incluído o APRS de HF, a 300 baud, no mesmo painel do APRS.
+
+No alto do painel há agora a escolha da banda: VHF 1200 baud (145.570 MHz, como sempre foi) ou HF 300 baud. Em HF, o rádio vai sozinho para USB no canal escolhido — 30 m em 10.147,6 kHz, o mais usado, ou 20 m em 14.102,3 kHz — e, ao fechar a janela, volta exatamente como estava: frequência, modo, largura, passo e squelch. O painel lembra a última banda e o último canal usados.
+
+Em HF a sintonia nunca é exata, e a 300 baud os dois tons ficam a só 200 Hz um do outro. Por isso o decodificador roda sete vezes em paralelo, espalhado em volta do tom. Em teste com 100 pacotes e a sintonia 100 Hz fora do ponto, ele leu 65, contra 15 do jeito comum.
+
+Incluído o decodificador de ALE (Automatic Link Establishment), no menu Digital Decoder.
+
+Decodifica o ALE de segunda geração, o 2G ALE, que é o mesmo sinal nas normas MIL-STD-188-141A, MIL-STD-188-141B e FED-STD-1045. É o ALE que se ouve na rede de radioamadores (HFN) e em muitas estações utilitárias. Cada chamada aparece numa linha, com a hora UTC: para quem é ([TO]), quem chama ([TIS]), fim do enlace ([TWAS]), mensagens de texto ([CMD AMD]) e qualidade do canal ([LQA]). Chamadas de varredura repetidas aparecem resumidas, como "[TO][@@?] x39".
+
+Cada chamada também ganha uma frase em português, no estilo do MultiPSK: "Chamada de 00012 para 21011", "Sondagem de 21011", "Fim de enlace", com a qualidade informada (LQA) e o texto das mensagens. A lista de canais traz, além da rede HFN, 132 canais de ALE do Brasil (Marinha, Forças Armadas, Força Aérea), vindos da lista ILGRADIO de 27/09/2026, divididos em grupos e com um campo de busca por frequência, cidade ou operador.
+
+Não é preciso acertar a sintonia no ponto: o decodificador procura os tons sozinho até 500 Hz para cima ou para baixo e mostra o quanto o sinal estava fora. Numa gravação da Marinha sintonizada 500 Hz fora do canal, a leitura saiu idêntica à do canal certo.
+
+Ao abrir a janela, o rádio entra sozinho em USB com 3 kHz de largura (os tons do ALE vão até 2.500 Hz) e, ao fechar, volta exatamente como estava. Também dá para abrir uma gravação.
+
+Testado com uma gravação real em 14.109 kHz: as três chamadas saíram idênticas às do Sorcerer. Com chiado, a chamada inteira sai certa até cerca de 6 dB abaixo do ruído, e em 10 minutos só de chiado não apareceu nenhuma chamada falsa.
+
+Corrigido: em computadores mais fracos, a velocidade do áudio podia variar — tocava devagar e depois pulava um pedaço. Três mudanças: na versão para Windows 7, o áudio agora é entregue ao navegador em ritmo constante, como já acontecia na versão para Windows 10/11; o tocador agora acompanha sozinho o ritmo real da placa de som (algumas placas, em PCs antigos, tocam alguns por cento mais devagar do que dizem) e corrige a diferença de forma contínua, sem saltos e com o tom certo; e, se o computador não dá conta, o rádio liga sozinho um MODO LEVE, que desenha a cachoeira e o espectro menos vezes por segundo para sobrar processador para o som. O aviso aparece na linha de informações da cachoeira, e um clique nele desliga.
+
+Corrigido: nas janelas do HFDL e do ACARS, vários links do FlightAware abriam uma página sem o avião. O número do voo vinha com zeros à esquerda (TC0235 em vez de TC235) e o prefixo com hífen (PR-TYJ em vez de PRTYJ), formatos que o FlightAware não reconhece. Quando a mensagem traz o código ICAO do avião, o link agora vai direto por ele, o que acha o avião certo mesmo quando o HFDL corta o número do voo. Também corrigido: clicar num link enquanto chegava uma mensagem nova às vezes não fazia nada — a janela agora não se redesenha inteira e o texto fica parado enquanto o mouse ou o dedo está sobre ela.
+
+Nova versão: **RXSDR Nativo 1.0.0** (Windows 7 SP1, 8, 10 e 11) — substitui a antiga versão "Win7". Roda inteiro no Windows, **sem navegador**, e **não precisa instalar**: é só descompactar a pasta e abrir o RXSDR.exe, como nos SDR# antigos; a configuração fica no RXSDR.ini ao lado do programa. Mesma aparência do RXSDR (S-meter de ponteiro, olho mágico, espectro dourado e cachoeira com as mesmas cores), mesmos demoduladores (AM, FM, NFM, WFM, USB, LSB, CW) e os mesmos redutores de ruído (NB, NR ESPECTRAL com a força, Redutor de Ruído), além de tom, volume, squelch e zoom. O som sai direto para a placa e acompanha sozinho o relógio dela. Aparelhos: RTL-SDR, RTL-TCP e SDRplay. Também tem memórias (os nomes aparecem em cima do espectro e um clique sintoniza), gravação do áudio em WAV, escolha da placa de som, arrastar a cachoeira e as bordas do filtro, e os botões AUTO e PADRÃO da cachoeira iguais aos da página. Menu MEMÓRIAS igual ao da página (todas, somente utilitárias, broadcast no ar agora, broadcast no ar para as Américas, broadcast todas), divisor arrastável entre espectro e cachoeira, a janela DECODERS com CW, RTTY, SITOR-B/NAVTEX, DSC, ALE 2G e o analisador de sinal desconhecido (os mesmos decodificadores do RXSDR, rodando dentro do programa) e o DMR/P25/NXDN/dPMR/YSF/D-STAR pelo dsd-fme, com o quadro dos dois slots e a voz decodificada saindo no lugar do áudio (o DMR precisa do Windows 8.1, 10 ou 11), e o TETRA (π/4-DQPSK, com o demodulador em C++ dentro do programa: sincronismo, SNR, MCC/MNC, color code, criptografia da célula, chamadas e voz quando a célula não é cifrada). A janela tem Parar, Selecionar tudo, Copiar e Salvar .txt. Também tem o IF DISPLAY (20 kHz em torno da sintonia, à esquerda da cachoeira, com largura estreita/média/larga) e as molduras e setas do painel iguais às da página. Os decodificadores HFDL, ACARS, AIS, APRS e TETRA virão em etapas.
+
 ## 1.0.64
 
 Nova Versão RXSDR v1.0.64

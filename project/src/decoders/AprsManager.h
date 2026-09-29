@@ -31,6 +31,11 @@ public:
     bool start();
     void stop();
 
+    // Velocidade do modem: 1200 (VHF, AFSK Bell 202) ou 300 (HF). Vale no
+    // proximo start(); quem troca com o Direwolf rodando precisa parar antes.
+    void setBaud(int baud) { baud_ = (baud == 300) ? 300 : 1200; }
+    int  baud() const { return baud_; }
+
     State   state() const { return state_; }
     QString stateString() const;
     QString lastError() const { return lastError_; }
@@ -78,6 +83,7 @@ private:
     std::unique_ptr<QProcess> process_;
     QString binaryPath_;
     State   state_          = State::Stopped;
+    int     baud_           = 1200;
     QString lastError_;
 
     QByteArray m_stdinPending;

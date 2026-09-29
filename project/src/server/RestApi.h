@@ -72,6 +72,9 @@ public:
     std::function<QJsonObject()>                             onRttyStatus;
     std::function<QJsonObject(const QJsonObject&)>           onRttyStart;
     std::function<QJsonObject()>                             onRttyStop;
+    std::function<QJsonObject()>                             onAleStatus;
+    std::function<QJsonObject(const QJsonObject&)>           onAleStart;
+    std::function<QJsonObject()>                             onAleStop;
 
     // PACTOR Decoder (Pactor-I FSK)
     std::function<QJsonObject()>                             onPactorStatus;

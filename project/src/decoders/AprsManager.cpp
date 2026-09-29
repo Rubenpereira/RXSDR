@@ -73,6 +73,7 @@ QJsonObject AprsManager::statusJson() const
     QJsonObject o;
     o["state"]         = stateString();
     o["binaryPresent"] = binaryExists();
+    o["baud"]          = baud_;
     if (!lastError_.isEmpty())
         o["error"] = lastError_;
     return o;
@@ -88,7 +89,23 @@ bool AprsManager::createConfigFile(const QString& configPath)
     out << "# Direwolf auto-generated config for RXSDR\n";
     out << "ADEVICE stdin null\n"; // Input via stdin, no output audio device
     out << "CHANNEL 0\n";
-    out << "MODEM 1200\n"; // Standard APRS speed
+    if (baud_ == 300) {
+        // APRS de HF (30 m: 10.147,6 USB). Tons 1600/1800 Hz, os do Direwolf
+        // e os que as estacoes de HF usam hoje.
+        //
+        // Em HF ninguem acerta o tom no hertz: a sintonia do receptor e a do
+        // transmissor sempre tem alguns Hz de erro, e a 300 baud os dois tons
+        // ficam a so 200 Hz um do outro. Com um decodificador so, 100 Hz de
+        // erro derrubava 4 de cada 5 pacotes (teste com 100 pacotes: 72 -> 15).
+        // Aqui rodam varios, espalhados de 30 em 30 Hz em volta do centro.
+        //
+        // Perfil D de proposito: o Direwolf 1.6 das caixas recusa o A e o B
+        // junto com varios decodificadores ("Invalid filter profile"). O D
+        // funciona no 1.6, no 1.7 e no 1.8 do Windows.
+        out << "MODEM 300 1600:1800 7@30 D\n";
+    } else {
+        out << "MODEM 1200\n"; // Standard APRS speed
+    }
     out << "AGWPORT 8000\n"; // Disable AGW port or leave default
     out << "KISSPORT 8001\n"; // Disable KISS port or leave default
     return true;
@@ -374,7 +391,9 @@ void AprsManager::onProcessStarted()
     lastError_.clear();
     emit stateChanged(state_);
 
-    emit logLine(QStringLiteral("[Direwolf] iniciado — processando APRS"));
+    emit logLine(baud_ == 300
+        ? QStringLiteral("[Direwolf] iniciado — APRS de HF, 300 baud")
+        : QStringLiteral("[Direwolf] iniciado — processando APRS"));
 
     // Liga o cliente AGW: e por ele que os pacotes chegam sem atraso.
     agwTentativas_ = 0;

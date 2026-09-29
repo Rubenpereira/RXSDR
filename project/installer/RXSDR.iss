@@ -3,7 +3,7 @@
 ; O instalador gerado ficará em: project\installer\output\RXSDR_Setup_1.0.0.exe
 
 #define MyAppName      "RXSDR"
-#define MyAppVersion   "1.0.64"
+#define MyAppVersion   "1.0.66"
 #define MyAppPublisher "PU1XTB — Ruben"
 #define MyAppURL       "https://github.com/ruben/RXSDR"
 #define MyAppExeName   "RXSDR.exe"
@@ -101,7 +101,7 @@ Source: "{#BuildDir}\translations\*";       DestDir: "{app}\translations";      
 ; ── Interface Web (HTML/JS/CSS) ───────────────────────────────────────────────
 ; Excludes protege a distribuicao: backups de desenvolvimento (.bak) nunca
 ; podem ir para o instalador do usuario final.
-Source: "{#BuildDir}\web\*"; DestDir: "{app}\web"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*.bak,*.bak_*,*_bak_*,*.old,*.tmp"
+Source: "{#BuildDir}\web\*"; DestDir: "{app}\web"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*.bak,*.bak_*,*_bak_*,*.old,*.tmp,*.dbf,*.DBF"
 
 ; ── Pasta DECODERS — executáveis, DLLs e configs de todos os decoders ────────
 ; (DSD-FME, ACARS, AIS-Catcher, DSDPlus, FMP24, FMPA, FMPP, Survey, Direwolf)

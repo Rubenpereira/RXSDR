@@ -1,0 +1,12 @@
+tetra-rx.exe corrigido para o RXSDR Nativo (29/09/2026)
+
+O tetra-rx.exe original (osmo-tetra sq5bpf, compilado no MSYS2) nunca mandava
+o TETMON pelo UDP no Windows: o socket() falhava porque faltava o WSAStartup.
+Sem o TETMON nao chegam as informacoes da celula, as chamadas nem a VOZ.
+
+Correcao: tetra-rx.c chama WSAStartup antes do socket() (#ifdef _WIN32).
+Fonte: project\build\decoders\osmo-tetra-build\osmo-tetra-sq5bpf\src\tetra-rx.c
+(copia original em tetra-rx.c.bak_wsa). Compilado com MSYS2 MINGW64:
+  cd .../osmo-tetra-sq5bpf/src && make tetra-rx
+
+COMPILAR_NATIVO.bat copia este arquivo por cima do tetra-rx.exe da lista.

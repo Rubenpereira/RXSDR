@@ -33,6 +33,7 @@ class DscManager;
 class AnaliseManager;
 class CwManager;
 class RttyManager;
+class AleManager;
 class SelcalManager;
 class HfdlManager;   // HFDL - o ACARS das ondas curtas
 class WhisperManager; // transcricao da fala (so Windows)
@@ -71,6 +72,7 @@ private:
     std::unique_ptr<SitorBManager> sitorBDeco_;
     std::unique_ptr<CwManager>     cwDeco_;
     std::unique_ptr<RttyManager>   rttyDeco_;
+    std::unique_ptr<AleManager>    aleDeco_;
     std::unique_ptr<PactorManager> pactorDeco_;
     std::unique_ptr<DscManager> dscDeco_;
     std::unique_ptr<AnaliseManager> analiseDeco_;

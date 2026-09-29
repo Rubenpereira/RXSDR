@@ -50,14 +50,16 @@ Feito por **PU1XTB — Ruben**, radioamador e radioescuta, em Araruama/RJ.
 
 ## Instalação no Windows
 
-Baixe o instalador na aba **Releases** deste repositório. São duas versões:
+Baixe na aba **Releases** deste repositório. São duas versões:
 
-- **RXSDR_Setup_x.x.xx.exe** — Windows 10 e 11 (build Qt6)
-- **RXSDR_Setup_x.x.xx_Win7.exe** — Windows 7 SP1, 8, 10 e 11
-  (executável com CRT estático, não precisa de `vcruntime.dll`)
+- **RXSDR_Setup_x.x.xx.exe** — Windows 10 e 11. Instalador; o painel abre no
+  navegador (com todos os decodificadores).
+- **RXSDR_Nativo_x.x.x.zip** — Windows 7 SP1, 8, 10 e 11. **Não precisa
+  instalar e não usa navegador**: descompacte a pasta e rode o `RXSDR.exe`,
+  como nos SDR# antigos. A configuração fica no `RXSDR.ini` ao lado do programa.
+  É a versão para PCs mais fracos ou antigos (substitui a antiga "Win7").
 
-Os dois já trazem todas as DLLs necessárias. Depois de instalar, abra o RXSDR
-e o painel aparece no navegador.
+As duas já trazem todas as DLLs necessárias.
 
 Para hardware **SDRplay** é preciso instalar à parte a
 [API oficial da SDRplay](https://www.sdrplay.com/api/) — ela não pode ser
@@ -72,7 +74,8 @@ Requisitos: Visual Studio 2019 ou superior (MSVC), CMake 3.16+ e Qt6
 
 ```
 COMPILAR.bat          build completo do Windows 10/11 (Qt6)
-COMPILAR_WIN7.bat     build estático para Windows 7/8/10/11
+COMPILAR_NATIVO.bat   RXSDR Nativo (Windows 7 a 11, sem navegador, sem Qt)
+GERAR_PACOTE_NATIVO.bat  gera o .zip portátil do RXSDR Nativo
 ATUALIZAR_WEB.bat     só a interface (HTML/CSS/JS), sem recompilar
 ABRIR.bat             abre o executável já compilado
 GERAR_INSTALADOR.bat  gera o instalador (precisa do Inno Setup 6)
