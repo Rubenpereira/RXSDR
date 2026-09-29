@@ -1229,6 +1229,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
         <a onclick="openDecoderPanel('ais')" href="javascript:void(0)">AIS</a>
         <a onclick="openDecoderPanel('sitorb')" href="javascript:void(0)">SITOR-B / NAVTEX</a>
         <a onclick="openDecoderPanel('rtty')" href="javascript:void(0)">RTTY (radioteletipo)</a>
+        <a onclick="openDecoderPanel('ale')" href="javascript:void(0)">ALE (MIL-STD-188-141)</a>
         <a onclick="openDecoderPanel('dsc')" href="javascript:void(0)">DSC (chamada seletiva)</a>
         <a onclick="openDecoderPanel('cw')" href="javascript:void(0)">CW / Morse</a>
         <a onclick="openDecoderPanel('hfdl')" href="javascript:void(0)">HFDL &mdash; ACARS em ondas curtas</a>
@@ -1277,7 +1278,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       </div>
     </div>
     <div style="flex:1"></div>
-    <div class="item" style="color:var(--accent-lcd)">RXSDR v1.0.64</div>
+    <div class="item" style="color:var(--accent-lcd)">RXSDR v1.0.66</div>
   </div>
 
   <!-- =============================== TOPO =============================== -->
@@ -2037,8 +2038,14 @@ const Smeter = {
     const sUnits=['S0','S1','S2','S3','S4','S5','S6','S7','S8','S9','+10','+20','+40','+60'];
     const sThr  =[   0, 0.05,0.11,0.18,0.25,0.32,0.40,0.50,0.57,0.64,0.71,0.79,0.86,0.93];
 
+    let ultLeve = 0;
     const loop=()=>{
       const now = performance.now();
+      // Modo leve (PC fraco): o S-meter nao precisa de 60 quadros por segundo.
+      if (typeof ModoLeve !== 'undefined' && ModoLeve.ativo) {
+        if (now - ultLeve < 66) { requestAnimationFrame(loop); return; }
+        ultLeve = now;
+      }
       const isAgc = document.getElementById('cfgAgc')?.checked || false;
       // Balística vintage: sobe rápido, desce lento (como ponteiro mecânico amortecido)
       const rising = this.target > this.current;
@@ -3354,7 +3361,8 @@ var AudioOut = {
   // tarjinha do botao - ali cabe texto, aqui nao.
   resumoCurto(){
     const d = this.diag;
-    if (!d.pacotes) return 'Audio: —';
+    const leveTxt = (typeof ModoLeve !== 'undefined' && ModoLeve.ativo) ? ' | MODO LEVE (clique para desligar)' : '';
+    if (!d.pacotes) return 'Audio: —' + leveTxt;
 
     // O rodape acompanha o usuario o tempo todo, entao no caso normal mostra
     // pouco: a folga do buffer e as faltas. O resto - mutes, descartes,
@@ -3363,6 +3371,16 @@ var AudioOut = {
     let txt = 'Audio ' + d.ocupMin + '-' + d.ocupMax + ' ms';
     txt += ' | folga ' + (this._alvoMs || 180);
     if (this.buracosAudio) txt += ' | faltas ' + this.buracosAudio;
+    if (d.cortes) txt += ' | cortes ' + d.cortes + ' (' + d.corteMs + ' ms)';
+    txt += leveTxt;
+    // Maior tempo sem chegar audio no navegador. Grande (1 s ou mais) com o
+    // programa entregando em ritmo = e o NAVEGADOR que trava (PC fraco
+    // desenhando a cachoeira), e nao o programa.
+    if ((this.buracosAudio || d.cortes) && d.maiorGap) txt += ' | vao ' + Math.round(d.maiorGap) + ' ms';
+    // Ritmo real da placa de som contra o relogio do PC, e o ajuste que o
+    // tocador esta aplicando. So aparecem fora do normal (mais de 1%).
+    if (d.relogio && Math.abs(d.relogio - 1) > 0.01) txt += ' | placa x' + d.relogio.toFixed(3);
+    if (d.passo && Math.abs(d.passo - 1) > 0.01) txt += ' | ajuste x' + d.passo.toFixed(3);
     if (!this.worklet) txt += ' | SEM WORKLET';
     else if (this.modoTocador === 'script') txt += ' | TOCADOR: SCRIPT (http)';
 
@@ -3430,6 +3448,9 @@ var AudioOut = {
     [120, 350, 800, 1500, 2500].forEach(function(ms){ setTimeout(tryPlay, ms); });
   },
   async init(){
+    // Audio nativo (Windows 7): o som sai pelo programa. Nada de AudioContext
+    // gastando processador a toa num PC que ja esta no limite.
+    if (typeof AudioNativo !== 'undefined' && AudioNativo.ativo) return;
     if (this.ctx) {
       if (this.ctx.state === 'suspended') await this.ctx.resume();
       this._kickBg();
@@ -3579,6 +3600,7 @@ class RxsdrPlayer extends AudioWorkletProcessor {
   process(entradas, saidas){
     const out = saidas[0][0]; if (!out) return true;
     const N = out.length;
+    this.relN = (this.relN || 0) + N;
     // Enche ate a latencia alvo antes de comecar. Sem essa espera o primeiro
     // quadro sai e o buffer estoura logo em seguida.
     if (!this.tocando){
@@ -3620,10 +3642,16 @@ class RxsdrPlayer extends AudioWorkletProcessor {
       return true;
     }
     // Relata a ocupacao a cada ~0,5 s, para dar para ver o buffer enchendo.
+    // Junto vai o ritmo real da placa: amostras que ela pediu contra o relogio
+    // do PC. 1,000 e o normal; 0,92 = a placa toca 8% mais devagar do que diz.
     this.desdeRelato = (this.desdeRelato || 0) + N;
     if (this.desdeRelato >= sampleRate >> 1){
       this.desdeRelato = 0;
-      this.port.postMessage({ ocupacao: this.disp });
+      const agora = Date.now();
+      if (!this.rel0) { this.rel0 = agora; this.relN = 0; }
+      const seg = (agora - this.rel0) / 1000;
+      if (seg >= 10) { this.relogio = this.relN / (sampleRate * seg); this.rel0 = agora; this.relN = 0; }
+      this.port.postMessage({ ocupacao: this.disp, passo: this.passo || 1, relogio: this.relogio || 0 });
     }
 
     // Dois segundos tocando limpo: a serie acabou, volta a recuperacao barata.
@@ -3653,13 +3681,44 @@ class RxsdrPlayer extends AudioWorkletProcessor {
     // atraso: medido no ar, o buffer chegou a 3036 ms com alvo de 546 - tres
     // segundos de atraso, e mesmo assim faltou audio, porque o que faltava
     // nao era folga e sim audio que nunca foi produzido.
-    if (this.disp > (this.alvo * 5 >> 1)){
+    // Ritmo de leitura ajustado sozinho (controle PI sobre a reserva).
+    //
+    // No PC de um amigo do autor (Win7, AMD E-350) a reserva crescia ~8% o
+    // tempo todo - 13 cortes somando 23 s -, e o tom de uma FM saia 9% grave:
+    // a placa consumia mais devagar do que declarava (48000/44100 = 1,088).
+    // Degraus fixos (0,8% / 3%) nao alcancavam isso. Agora o passo de leitura
+    // segue a reserva MEDIA (~1 s de media, para nao balancar com rajadas):
+    //   passo = 1 + 1% x erro + integral
+    // A integral aprende a diferenca de relogio (ali ~+8,8%) e fica nela;
+    // o tom volta ao certo e a reserva fica no alvo. Num PC normal o passo
+    // fica em 1,000 +- 0,1%. Corte de uma vez so acima de 4x a folga.
+    if (this.dispMedio === undefined) { this.dispMedio = this.disp; this.integ = 0; this.passo = 1; }
+    this.dispMedio += (this.disp - this.dispMedio) * 0.003;
+    if (this.disp > this.alvo * 4){
       const fora = this.disp - this.alvo;
       this.rd = (this.rd + fora) % this.cap;
       this.disp -= fora;
-    } else if (this.disp > (this.alvo * 3 >> 1) && this.disp > N + 1){
-      this.rd = (this.rd + 1) % this.cap; this.disp--;
+      this.dispMedio = this.disp;
+      this.frac = 0;
+      this.cortes = (this.cortes || 0) + 1;
+      this.port.postMessage({ corte: true, total: this.cortes, ms: Math.round(fora * 1000 / sampleRate) });
     }
+    const erro = (this.dispMedio - this.alvo) / this.alvo;
+    this.integ = Math.max(-0.03, Math.min(0.15, this.integ + erro * 0.00002));
+    this.passo = Math.max(0.97, Math.min(1.2, 1 + 0.01 * erro + this.integ));
+    const passo = this.passo;
+    if (Math.abs(passo - 1) > 0.0002 && this.disp > Math.ceil(N * passo) + 2){
+      let f = this.frac || 0;
+      for (let i = 0; i < N; i++){
+        const a = this.buf[this.rd], b = this.buf[(this.rd + 1) % this.cap];
+        out[i] = a + (b - a) * f;
+        f += passo;
+        while (f >= 1){ f -= 1; this.rd = (this.rd + 1) % this.cap; this.disp--; }
+      }
+      this.frac = f;
+      return true;
+    }
+    this.frac = 0;
     for (let i = 0; i < N; i++){
       out[i] = this.buf[this.rd];
       this.rd = (this.rd + 1) % this.cap;
@@ -3693,6 +3752,10 @@ registerProcessor('rxsdr-player', RxsdrPlayer);
         }
         this.worklet.port.onmessage = (ev) => {
           const d = ev.data; if (!d) return;
+          if (d.corte) {
+            this.diag.cortes = d.total | 0;
+            this.diag.corteMs = (this.diag.corteMs || 0) + (d.ms | 0);
+          }
           if (d.buraco) {
             this.buracosAudio = d.total | 0;
             // Guarda QUANDO faltou e QUANTO havia no buffer. Isto separa as
@@ -3706,6 +3769,8 @@ registerProcessor('rxsdr-player', RxsdrPlayer);
               });
             }
           }
+          if (d.passo !== undefined) this.diag.passo = d.passo;
+          if (d.relogio) this.diag.relogio = d.relogio;
           if (d.ocupacao !== undefined) {
             const ms = Math.round(d.ocupacao / 48);
             this.diag.ocupacaoMs = ms;
@@ -3946,7 +4011,12 @@ registerProcessor('rxsdr-player', RxsdrPlayer);
       // A folga so SOBE durante o funcionamento: baixar por conta propria seria
       // convidar a falta de volta.
       if (this.worklet && d.maiorGap > 0) {
-        const alvoMs = Math.min(700, Math.max(180, Math.round(d.maiorGap * 1.6)));
+        // Teto de 700 ms, que basta para as caixas e PCs normais. So num PC que
+        // ja mostrou que trava (modo leve ligado, ou 3 faltas) o teto sobe para
+        // 1,5 s: la as travadas chegam a 900 ms, e com 700 de folga o audio
+        // acabava no meio de cada uma (simulacao: 74 faltas em 10 min contra 1).
+        const precisaMais = (typeof ModoLeve !== 'undefined' && ModoLeve.ativo) || this.buracosAudio >= 3;
+        const alvoMs = Math.min(precisaMais ? 1500 : 700, Math.max(180, Math.round(d.maiorGap * 1.6)));
         if (alvoMs > this._alvoMs + 20) {
           this._alvoMs = alvoMs;
           this.worklet.port.postMessage({ cmd: 'latencia', valor: alvoMs / 1000 });
@@ -4178,7 +4248,9 @@ const Backend = {
       dg.mudoAntes = mudo;
       if (mudo) { dg.trocas[motivo] = (dg.trocas[motivo] || 0) + 1; }
     }
-    AudioOut.playPcm(pcm, sps, mudo);
+    // Windows 7: quem toca e o programa (AudioNativo); a pagina so manda os ajustes.
+    if (typeof AudioNativo !== 'undefined' && AudioNativo.ativo) AudioNativo.tratar(pcm, sps, mudo);
+    else AudioOut.playPcm(pcm, sps, mudo);
   },
   connectWs(){
     // ---------------------------------------------------------------------
@@ -4254,6 +4326,7 @@ const Backend = {
             if (msg.decoder === 'AIS') AisDecoder.appendLine(msg.text);
             if (msg.decoder === 'SITOR-B') SitorBDecoder.appendLine(msg.text);
             if (msg.decoder === 'RTTY') { if (msg.cont) RttyDecoder.appendTexto(msg.text); else RttyDecoder.appendLine(msg.text); }
+            if (msg.decoder === 'ALE') AleDecoder.appendLine(msg.text);
             if (msg.decoder === 'DSC') DscDecoder.appendLine(msg.text);
             if (msg.decoder === 'ANALISE') AnaliseDecoder.appendLine(msg.text);
             if (msg.decoder === 'CW') { if (msg.cont) CwDecoder.appendTexto(msg.text); else CwDecoder.appendLine(msg.text); }
@@ -6487,10 +6560,76 @@ function drawWaterfall(lines = 1){
   }
 }
 
+// ===========================================================================
+//  ModoLeve - para PC fraco
+//
+//  Nasceu no PC de um amigo do autor (AMD E-350 1,6 GHz, 2 nucleos, Win7):
+//  o Chrome usava 51% (um nucleo inteiro) so para desenhar, o RXSDR 20%, e
+//  sobravam 11%. Com a pagina atolada ate o audio atrasava - tocava devagar e
+//  depois pulava. SDR# e SDR Console rodam la sem problema porque nao tem o
+//  navegador no meio.
+//
+//  Um relogio de 100 ms mede o quanto a pagina atrasa. Atraso medio acima de
+//  35 ms com o radio ligado (num PC normal fica em 1-5 ms), ou cortes de
+//  audio, liga o modo leve: espectro a 10 quadros/s em vez de 30, moldura da
+//  cachoeira sem recopiar a tela inteira 30 vezes por segundo, cachoeira ate
+//  10 linhas/s, S-meter a 15 quadros/s. Fica lembrado para a proxima vez;
+//  clicar no aviso (linha de informacoes da cachoeira) desliga.
+// ===========================================================================
+// "var" e nao "const": o S-meter comeca a rodar ANTES desta linha e consulta
+// o ModoLeve; um const ainda nao criado derruba o script inteiro.
+var ModoLeve = {
+  ativo: false,
+  desligadoNaMao: false,
+  lagMedio: 0,
+  quadroMedio: 16.7,     // ms entre quadros da tela (60 Hz = 16,7)
+  _ultQuadro: 0,
+  // Chamado a cada quadro pelo frame(). E a medida mais direta: com a pagina
+  // atolada, os quadros se espacam (num PC normal ficam em ~17 ms).
+  registrarQuadro(t) {
+    if (this._ultQuadro) {
+      const dt = t - this._ultQuadro;
+      if (dt > 0 && dt < 1000) this.quadroMedio = this.quadroMedio * 0.95 + dt * 0.05;  // >1 s = aba escondida
+    }
+    this._ultQuadro = t;
+  },
+  init() {
+    try { if (localStorage.getItem('rxsdr_leve') === '1') this.ativo = true; } catch (e) {}
+    const inicio = performance.now();
+    let esperado = inicio + 100;
+    setInterval(() => {
+      const agora = performance.now();
+      const lag = Math.max(0, agora - esperado);
+      esperado = agora + 100;
+      this.lagMedio = this.lagMedio * 0.9 + Math.min(lag, 1000) * 0.1;
+      if (this.ativo || this.desligadoNaMao) return;
+      if (agora - inicio < 15000) return;            // a abertura sempre pesa
+      const ligado = (typeof powerOn !== 'undefined') && powerOn;
+      const cortes = (typeof AudioOut !== 'undefined' && AudioOut.diag) ? (AudioOut.diag.cortes || 0) : 0;
+      // Quadro medio acima de 33 ms = menos de 30 quadros/s por falta de folego.
+      // No modo leve os quadros continuam vindo (so se desenha menos), entao
+      // a medida nao fica presa depois de ligado.
+      if (ligado && (this.lagMedio > 35 || this.quadroMedio > 33 || cortes >= 2)) this.ligar();
+    }, 100);
+  },
+  ligar() {
+    this.ativo = true;
+    try { localStorage.setItem('rxsdr_leve', '1'); } catch (e) {}
+  },
+  desligar() {
+    this.ativo = false;
+    this.desligadoNaMao = true;
+    try { localStorage.removeItem('rxsdr_leve'); } catch (e) {}
+  }
+};
+try { ModoLeve.init(); } catch (e) {}
+
 let lastT = 0;
 let lastWfT = 0;   // controla quando a cachoeira avança
 let wfAccumulator = 0;
+let ultMoldura = 0;
 function frame(t){
+  ModoLeve.registrarQuadro(t);
   if (!lastWfT) lastWfT = t;
   const elapsed = t - lastWfT;
   lastWfT = t;
@@ -6499,7 +6638,9 @@ function frame(t){
   // Mapeamento de velocidade (linhas por segundo):
   // 1: 5 l/s (lento), 2: 15 l/s, 5: 90 l/s, 10: 450 l/s (rápido)
   const speedRates = [0, 5, 15, 30, 55, 90, 135, 190, 260, 350, 450];
-  const linesPerSecond = speedRates[Math.max(1, Math.min(10, Math.round(speed)))];
+  let linesPerSecond = speedRates[Math.max(1, Math.min(10, Math.round(speed)))];
+  const leve = ModoLeve.ativo;
+  if (leve) linesPerSecond = Math.min(linesPerSecond, 10);
   
   wfAccumulator += elapsed * (linesPerSecond / 1000);
   let drewWf = false;
@@ -6516,8 +6657,8 @@ function frame(t){
     drewWf = true;
   }
 
-  // ── Espectro: atualiza sempre a ~30 fps (independente da velocidade da cachoeira) ──
-  if(t - lastT > 33){
+  // ── Espectro: ~30 fps (independente da velocidade da cachoeira); 10 no modo leve ──
+  if(t - lastT > (leve ? 100 : 33)){
     if (t > liveFftUntil) {
       rfLive = false;
       if (Smeter.rfLive) {
@@ -6543,10 +6684,13 @@ function frame(t){
     drawFreqScale();
     if (typeof Memorias !== 'undefined') Memorias.desenhar(false);
     
-    // Se a cachoeira não avançou de frame nesta iteração, redesenhamos os overlays dela em 30 fps
-    if (!drewWf) {
+    // Se a cachoeira não avançou de frame nesta iteração, redesenhamos os overlays dela em 30 fps.
+    // No modo leve, 4 vezes por segundo: cada redesenho copia a cachoeira
+    // inteira para a tela, e num PC fraco isso sozinho come um nucleo.
+    if (!drewWf && (!leve || t - ultMoldura > 250)) {
       drawWaterfall(0);
       if (typeof ZoomPane !== 'undefined') ZoomPane.frame(0);
+      ultMoldura = t;
     }
     
     lastT = t;
@@ -6659,27 +6803,54 @@ const HfdlDecoder = (() => {
   //    isso daria errado: as mensagens estao cheias de codigos com a mesma
   //    forma - "Blk id: X", "Msg num: S74A" - que virariam links para lugar
   //    nenhum.
+  const _hexConhecido = {};   // 'V'+voo ou 'R'+prefixo -> codigo ICAO (hex)
   function ligarFlightAware(html){
+    // Codigo ICAO do aviao, se a mensagem trouxer (ver FaLink).
+    const mh = html.match(/ICAO:\s*([0-9A-F]{6})\b/) || html.match(/AC:\s*\d+\s*\(([0-9A-F]{6})\)/);
+    let hex = mh ? mh[1] : '';
+    const mv = html.match(/Flight(?:\s+ID)?:\s*([A-Z0-9]{3,8})/);
+    const vooDaMsg = mv ? FaLink.voo(mv[1]) : '';
+    const mr = html.match(/Reg:\s*\.*([A-Z0-9][A-Z0-9-]{2,7})/);
+    const tailDaMsg = mr ? FaLink.tail(mr[1]) : '';
+    // Memoria voo/prefixo -> codigo ICAO. As mensagens de desempenho e as de
+    // ACARS quase nunca trazem o codigo, mas o MESMO aviao costuma ter mandado
+    // antes um "Logon" que traz. Lembrando dali, o link dessas tambem vai pelo
+    // codigo - e acha o aviao mesmo com o numero do voo cortado (TAM346...).
+    if (hex) {
+      if (vooDaMsg)  _hexConhecido['V' + vooDaMsg]  = hex;
+      if (tailDaMsg) _hexConhecido['R' + tailDaMsg] = hex;
+    } else {
+      hex = (vooDaMsg && _hexConhecido['V' + vooDaMsg]) || (tailDaMsg && _hexConhecido['R' + tailDaMsg]) || '';
+    }
     html = html.replace(/(Reg:\s*)(\.*)([A-Z0-9][A-Z0-9-]{2,7})/g,
       function(_, rotulo, pontos, prefixo){
         return rotulo + pontos +
-               '<a href="https://flightaware.com/live/flight/' +
-               encodeURIComponent(prefixo) + '" target="_blank" class="aprs-link">' +
-               prefixo + '</a>';
+               '<a href="' + FaLink.url(hex && vooDaMsg ? vooDaMsg : FaLink.tail(prefixo), hex) +
+               '" target="_blank" class="aprs-link">' + prefixo + '</a>';
       });
     // "Flight:" e "Flight ID:" - o HFDL usa OS DOIS rotulos, e nao ha regra:
     // dentro do envelope ACARS vem "Flight:", nas mensagens de posicao e de
-    // desempenho vem "Flight ID:". A primeira versao so pegava o primeiro, e o
-    // numero do voo das mensagens de posicao - justamente as mais interessantes,
-    // que trazem latitude e longitude - ficava sem link.
+    // desempenho vem "Flight ID:".
     html = html.replace(/(Flight(?:\s+ID)?:\s*)([A-Z0-9]{3,8})/g,
       function(_, rotulo, voo){
         return rotulo +
-               '<a href="https://flightaware.com/live/flight/' +
-               encodeURIComponent(voo) + '" target="_blank" class="aprs-link">' +
-               voo + '</a>';
+               '<a href="' + FaLink.url(FaLink.voo(voo), hex) +
+               '" target="_blank" class="aprs-link">' + voo + '</a>';
       });
     return html;
+  }
+
+  // Poe UMA mensagem no topo sem refazer as outras (ver TermEstavel).
+  function acrescentar(html){
+    const t = el('hfdlTerm');
+    if (!t) return;
+    TermEstavel.ligar(t);
+    if (!t.querySelector('.hfdl-msg')) { pintar(); return; }   // saia do "sem mensagens"
+    const antes = t.scrollHeight;
+    t.insertAdjacentHTML('afterbegin', html);
+    while (t.children.length > 200) t.lastElementChild.remove();
+    // Lendo (rolou para baixo) ou com o mouse/dedo em cima: o texto fica parado.
+    if (t.scrollTop > 0 || TermEstavel.segurando(t)) t.scrollTop += t.scrollHeight - antes;
   }
 
   function anotar(texto){
@@ -6690,10 +6861,11 @@ const HfdlDecoder = (() => {
     // Depois de escapar, nunca antes: os links sao HTML de verdade e seriam
     // transformados em texto se entrassem primeiro.
     corpo = ligarFlightAware(corpo);
-    _linhas.push('<div style="margin-bottom:6px;border-bottom:1px solid #12283c;padding-bottom:4px">' +
-                 '<span style="color:#67ff8b">[' + hora + 'Z]</span><br>' + corpo + '</div>');
+    const msg = '<div class="hfdl-msg" style="margin-bottom:6px;border-bottom:1px solid #12283c;padding-bottom:4px">' +
+                '<span style="color:#67ff8b">[' + hora + 'Z]</span><br>' + corpo + '</div>';
+    _linhas.push(msg);
     if (_linhas.length > 400) _linhas = _linhas.slice(-200);
-    pintar();
+    acrescentar(msg);
   }
 
   function estado(txt, cor){
@@ -9378,22 +9550,39 @@ if (stepSelectEl) {
   }
   setInterval(() => {
     const b = document.getElementById('audioBtn');
+    const nativo = (typeof AudioNativo !== 'undefined') && AudioNativo.ativo;
 
     const rod = document.getElementById('wfInfoAudio');
     // Escondido por padrao (ver o comentario no HTML). Continua sendo
     // atualizado mesmo invisivel: se voce ligar o diagnostico no meio de uma
     // escuta, os numeros ja estao prontos em vez de comecarem do zero.
-    if (rod && localStorage.getItem('rxsdr_diag') === '1') rod.style.display = '';
+    // Tambem aparece SOZINHO quando o audio tropeca (falta ou corte): e
+    // justamente quando alguem precisa mandar uma foto destes numeros, e
+    // ligar a chave escondida nao e coisa que se peca a quem esta usando.
+    let diagLigado = false;
+    try { diagLigado = localStorage.getItem('rxsdr_diag') === '1'; } catch (e) {}
+    const tropecou = (typeof AudioOut !== 'undefined') &&
+      (AudioOut.buracosAudio > 0 || (AudioOut.diag && (AudioOut.diag.cortes > 0 ||
+        (AudioOut.diag.relogio && Math.abs(AudioOut.diag.relogio - 1) > 0.01) ||
+        (AudioOut.diag.passo && Math.abs(AudioOut.diag.passo - 1) > 0.01))));
+    const leve = (typeof ModoLeve !== 'undefined') && ModoLeve.ativo;
+    if (rod && (diagLigado || tropecou || leve || nativo)) rod.style.display = '';
+    if (rod && !rod._cliqueLeve) {
+      rod._cliqueLeve = true;
+      rod.style.cursor = 'pointer';
+      rod.title = 'Modo leve: a pagina desenha menos para sobrar processador ao audio (PC fraco). Clique para desligar.';
+      rod.addEventListener('click', () => { if (ModoLeve.ativo) ModoLeve.desligar(); });
+    }
     if (rod && typeof AudioOut !== 'undefined') {
-      const curto = AudioOut.resumoCurto();
+      const curto = nativo ? AudioNativo.resumo() : AudioOut.resumoCurto();
       if (rod.textContent !== curto) rod.textContent = curto;
-      rod.style.color = AudioOut.buracosAudio > 0 ? '#e0a52f' : '#7fb0ff';
+      rod.style.color = (nativo ? AudioNativo.faltas() > 0 : AudioOut.buracosAudio > 0) ? '#e0a52f' : '#7fb0ff';
     }
 
     if (!b) return;
     const ligado = (typeof powerOn !== 'undefined') && powerOn;
-    const tocando = (typeof AudioOut !== 'undefined') && AudioOut.ctx
-                 && AudioOut.ctx.state === 'running';
+    const tocando = nativo || ((typeof AudioOut !== 'undefined') && AudioOut.ctx
+                 && AudioOut.ctx.state === 'running');
     b.style.display = (ligado && !tocando) ? '' : 'none';
 
     if (!sobre && typeof AudioOut !== 'undefined' && AudioOut.ctx) {
@@ -9405,9 +9594,144 @@ if (stepSelectEl) {
   }, 1000);
 })();
 
+// ---------------------------------------------------------------------------
+//  AUDIO NATIVO - so no RXSDR do Windows 7
+//
+//  No PC de um amigo do autor (AMD E-350, Win7) o som pelo navegador acelerava
+//  e desacelerava: o Chrome gastava um nucleo inteiro so desenhando, e a placa
+//  de som andava 8% mais devagar do que dizia. SDR# e SDR Console, que tocam
+//  direto na placa, funcionavam. Entao o RXSDR do Windows 7 passou a tocar
+//  direto na placa tambem, com os MESMOS redutores de ruido da pagina (NB,
+//  NR ESPECTRAL, Redutor de Ruido) e o mesmo tom e volume, feitos no programa.
+//
+//  A pagina continua sendo a tela. Aqui ela so manda os ajustes (POST
+//  /api/audio) quando algo muda: volume, MUTE/squelch, NB, NR, tom.
+//  So liga quando o programa responde "audioNativo": true no /api/status -
+//  no Windows 10/11 e nas caixas nada muda.
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+//  TermEstavel - terminais de decodificador (HFDL, ACARS) que nao fogem do dedo
+//
+//  Os links para o FlightAware "abriam uns e outros nao". Motivo: a cada
+//  mensagem nova o terminal era REFEITO inteiro (innerHTML), e o HFDL recebe
+//  uma a cada poucos segundos. Um clique so acontece se o apertar e o soltar
+//  caem no MESMO elemento; se uma mensagem chegava no meio do clique, o link
+//  embaixo do dedo era trocado por uma copia e o clique sumia. E como a
+//  mensagem nova entra em cima, o texto ainda descia e o link saia do lugar.
+//
+//  Agora a mensagem nova e ACRESCENTADA (o resto nao e tocado) e, enquanto o
+//  mouse esta sobre o terminal ou o dedo esta nele - ou se a pessoa rolou para
+//  ler -, a rolagem e compensada: o que esta na tela fica parado.
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+//  FaLink - enderecos do FlightAware que ele reconhece de fato
+//
+//  Links que "abriam mas o FlightAware nao achava o aviao" (28/09):
+//   - numero de voo com ZEROS a esquerda: o ACARS/HFDL manda "TC0235",
+//     "AM0030", "LU0369" (campo de tamanho fixo); o FlightAware so conhece
+//     TC235, AM30, LU369.
+//   - prefixo COM hifen: o FlightAware usa o prefixo sem hifen (PR-ANY vira
+//     /live/flight/PRANY).
+//   - o "Flight ID" do HFDL tem so 6 caracteres: TAM3469 chega como TAM346 e
+//     nao ha como saber o digito que falta. Quando a mensagem traz o codigo
+//     ICAO do aviao (6 digitos hex, ex. "ICAO: 39C423" ou "Src AC: 57
+//     (E48FC2)"), o link vai pelo codigo - o FlightAware acha o aviao certo
+//     mesmo com o numero do voo cortado.
+// ---------------------------------------------------------------------------
+var FaLink = {
+  tail(reg){ return String(reg).toUpperCase().replace(/[^A-Z0-9]/g, ''); },
+  voo(v){
+    v = String(v).toUpperCase();
+    let m = v.match(/^([A-Z][A-Z0-9]|[0-9][A-Z])0*(\d{1,4}[A-Z]?)$/);   // IATA: TC0235 -> TC235
+    if (m) return m[1] + m[2];
+    m = v.match(/^([A-Z]{3})0*(\d{1,4}[A-Z]?)$/);                        // ICAO: TAM0803 -> TAM803
+    if (m) return m[1] + m[2];
+    return v;
+  },
+  url(ident, hex){
+    return hex
+      ? 'https://flightaware.com/live/modes/' + hex.toLowerCase() + '/ident/' + encodeURIComponent(ident) + '/redirect'
+      : 'https://flightaware.com/live/flight/' + encodeURIComponent(ident);
+  }
+};
+
+var TermEstavel = {
+  ligar(t){
+    if (!t || t._rxLigado) return;
+    t._rxLigado = true;
+    t.addEventListener('pointerenter', () => { t._rxSobre = true; });
+    t.addEventListener('pointerleave', () => { t._rxSobre = false; });
+    t.addEventListener('pointerdown',  () => { t._rxToque = true; });
+    const solta = () => { setTimeout(() => { t._rxToque = false; }, 400); };
+    window.addEventListener('pointerup', solta);
+    window.addEventListener('pointercancel', solta);
+  },
+  segurando(t){ return !!(t && (t._rxSobre || t._rxToque)); }
+};
+
+var AudioNativo = {
+  ativo: false, mudo: true, ultimo: '', st: null, sps: 48000,
+  detectar(){
+    fetch('/api/status').then(r => r.json()).then(j => { if (j && j.audioNativo) this.ligar(); }).catch(() => {});
+  },
+  ligar(){
+    if (this.ativo) return;
+    this.ativo = true;
+    audioEnabled = true;                       // nao precisa de clique: o som nao sai do navegador
+    try { if (AudioOut.ctx) AudioOut.ctx.suspend(); } catch (e) {}
+    const b = document.getElementById('audioBtn'); if (b) b.style.display = 'none';
+    setInterval(() => this.enviar(false), 250); // pega slider e botao mexidos sem audio chegando
+    setInterval(() => this.lerStatus(), 2000);
+    this.enviar(true);
+  },
+  ajuste(){
+    const val = id => Number(document.getElementById(id)?.value ?? 0);
+    const tom = document.getElementById('toneSlider');
+    return {
+      mudo: !!this.mudo,
+      volume: Math.round(AudioOut.volume() * 1000) / 1000,
+      nb: val('audioAgcSlider') / 100,
+      nrEsp: (typeof NrEspectral !== 'undefined') && NrEspectral.ligado,
+      nrEspForca: (typeof NrEspectral !== 'undefined') ? NrEspectral.forca : 40,
+      nr: val('audioNrSlider') / 100,
+      tom: tom ? Number(tom.value) : 50
+    };
+  },
+  enviar(forcar){
+    const s = JSON.stringify(this.ajuste());
+    if (!forcar && s === this.ultimo) return;
+    this.ultimo = s;
+    fetch('/api/audio', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: s })
+      .catch(() => { this.ultimo = ''; });     // falhou: tenta de novo na proxima volta
+  },
+  // Chamado a cada pacote de audio que chega (o som em si ja tocou no programa).
+  tratar(pcm, sps, mudo){
+    this.sps = sps || 48000;
+    if (!!mudo !== this.mudo) { this.mudo = !!mudo; this.enviar(false); }
+    // olho magico: mesmo calculo da pagina (sem os redutores, que agora sao do programa)
+    let soma = 0;
+    for (let i = 0; i < pcm.length; i++) { const x = pcm[i] / 32768; soma += x * x; }
+    AudioOut.audioTargetLevel = (mudo || !pcm.length) ? 0 : Math.min(1.0, Math.sqrt(soma / pcm.length) / 0.22);
+    AudioOut.lastAudioTime = performance.now();
+    if (typeof RXRecorder !== 'undefined' && RXRecorder.recording && RXRecorder.nativo) RXRecorder.alimentar(pcm, mudo);
+  },
+  lerStatus(){
+    fetch('/api/status').then(r => r.json()).then(j => { this.st = j; }).catch(() => {});
+  },
+  faltas(){ return (this.st && this.st.somFaltas) || 0; },
+  resumo(){
+    const j = this.st;
+    if (!j) return 'SOM NATIVO (Windows 7)';
+    return 'SOM NATIVO | fila ' + (j.somFilaMs || 0) + ' ms | ajuste x' + Number(j.somPasso || 1).toFixed(3)
+         + ' | faltas ' + (j.somFaltas || 0);
+  }
+};
+AudioNativo.detectar();
+
 // Botão ÁUDIO — desbloqueia AudioContext via gesto explícito (exigido pelo Chrome)
 document.getElementById('audioBtn').addEventListener('click', async ()=>{
   const btn = document.getElementById('audioBtn');
+  if (typeof AudioNativo !== 'undefined' && AudioNativo.ativo) { audioEnabled = true; return; }
   try {
     await AudioOut.init();
     if (AudioOut.ctx && AudioOut.ctx.state === 'suspended')
@@ -9649,6 +9973,7 @@ const DECODERS = [
   {id:'ais',   name:'AIS',    freq:'161.975 / 162.025 MHz', mod:'GMSK 9600 bps'},
   {id:'sitorb',name:'SITOR-B', freq:'8415 kHz e outras',    mod:'FSK 100 bd, shift 170 Hz'},
   {id:'rtty',  name:'RTTY',    freq:'14080 kHz e outras',   mod:'FSK 45,45 bd, shift 170 Hz, Baudot'},
+  {id:'ale',   name:'ALE',     freq:'14109 kHz e outras',   mod:'8-FSK 125 bd, MIL-STD-188-141A/B'},
   {id:'cw',    name:'CW / Morse', freq:'qualquer',           mod:'telegrafia, velocidade medida sozinha'},
   {id:'dsc',   name:'DSC',      freq:'8414.5 kHz e outras', mod:'FSK 100 bd, shift 170 Hz'},
   {id:'analise',name:'Analisador', freq:'onde voce estiver', mod:'mede tons, shift e velocidade'},
@@ -9673,6 +9998,8 @@ function buildDecoderContent(d){
     return SitorBDecoder.buildPanelHTML();
   } else if(d.id==='rtty'){
     return RttyDecoder.buildPanelHTML();
+  } else if(d.id==='ale'){
+    return AleDecoder.buildPanelHTML();
   } else if(d.id==='dsc'){
     return DscDecoder.buildPanelHTML();
   } else if(d.id==='cw'){
@@ -9747,7 +10074,7 @@ function openDecoderPanel(id){
   }
   // Painies com barra de controles, terminal e nota de rodape precisam de
   // altura; com o padrao antigo o texto explicativo ficava cortado.
-  if (id === 'sitorb' || id === 'rtty' || id === 'dsc' || id === 'ais' || id === 'acars' || id === 'analise' || id === 'cw') {
+  if (id === 'sitorb' || id === 'rtty' || id === 'ale' || id === 'dsc' || id === 'ais' || id === 'acars' || id === 'analise' || id === 'cw') {
     panel.style.width = '660px';
     panel.style.height = '500px';
   }
@@ -9787,7 +10114,7 @@ function openDecoderPanel(id){
   setTimeout(() => { try { aplicarIdioma(panel); } catch (e) {} }, 0);
 
   const titleText = isDigital 
-    ? (id === 'rtty' ? '📡 RTTY Decoder' : id === 'dsd' ? '📻 DMR / P25 / NXDN' : id === 'tetra' ? '📶 TETRA Demodulador' : id === 'adsb' ? '✈️ ADS-B Decoder' : id === 'cw' ? '🔑 CW Morse Decoder' : id === 'bpsk' ? '📡 BPSK Decoder' : 'Digital Decoder')
+    ? (id === 'rtty' ? '📡 RTTY Decoder' : id === 'ale' ? '📡 ALE Decoder' : id === 'dsd' ? '📻 DMR / P25 / NXDN' : id === 'tetra' ? '📶 TETRA Demodulador' : id === 'adsb' ? '✈️ ADS-B Decoder' : id === 'cw' ? '🔑 CW Morse Decoder' : id === 'bpsk' ? '📡 BPSK Decoder' : 'Digital Decoder')
     : `⚡ ${d.name}`;
 
   let headerBtns = '';
@@ -9818,6 +10145,7 @@ function openDecoderPanel(id){
   if (id === 'ais')   AisDecoder.init();
   if (id === 'sitorb') SitorBDecoder.init();
   if (id === 'rtty') RttyDecoder.init();
+  if (id === 'ale') AleDecoder.init();
   if (id === 'cw') CwDecoder.init();
   if (id === 'dsc') DscDecoder.init();
   if (id === 'analise') AnaliseDecoder.init();
@@ -9843,6 +10171,7 @@ function closeDecoderPanel(id){
   if (id === 'ais') AisDecoder.onClose();
   if (id === 'sitorb') SitorBDecoder.onClose();
   if (id === 'rtty') RttyDecoder.onClose();
+  if (id === 'ale') AleDecoder.onClose();
   if (id === 'cw') CwDecoder.onClose();
   if (id === 'dsc') DscDecoder.onClose();
   if (id === 'analise') AnaliseDecoder.onClose();
@@ -13314,6 +13643,436 @@ const RttyDecoder = (() => {
 })();
 
 /* =========================================================
+   ALE - Automatic Link Establishment (nativo, AleCore)
+   2G ALE: MIL-STD-188-141A / 141B apendice A / FED-STD-1045 - o mesmo sinal
+   nas tres normas. 8-FSK, tons de 750 a 2500 Hz, 125 baud, recepcao em USB.
+   ========================================================= */
+const AleDecoder = (() => {
+  let _pollTimer = null;
+  let _linhas = [];
+  let _estadoAnterior = null;
+  let _sintonizou = false;
+  const MAX = 500;
+  const el = id => document.getElementById(id);
+
+  // Tipos de ALE no menu. So entra aqui o que decodifica de verdade.
+  const MODOS = [
+    { id: '2g', nome: '2G ALE - MIL-STD-188-141A/B · FED-STD-1045' }
+  ];
+  // Canais em dois blocos, todos com o DIAL em USB:
+  //  - rede ALE de radioamadores (HFN);
+  //  - estacoes brasileiras (lista de 27/09/2026 - a lista do
+  //    autor): 612 registros de ALE do Brasil viraram 132 canais - mesma
+  //    frequencia e mesmo operador juntam as cidades.
+  // Sao muitos para um menu comum: o menu e dividido em grupos e o campo
+  // "buscar" filtra por frequencia, cidade ou operador.
+  const HFN = [
+    [14109, '20 m (o mais ativo)'], [7102, '40 m'], [10136.5, '30 m'], [18106, '17 m'],
+    [21096, '15 m'], [3596, '80 m'], [5357, '60 m'], [24926, '12 m'], [28146, '10 m']
+  ];
+  const GRUPOS = { H: 'Radioamador - rede HFN', M: 'Marinha do Brasil', F: 'Forcas Armadas',
+                   A: 'Forca Aerea Brasileira', O: 'Outros (Brasil)' };
+  // [grupo, kHz (dial USB), local, tipo] - 27/09/2026
+  const BRASIL = [
+    ["M",6275,"Rio Grande do Sul / Rio de Janeiro / navio / móvel","141A"],
+    ["M",6412,"Rio de Janeiro","141A"],
+    ["M",6416,"Rio de Janeiro","141A"],
+    ["M",6510,"Rio de Janeiro / navio / móvel","141A"],
+    ["M",6828,"Rio Grande do Sul","141A/110A"],
+    ["M",6992,"Rio Grande do Sul","141A/110A"],
+    ["M",7530,"Rio Grande do Sul","141A/110A"],
+    ["M",8310,"Fortaleza / Rio Grande do Sul / Rio de Janeiro / navio / móvel","141A"],
+    ["M",8420,"Rio Grande do Sul / navio / móvel","141A"],
+    ["M",8584,"Rio de Janeiro","141A"],
+    ["M",8624,"Rio Grande do Sul / Rio de Janeiro / navio / móvel","141A"],
+    ["M",8646,"Rio de Janeiro / navio / móvel","141A"],
+    ["M",9120,"Rio Grande do Sul","141A/110A"],
+    ["M",10194.5,"Rio de Janeiro","141A"],
+    ["M",10914.5,"Fortaleza / Natal / Rio Grande do Sul / Rio de Janeiro / navio / móvel","141A"],
+    ["M",11010,"Belém / Fortaleza / Natal / Rio Grande do Sul / Rio de Janeiro / navio / móvel","141A"],
+    ["M",11477,"Fortaleza / Natal / Rio de Janeiro","141A"],
+    ["M",11481,"Rio de Janeiro","141A"],
+    ["M",12168,"Rio Grande do Sul","141A/110A"],
+    ["M",12175,"Rio Grande do Sul","141A/110A"],
+    ["M",12370,"navio / móvel","141A"],
+    ["M",12374,"Rio de Janeiro / navio / móvel","141A"],
+    ["M",12431,"Natal / Rio de Janeiro / navio / móvel","141A"],
+    ["M",12437,"Fortaleza / Natal / Rio de Janeiro","141A"],
+    ["M",12589,"Rio Grande do Sul / Rio de Janeiro","141A"],
+    ["M",12716,"navio / móvel","141A"],
+    ["M",12725,"Natal / Rio de Janeiro / navio / móvel","141A"],
+    ["M",13101,"Belém / Fortaleza / Natal / Rio Grande do Sul / Rio de Janeiro / navio / móvel","141A"],
+    ["M",14780,"Belém / Fortaleza / Natal / Rio Grande do Sul / Rio de Janeiro / navio / móvel","141A"],
+    ["M",15932,"Rio Grande do Sul / Rio de Janeiro / navio / móvel","141A"],
+    ["M",16408,"navio / móvel","141A"],
+    ["M",16607,"Fortaleza / Natal / Rio de Janeiro / navio / móvel","141A"],
+    ["M",16623.5,"Belém / Fortaleza / navio / móvel","141A"],
+    ["M",16982,"Rio de Janeiro","141A/110A"],
+    ["M",17010,"Fortaleza / Natal / Rio de Janeiro","141A"],
+    ["M",18872.5,"Fortaleza","141A"],
+    ["M",19427,"Fortaleza / Rio de Janeiro","141A"],
+    ["M",19709,"Fortaleza / Natal / Rio de Janeiro / navio / móvel","141A"],
+    ["M",22168,"Natal / Rio de Janeiro / navio / móvel","141A"],
+    ["F",6826,"Brasília e outras","141A/110A"],
+    ["F",7398,"Brasília e outras","141A/110A"],
+    ["F",7457,"Brasília e outras","141A/110A"],
+    ["F",7605,"Brasília e outras","141A/110A"],
+    ["F",7812,"Brasília e outras","141A/110A"],
+    ["F",7997,"Brasília e outras","141A/110A"],
+    ["F",8021,"Brasília e outras","141A/110A"],
+    ["F",8022,"Brasília e outras","141A/110A"],
+    ["F",8035,"Brasília e outras","141A/110A"],
+    ["F",8042,"Brasília e outras","141A/110A"],
+    ["F",8184,"Brasília e outras","141A/110A"],
+    ["F",8185,"Brasília e outras","141A/110A"],
+    ["F",9059,"Brasília e outras","141A/110A"],
+    ["F",9061,"Brasília e outras","141A/110A"],
+    ["F",9064,"Brasília e outras","141A/110A"],
+    ["F",9117,"Brasília e outras","141A/110A"],
+    ["F",9118,"Brasília e outras","141A/110A"],
+    ["F",9183,"São Paulo ou outra","141A"],
+    ["F",9245,"Brasília e outras","141A/110A"],
+    ["F",9249.5,"Brasília e outras","141A/110A"],
+    ["F",9401,"Brasília e outras","141A/110A"],
+    ["F",9407,"Brasília e outras","141A/110A"],
+    ["F",10117.5,"Brasília e outras","141A/110A"],
+    ["F",10173,"Brasília e outras","141A/110A"],
+    ["F",10252,"Brasília e outras","141A/110A"],
+    ["F",10376,"Brasília e outras / São Paulo ou outra","141A/110A"],
+    ["F",10490.5,"Brasília e outras","141A/110A"],
+    ["F",10869,"Brasília e outras","141A/110A"],
+    ["F",10871,"Brasília e outras / São Paulo ou outra","141A/110A"],
+    ["F",10981,"Brasília e outras","141A/110A"],
+    ["F",11165,"Brasília e outras / São Paulo ou outra","141A/110A"],
+    ["F",11177,"Brasília e outras","141A/110A"],
+    ["F",11178,"São Paulo ou outra","141A"],
+    ["F",11454,"Brasília e outras","141A/110A"],
+    ["F",11490.5,"Brasília e outras / São Paulo ou outra","141A/110A"],
+    ["F",11528,"Brasília e outras","141A/110A"],
+    ["F",11587,"Brasília e outras / São Paulo ou outra","141A/110A"],
+    ["F",12061,"Brasília e outras / São Paulo ou outra","141A/110A"],
+    ["F",12132,"Brasília e outras","141A/110A"],
+    ["F",12136,"Brasília e outras","141A/110A"],
+    ["F",12193,"Brasília e outras","141A/110A"],
+    ["F",12223,"Brasília e outras","141A/110A"],
+    ["F",12365,"Brasília e outras","141A/110A"],
+    ["F",13580,"São Paulo ou outra","141A"],
+    ["F",13876,"Brasília e outras","141A/110A"],
+    ["F",14437,"Brasília e outras","141A/110A"],
+    ["F",14582,"Brasília e outras","141A/110A"],
+    ["F",14707,"Brasília e outras","141A/110A"],
+    ["F",14852,"Brasília e outras","141A/110A"],
+    ["F",15643,"São Paulo ou outra","141A"],
+    ["F",15805,"Brasília e outras","141A/110A"],
+    ["F",15876,"Brasília e outras","141A/110A"],
+    ["F",16086,"Brasília e outras","141A/110A"],
+    ["F",16096,"Brasília e outras","141A/110A"],
+    ["F",16335,"Brasília e outras","141A/110A"],
+    ["F",18172,"Brasília e outras","141A/110A"],
+    ["F",18177,"Brasília e outras","141A/110A"],
+    ["F",18218,"Brasília e outras","141A/110A"],
+    ["F",18222,"Brasília e outras","141A/110A"],
+    ["F",19677,"Brasília e outras","141A/110A"],
+    ["F",19678,"Brasília e outras","141A/110A"],
+    ["F",20078,"Brasília e outras","141A/110A"],
+    ["F",20159,"Brasília e outras","141A/110A"],
+    ["F",20183,"São Paulo ou outra","141A"],
+    ["F",20535,"Brasília e outras","141A/110A"],
+    ["A",7310,"Rio de Janeiro ou outra","141A/110A"],
+    ["A",9010,"Rio de Janeiro ou outra","141A/110A"],
+    ["A",9058,"Rio de Janeiro ou outra","141A/110A"],
+    ["A",9073,"Rio de Janeiro ou outra","141A/110A"],
+    ["A",9183,"Rio de Janeiro ou outra","141A"],
+    ["A",9192,"Rio de Janeiro ou outra","141A/110A"],
+    ["A",9204,"Rio de Janeiro ou outra","141A/110A"],
+    ["A",9892,"Rio de Janeiro ou outra","141A/110A"],
+    ["A",10182,"Rio de Janeiro ou outra","141A/110A"],
+    ["A",10183,"Rio de Janeiro ou outra","141A"],
+    ["A",10376,"Rio de Janeiro ou outra","141A"],
+    ["A",10707,"Rio de Janeiro ou outra","141A/110A"],
+    ["A",10869,"Rio de Janeiro ou outra","141A/110A"],
+    ["A",10972,"Rio de Janeiro ou outra","141A/110A"],
+    ["A",10979,"Rio de Janeiro ou outra","141A/110A"],
+    ["A",10985,"Rio de Janeiro ou outra","141A/110A"],
+    ["A",11165,"Rio de Janeiro ou outra","141A"],
+    ["A",11224,"Rio de Janeiro ou outra","141A/110A"],
+    ["A",11563.5,"Rio de Janeiro ou outra","141A/110A"],
+    ["A",12061,"Rio de Janeiro ou outra","141A/110A"],
+    ["A",13224,"Rio de Janeiro ou outra","141A/110A"],
+    ["A",13490,"Rio de Janeiro ou outra","141A"],
+    ["A",13580,"Rio de Janeiro ou outra","141A"],
+    ["A",15643,"Rio de Janeiro ou outra","141A"],
+    ["A",15804,"Rio de Janeiro ou outra","141A/110A"],
+    ["A",16357,"Rio de Janeiro ou outra","141A"],
+    ["A",20183,"Rio de Janeiro ou outra","141A"],
+    ["O",7980,"Central de Urgências / Puquio","141A/110A"]
+  ];
+  function fmtKhz(k) {
+    return k.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  }
+  const CANAIS = HFN.map(([k, n]) => ({ g: 'H', hz: Math.round(k * 1000), rot: fmtKhz(k) + ' - ' + n }))
+    .concat(BRASIL.map(([g, k, loc, m]) => ({ g, hz: Math.round(k * 1000),
+      rot: fmtKhz(k) + ' - ' + loc + ' - ' + m })));
+  function semAcento(t) { return String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
+  // Monta o menu agrupado, so com os canais que batem com a busca.
+  function opcoesCanais(filtro) {
+    const f = semAcento(filtro || '').trim();
+    let html = '<option value="">' + (f ? '- ' + T('resultado da busca') + ' -' : '- ' + T('escolha para sintonizar') + ' -') + '</option>';
+    let n = 0;
+    for (const g of Object.keys(GRUPOS)) {
+      const itens = CANAIS.map((c, i) => ({ c, i })).filter(({ c }) => c.g === g &&
+        (!f || semAcento(GRUPOS[g] + ' ' + c.rot).includes(f) ||
+         semAcento(c.rot).replace(/\./g, '').includes(f.replace(/\./g, ''))));
+      if (!itens.length) continue;
+      n += itens.length;
+      html += '<optgroup label="' + GRUPOS[g] + ' (' + itens.length + ')">' +
+        itens.map(({ c, i }) => '<option value="' + i + '">' + c.rot + '</option>').join('') + '</optgroup>';
+    }
+    return { html, n };
+  }
+  function filtrarCanais() {
+    const sel = el('ale-canal'), b = el('ale-busca'); if (!sel) return;
+    const r = opcoesCanais(b ? b.value : '');
+    sel.innerHTML = r.html;
+    const info = el('ale-ncanais'); if (info) info.textContent = r.n + ' ' + T('canais');
+  }
+
+  function buildPanelHTML() {
+    const opM = MODOS.map(m => '<option value="' + m.id + '">' + m.nome + '</option>').join('');
+    const opC = opcoesCanais('').html;
+    return `
+      <div class="dec-status-banner" style="background:#020603;padding:6px 10px;border-bottom:1px solid #10301a">
+        <div style="color:#ffaa00;font-family:'Segoe UI',sans-serif;font-size:12px;font-weight:bold;margin-bottom:2px">
+          Modo: ALE | <span id="ale-status" style="color:#ffaa00">Parado</span>
+        </div>
+        <div style="color:#b0f020;font-family:Consolas,monospace;font-size:12px;font-weight:bold">
+          8-FSK 125 baud, tons de 750 a 2500 Hz - Golay (24,12) - USB, 3 kHz - tom procurado em &plusmn;500 Hz
+        </div>
+      </div>
+
+      <div class="dig-ctrl-bar" style="gap:4px 6px;flex-wrap:wrap">
+        <label style="font-size:10px">Tipo</label>
+        <select id="ale-modo" style="font-size:10px;max-width:250px" onchange="AleDecoder.reiniciar()">${opM}</select>
+        <label style="font-size:10px">Canal</label>
+        <input type="text" id="ale-busca" placeholder="buscar" oninput="AleDecoder.filtrarCanais()"
+               title="Filtra os canais: frequencia (8021), cidade (natal), operador (marinha)..."
+               style="width:62px;font-size:10px">
+        <select id="ale-canal" style="font-size:10px;max-width:260px" onchange="AleDecoder.irParaCanal()">${opC}</select>
+        <span id="ale-ncanais" style="font-size:9px;color:#6a8a70">${CANAIS.length} canais</span>
+        ${ArquivoAudio.botaoHTML('ALE')}
+        <span id="ale-stats" style="font-size:10px;color:#7fb0ff;margin-left:auto"></span>
+      </div>
+
+      <div style="height:calc(100% - 100px);width:100%;background:#020804;display:flex;flex-direction:column;padding:8px;box-sizing:border-box;flex:1">
+        <div id="ale-terminal" class="dec-terminal" style="flex:1;overflow-y:auto;background:#010402;border:1px solid #20aa40;padding:8px;color:#30dd70;font-family:Consolas,monospace;font-size:12px;margin-bottom:6px;min-height:0;white-space:pre-wrap;word-break:break-word;box-shadow:inset 0 0 10px rgba(0,255,80,0.1)">Aguardando ALE...</div>
+        <button onclick="AleDecoder.limpar()" class="gt-btn" style="width:100%;padding:5px;background:#051a0b;border-color:#1e6c33;color:#40dd70;font-size:11px;font-weight:bold;cursor:pointer;border-radius:4px">Limpar</button>
+        <div style="color:#6a8a70;font-size:10px;margin-top:5px;line-height:1.4">
+          [TO] = para quem, [TIS] = quem chama ("this is"), [TWAS] = fim do enlace,
+          [CMD AMD] = mensagem de texto, [LQA] = qualidade do canal. [@@?] e chamada para qualquer estacao.
+          Uma linha aparece quando a chamada termina. O tom e procurado sozinho ate 500 Hz para cima ou para baixo:
+          nao precisa acertar a sintonia no ponto. Canais do Brasil: lista de 27/09/2026
+          (141A/110A = depois do enlace vem dados no modem MIL-STD-188-110A, que nao e decodificado).
+        </div>
+      </div>
+    `;
+  }
+
+  // ---- servidor -------------------------------------------------------------
+  function modoAtual() { return (el('ale-modo') || {}).value || '2g'; }
+  function iniciar() {
+    fetch('/api/ale/start', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ modo: modoAtual() })
+    }).then(r => r.json()).then(mostrar).catch(() => mostrar(null));
+  }
+  function parar() {
+    fetch('/api/ale/stop', { method: 'POST' }).then(r => r.json()).then(mostrar).catch(() => {});
+  }
+  function reiniciar() {
+    try { localStorage.setItem('ale-modo', modoAtual()); } catch (e) {}
+    iniciar();
+  }
+  function mostrar(d) {
+    const t = el('ale-status'), st = el('ale-stats');
+    if (!t) return;
+    if (!d || d.state === 'unavailable') {
+      t.textContent = d ? 'Indisponivel neste RXSDR' : 'Sem resposta'; t.style.color = '#ff8080';
+      if (st) st.textContent = ''; return;
+    }
+    const rodando = (d.state === 'running');
+    t.textContent = rodando ? 'Rodando' : 'Parado';
+    t.style.color = rodando ? '#7CFC00' : '#ffaa00';
+    if (st) {
+      st.textContent = !rodando ? '' :
+        (d.sync ? 'RECEBENDO CHAMADA' : 'procurando sinal') + ' | ' +
+        (d.chamadas || 0) + ' chamadas, ' + (d.palavras || 0) + ' palavras' +
+        // Deslocamento de tom da ultima chamada: mostra o quanto a sintonia
+        // (ou o transmissor) esta fora do ponto. So aparece depois de uma.
+        ((d.chamadas || 0) > 0 && typeof d.desvio === 'number'
+          ? ' | tom ' + (d.desvio > 0 ? '+' : '') + Math.round(d.desvio) + ' Hz' : '');
+      st.style.color = d.sync ? '#7CFC00' : '#7fb0ff';
+    }
+  }
+  function pollStatus() {
+    fetch('/api/ale/status').then(r => r.json()).then(mostrar).catch(() => mostrar(null));
+  }
+
+  // ---- terminal ---------------------------------------------------------------
+  function desenhar() {
+    const t = el('ale-terminal'); if (!t) return;
+    t.textContent = _linhas.join('\n');
+    t.scrollTop = t.scrollHeight;
+  }
+  // ---- leitura da chamada ------------------------------------------------------
+  // O C++ manda os campos crus ("[TO][21011][LQA BER 2 SINAD 21][TIS][00012]");
+  // aqui eles viram uma frase, como o MultiPSK faz ("Call from X to Y").
+  const ROTULO = /^(TO|TIS|TWAS|FROM|THRU|DATA|REP|\?|CMD .*|LQA .*)$/;
+  function campos(cru) {
+    const itens = [];
+    const re = /\[([^\]]*)\]( x(\d+))?/g;
+    let m;
+    while ((m = re.exec(cru))) itens.push({ v: m[1], rep: m[3] ? Number(m[3]) : 1 });
+    const out = [];
+    for (let i = 0; i < itens.length; i++) {
+      const it = itens[i];
+      if (!ROTULO.test(it.v)) continue;
+      const c = { rot: it.v, txt: '', rep: it.rep };
+      if (!/^LQA /.test(it.v) && i + 1 < itens.length && !ROTULO.test(itens[i + 1].v)) {
+        c.txt = itens[i + 1].v; c.rep = Math.max(c.rep, itens[i + 1].rep); i++;
+      }
+      out.push(c);
+    }
+    return out;
+  }
+  function nomeEndereco(a) {
+    if (a === '@@?') return 'qualquer estacao (ANYCALL)';
+    if (a === '@?@') return 'todas as estacoes (ALLCALL)';
+    return a;
+  }
+  function resumo(cs) {
+    const tis  = cs.filter(c => c.rot === 'TIS' || c.rot === 'TWAS');
+    const para = [...new Set(cs.filter(c => c.rot === 'TO').map(c => nomeEndereco(c.txt)))];
+    const de   = tis.length ? tis[tis.length - 1].txt : '';
+    let f;
+    if (tis.some(c => c.rot === 'TWAS')) f = 'Fim de enlace de ' + de + (para.length ? ' com ' + para.join(', ') : '');
+    else if (de && para.length) f = 'Chamada de ' + de + ' para ' + para.join(', ');
+    else if (de && cs.some(c => c.rot === '?'))
+      f = 'Chamada de ' + de + ' (o destinatario comecou antes da recepcao: ...' + cs.find(c => c.rot === '?').txt + ')';
+    else if (de) f = 'Sondagem de ' + de;
+    else f = 'Chamada para ' + para.join(', ') + ' (sem identificacao recebida)';
+    const amd = cs.filter(c => c.rot === 'CMD AMD').map(c => c.txt).join(' ');
+    if (amd) f += ' - mensagem: "' + amd + '"';
+    const lqa = cs.find(c => /^LQA /.test(c.rot));
+    if (lqa) {
+      const q = /BER (\d+) SINAD (\d+)/.exec(lqa.rot);
+      if (q) f += ' - qualidade informada: BER ' + q[1] + ', SINAD ' + q[2];
+    }
+    return f;
+  }
+
+  // "[ALE] 22:05:47 UTC  [TO][KT0][TIS][200]" vira duas linhas:
+  //   22:05:47  Chamada de 200 para KT0
+  //             [TO][KT0][TO][KT0][TIS][200]
+  // Linhas de servico (iniciado/parado) vao entre tracos.
+  function appendLine(line) {
+    if (!line) return;
+    const t = el('ale-terminal');
+    const s = String(line).replace(/^\[ALE\]\s*/, '');
+    const m = /^(\d\d:\d\d:\d\d) UTC\s+(.*)$/.exec(s);
+    let cru = m ? m[2] : '';
+    // Toda chamada de verdade tem ao menos um endereco. Sem nenhum, e uma
+    // palavra que o Golay "consertou" para a palavra errada (acontece quando o
+    // sinal comeca ou termina no meio de uma palavra): nao mostra.
+    if (m && !/\[(TO|TIS|TWAS|FROM|THRU)\]/.test(cru)) return;
+    // Comecou no meio de um endereco: o pedaco que sobrou nao e DATA de verdade.
+    if (m) cru = cru.replace(/^\[(DATA|REP)\]/, '[?]');
+    if (t && t.textContent.indexOf('Aguardando') === 0) _linhas = [];
+    if (m) {
+      _linhas.push(m[1] + '  ' + resumo(campos(cru)));
+      _linhas.push('          ' + cru);
+    } else {
+      _linhas.push('-- ' + s + ' --');
+    }
+    if (_linhas.length > MAX) _linhas.splice(0, _linhas.length - MAX);
+    desenhar();
+  }
+  function limpar() {
+    _linhas = [];
+    const t = el('ale-terminal'); if (t) t.textContent = T('Aguardando ALE...');
+  }
+
+  // ---- sintonia ---------------------------------------------------------------
+  function botaoModo(nome) {
+    return Array.from(document.querySelectorAll('.mode-btn')).find(b => b.textContent.trim() === nome) || null;
+  }
+  // O USB do RXSDR passa de 250 Hz ate a largura (BW). O padrao de 2,4 kHz
+  // cortaria o tom de 2500 Hz do ALE: usa 3 kHz, pelo proprio botao de BW.
+  function larguraAle() {
+    const o = document.querySelector('.bw-opt[data-bw="3000"]');
+    if (o) o.click();
+  }
+  function irParaCanal() {
+    const sel = el('ale-canal'); if (!sel || sel.value === '') return;
+    const c = CANAIS[Number(sel.value)]; if (!c) return;
+    _sintonizou = true;
+    if (typeof renderVfo === 'function') renderVfo(c.hz);
+    if (typeof Backend !== 'undefined' && Backend.tune) Backend.tune(c.hz, 'USB', currentBwHz).catch(() => {});
+    if (typeof updateMarkerPosition === 'function') updateMarkerPosition(c.hz);
+    try { localStorage.setItem('ale-canal', sel.value); } catch (e) {}
+  }
+
+  function init() {
+    try {
+      const m = localStorage.getItem('ale-modo');
+      if (m && el('ale-modo') && MODOS.some(x => x.id === m)) el('ale-modo').value = m;
+    } catch (e) {}
+    const sql = el('sqlSlider');
+    try {
+      _estadoAnterior = {
+        freq: currentFreqHz,
+        mode: (typeof activeMode === 'function') ? activeMode() : 'USB',
+        bw:   currentBwHz,
+        step: tuningStepHz,
+        sql:  sql ? sql.value : null
+      };
+    } catch (e) { _estadoAnterior = null; }
+    _sintonizou = false;
+    // Entra em USB pelo proprio botao (squelch aberto, passo) e abre a
+    // largura para 3 kHz.
+    const usb = botaoModo('USB');
+    if (usb) usb.click();
+    larguraAle();
+    iniciar();
+    if (_pollTimer) clearInterval(_pollTimer);
+    _pollTimer = setInterval(pollStatus, 2000);
+  }
+
+  function onClose() {
+    if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+    parar();
+    const s = _estadoAnterior;
+    _estadoAnterior = null;
+    if (!s) return;
+    const b = botaoModo(s.mode);
+    if (b) b.click();
+    if (typeof restoreReceiverState === 'function') {
+      restoreReceiverState({ freq: _sintonizou ? s.freq : currentFreqHz,
+                             mode: s.mode, bw: s.bw, step: s.step });
+    }
+    const sql = el('sqlSlider');
+    if (sql && s.sql !== null) {
+      sql.value = s.sql;
+      sql.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    if (typeof updateVfoModeDisplay === 'function') updateVfoModeDisplay();
+    if (typeof updateMarkerPosition === 'function') updateMarkerPosition(currentFreqHz);
+    _sintonizou = false;
+  }
+
+  return { buildPanelHTML, init, onClose, appendLine, limpar, irParaCanal, reiniciar, filtrarCanais };
+})();
+
+/* =========================================================
    ANALISADOR DE SINAL - identifica sinal desconhecido
    Nao decodifica: mede tons, deslocamento e velocidade, e
    diz se o conteudo tem cara de texto ou de cifra.
@@ -14433,11 +15192,24 @@ const AcarsDecoder = (() => {
     }
   }
 
+  // Acrescenta so a linha nova (ver TermEstavel): refazer o terminal inteiro a
+  // cada linha - e a cada consulta de estado - matava o clique nos links.
   function appendLine(line) {
     if (!_running) return;
     _lines.push(line);
     if (_lines.length > 300) _lines.shift();
-    updateTerminal();
+    const term = el('acars-terminal');
+    if (!term || !term.querySelector('.acars-lin')) { updateTerminal(); return; }
+    TermEstavel.ligar(term);
+    const noFim = term.scrollHeight - term.scrollTop - term.clientHeight < 30;
+    term.insertAdjacentHTML('beforeend', '<span class="acars-lin">' + formatAircraftRegistrationInLine(line) + '\n</span>');
+    const todas = term.querySelectorAll('.acars-lin');
+    for (let i = 0; i < todas.length - 300; i++) {
+      const h = todas[i].offsetHeight;
+      todas[i].remove();
+      if (!noFim) term.scrollTop -= h;     // lendo mais acima: o texto nao sobe
+    }
+    if (noFim && !TermEstavel.segurando(term)) term.scrollTop = term.scrollHeight;
   }
 
   function clearTerminal() {
@@ -14456,8 +15228,8 @@ const AcarsDecoder = (() => {
       if (skip.some(s => upper.startsWith(s))) {
         return match;
       }
-      const encoded = encodeURIComponent(upper);
-      return `<a href="https://flightaware.com/live/flight/${encoded}" target="_blank" class="aprs-link">${match}</a>`;
+      // O FlightAware usa o prefixo SEM hifen (PR-ANY -> PRANY). Ver FaLink.
+      return `<a href="${FaLink.url(FaLink.tail(upper))}" target="_blank" class="aprs-link">${match}</a>`;
     };
 
     safe = safe.replace(hyphenReg, makeFlightAwareLink);
@@ -14472,8 +15244,8 @@ const AcarsDecoder = (() => {
       term.innerHTML = "A decodificacao aparecera aqui em tempo real.";
       return;
     }
-    const formatted = _lines.map(line => formatAircraftRegistrationInLine(line)).join('\n');
-    term.innerHTML = formatted;
+    TermEstavel.ligar(term);
+    term.innerHTML = _lines.map(line => '<span class="acars-lin">' + formatAircraftRegistrationInLine(line) + '\n</span>').join('');
     term.scrollTop = term.scrollHeight;
   }
 
@@ -14556,7 +15328,9 @@ const AcarsDecoder = (() => {
           term.textContent = T('A decodificacao aparecera aqui em tempo real.');
         }
       }
-    } else {
+    } else if (_lines.length && !term.querySelector('.acars-lin')) {
+      // So refaz se o terminal ainda nao tem as linhas (ex.: acabou de abrir).
+      // Refazer a cada consulta trocava os links embaixo do clique.
       updateTerminal();
     }
   }
@@ -14666,6 +15440,65 @@ const AprsDecoder = (() => {
   let _pollTimer = null;
   let _lines = [];
 
+  // ---- APRS de HF (300 baud) -------------------------------------------------
+  // Em HF o APRS roda a 300 baud, tons 1600/1800 Hz. A referencia atual e o
+  // DIAL em USB: em 10.147,6 USB o sinal fica em 10.149,2 kHz. Nao faz mal a
+  // estacao usar LSB: o AX.25 le a TROCA de tom, nao qual tom e qual.
+  // O Direwolf roda varios decodificadores em volta do tom (ver AprsManager),
+  // entao uns 100 Hz de erro de sintonia ainda passam.
+  const CANAIS_HF = [
+    { nome: '30 m - 10.147,6 USB (o mais usado)', hz: 10147600 },
+    { nome: '20 m - 14.102,3 USB',                hz: 14102300 },
+  ];
+  let _modo = 'vhf';            // 'vhf' (1200 baud) ou 'hf' (300 baud)
+  let _estadoAnterior = null;   // radio como estava ao abrir o painel
+  let _usouHf = false;          // o painel mudou o radio para HF?
+  try { if (localStorage.getItem('rxsdr_aprs_modo') === 'hf') _modo = 'hf'; } catch (e) {}
+  function baudDoModo() { return _modo === 'hf' ? 300 : 1200; }
+  function botaoModo(nome) {
+    return Array.from(document.querySelectorAll('.mode-btn')).find(b => b.textContent.trim() === nome) || null;
+  }
+  function canalHfEscolhido() {
+    let i = 0;
+    try { i = Number(localStorage.getItem('rxsdr_aprs_canal_hf') || 0); } catch (e) {}
+    const sel = el('aprs-canal-hf');
+    if (sel && sel.value !== '') i = Number(sel.value);
+    return CANAIS_HF[i] || CANAIS_HF[0];
+  }
+  function entrarHf() {
+    const c = canalHfEscolhido();
+    // USB pelo proprio botao: largura e squelch como se o usuario clicasse.
+    // A largura padrao do USB passa os tons de 1600/1800 Hz com folga.
+    const usb = botaoModo('USB');
+    if (usb) usb.click();
+    if (typeof renderVfo === 'function') renderVfo(c.hz); else currentFreqHz = c.hz;
+    if (typeof Backend !== 'undefined' && Backend.tune) Backend.tune(c.hz, 'USB', currentBwHz).catch(() => {});
+    if (typeof updateMarkerPosition === 'function') updateMarkerPosition(c.hz);
+    _usouHf = true;
+  }
+  function desenharModo() {
+    const bV = el('aprs-modo-vhf'), bH = el('aprs-modo-hf'), lin = el('aprs-linha-hf');
+    const on  = 'background:#0d3a16;border:1px solid #2e7d32;color:#7CFC00;';
+    const off = 'background:#10151a;border:1px solid #334;color:#8899aa;';
+    if (bV) bV.style.cssText = 'padding:2px 8px;font-size:10px;font-weight:bold;cursor:pointer;border-radius:3px;' + (_modo === 'vhf' ? on : off);
+    if (bH) bH.style.cssText = 'padding:2px 8px;font-size:10px;font-weight:bold;cursor:pointer;border-radius:3px;' + (_modo === 'hf' ? on : off);
+    if (lin) lin.style.display = (_modo === 'hf') ? 'flex' : 'none';
+  }
+  // Troca VHF <-> HF com o painel aberto: sintoniza e reinicia o Direwolf na
+  // velocidade nova (o C++ para e sobe de novo quando a velocidade muda).
+  function selecionarModo(m) {
+    _modo = (m === 'hf') ? 'hf' : 'vhf';
+    try { localStorage.setItem('rxsdr_aprs_modo', _modo); } catch (e) {}
+    desenharModo();
+    if (_modo === 'hf') entrarHf(); else applyAprsMode();
+    startDecoding();
+  }
+  function trocarCanalHf() {
+    const sel = el('aprs-canal-hf'); if (!sel) return;
+    try { localStorage.setItem('rxsdr_aprs_canal_hf', sel.value); } catch (e) {}
+    if (_modo === 'hf') entrarHf();
+  }
+
   function el(id) { return document.getElementById(id); }
 
   function buildPanelHTML() {
@@ -14680,6 +15513,17 @@ const AprsDecoder = (() => {
         <button onclick="AprsDecoder.clearTerminal()" class="gt-btn" style="padding:2px 7px;font-size:10px;background:#1a0828;border-color:#702090;color:#c080ff">🧹 Limpar Texto</button>
       </div>
     </div>
+  </div>
+  <div style="display:flex;gap:6px;align-items:center;padding:4px 8px;background:#03080d;border-bottom:1px solid #12283a;flex-wrap:wrap;flex-shrink:0">
+    <span style="font-size:10px;color:#7fb0ff">Banda</span>
+    <button id="aprs-modo-vhf" onclick="AprsDecoder.selecionarModo('vhf')">VHF 1200 baud</button>
+    <button id="aprs-modo-hf"  onclick="AprsDecoder.selecionarModo('hf')">HF 300 baud</button>
+    <span id="aprs-linha-hf" style="display:none;gap:6px;align-items:center">
+      <select id="aprs-canal-hf" onchange="AprsDecoder.trocarCanalHf()" style="font-size:10px">
+        ${CANAIS_HF.map((c, i) => `<option value="${i}">${c.nome}</option>`).join('')}
+      </select>
+      <span style="font-size:9px;color:#7a8a7a">rádio em USB · tons 1600/1800 Hz · aceita uns 100 Hz de erro de sintonia</span>
+    </span>
   </div>
   <div class="rtty-term" id="aprs-terminal" style="flex:1; overflow-y:auto; padding:5px; font-family:monospace; font-size:12px; white-space:pre-wrap; word-wrap:break-word;">Aguardando decodificacao APRS...</div>
 
@@ -14708,7 +15552,25 @@ const AprsDecoder = (() => {
   }
 
   function init() {
-    applyAprsMode();
+    // Guarda o radio como estava: se o painel for para o HF, ao fechar ele
+    // volta exatamente assim (como fazem o RTTY e o SITOR-B).
+    const sql = el('sqlSlider');
+    try {
+      _estadoAnterior = {
+        freq: currentFreqHz,
+        mode: (typeof activeMode === 'function') ? activeMode() : 'USB',
+        bw:   currentBwHz,
+        step: tuningStepHz,
+        sql:  sql ? sql.value : null
+      };
+    } catch (e) { _estadoAnterior = null; }
+    _usouHf = false;
+    try {
+      const sel = el('aprs-canal-hf'), i = localStorage.getItem('rxsdr_aprs_canal_hf');
+      if (sel && i !== null && CANAIS_HF[Number(i)]) sel.value = i;
+    } catch (e) {}
+    desenharModo();
+    if (_modo === 'hf') entrarHf(); else applyAprsMode();
     startDecoding();
     carregarIndicativo();
 
@@ -14719,6 +15581,24 @@ const AprsDecoder = (() => {
 
   function onClose() {
     if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+    const s = _estadoAnterior;
+    _estadoAnterior = null;
+    // No VHF o painel continua como sempre foi. Se ele levou o radio para o
+    // HF, para o Direwolf e devolve o radio como estava antes de abrir.
+    if (!_usouHf || !s) return;
+    _usouHf = false;
+    stopDecoding();
+    const b = botaoModo(s.mode);
+    if (b) b.click();
+    if (typeof restoreReceiverState === 'function')
+      restoreReceiverState({ freq: s.freq, mode: s.mode, bw: s.bw, step: s.step });
+    const sql = el('sqlSlider');
+    if (sql && s.sql !== null) {
+      sql.value = s.sql;
+      sql.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    if (typeof updateVfoModeDisplay === 'function') updateVfoModeDisplay();
+    if (typeof updateMarkerPosition === 'function') updateMarkerPosition(currentFreqHz);
   }
 
   function pollStatus() {
@@ -14733,14 +15613,21 @@ const AprsDecoder = (() => {
     _running = true;
     updateUI();
 
-    fetch('/api/tune', {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify({ freq: currentFreqHz, mode: 'NFM', bw: 12500, vfo: 'A' })
-    }).then(()=>{
-      fetch('/api/aprs/start', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'})
+    // No HF a sintonia (USB) ja foi feita em entrarHf(); no VHF vale o de sempre.
+    const sintonia = (_modo === 'hf')
+      ? Promise.resolve()
+      : fetch('/api/tune', {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json' },
+          body: JSON.stringify({ freq: currentFreqHz, mode: 'NFM', bw: 12500, vfo: 'A' })
+        });
+    sintonia.then(()=>{
+      fetch('/api/aprs/start', {method:'POST', headers:{'Content-Type':'application/json'},
+                                body: JSON.stringify({ baud: baudDoModo() })})
         .then(r=>r.json()).then(d=>{
-          _running = d.ok;
+          // O Direwolf leva um instante para subir: "starting" ja conta como
+          // ligado (antes o titulo mostrava "Parado" ate o proximo status).
+          _running = !!(d.ok || d.state === 'starting' || d.state === 'running');
           updateUI();
         }).catch(()=>{
           _running = false;
@@ -14783,7 +15670,8 @@ const AprsDecoder = (() => {
     }
     const title = el('aprs-main-title');
     if (title) {
-      title.innerHTML = (_running ? 'APRS Decoder — Processando Áudio...' : 'APRS Decoder — Parado') + ' <span style="color:#ffb74d;font-size:10px;font-weight:normal;margin-left:15px;font-style:italic;">*Ajuste o Tamanho da Janela*</span>';
+      const banda = (_modo === 'hf') ? ' HF 300 baud' : ' VHF 1200 baud';
+      title.innerHTML = (_running ? 'APRS' + banda + ' — Processando Áudio...' : 'APRS' + banda + ' — Parado') + ' <span style="color:#ffb74d;font-size:10px;font-weight:normal;margin-left:15px;font-style:italic;">*Ajuste o Tamanho da Janela*</span>';
       title.style.color = _running ? '#81c784' : '#90caf9';
     }
   }
@@ -14892,6 +15780,9 @@ const AprsDecoder = (() => {
   }
 
   function tuneToAprs() {
+    // O botao "145.570" do cabecalho e o atalho do VHF: se o painel estava
+    // no HF, volta para o VHF e o Direwolf passa a 1200 baud.
+    if (_modo !== 'vhf') { selecionarModo('vhf'); return; }
     const freq = 145570000;
     const mode = 'NFM';
     const bw = 12500;
@@ -14937,7 +15828,7 @@ const AprsDecoder = (() => {
   }
 
   return { buildPanelHTML, init, onClose, stopDecoding, clearTerminal, appendLine, tuneToAprs,
-           enviarMensagem, salvarIndicativo };
+           enviarMensagem, salvarIndicativo, selecionarModo, trocarCanalHf };
 })();
 
 
@@ -15021,7 +15912,33 @@ const RXRecorder = {
       for (let i = 0; i < parte.length; i++, pos += 2) v.setInt16(pos, parte[i], true);
     return new Blob([buf], {type:'audio/wav'});
   },
+  // Modo nativo (Windows 7): nao ha AudioContext; grava o audio que chega do
+  // programa, pacote a pacote (AudioNativo.tratar chama alimentar()).
+  nativo:false,
+  alimentar(pcm, mudo){
+    const samples = mudo ? new Int16Array(pcm.length) : Int16Array.from(pcm);
+    if (this.formato === 'mp3'){
+      const buf = this.encoder.encodeBuffer(samples);
+      if (buf.length>0) this.parts.push(new Int8Array(buf));
+    } else {
+      this.pcm.push(samples); this.pcmLen += samples.length;
+    }
+  },
   async start(){
+    if (typeof AudioNativo !== 'undefined' && AudioNativo.ativo){
+      if (typeof powerOn !== 'undefined' && !powerOn){ alert('Ligue o rádio (POWER) antes de gravar.'); return false; }
+      const escolhido = document.querySelector('input[name="gravarFmt"]:checked');
+      this.formato = escolhido ? escolhido.value : 'wav';
+      if (this.formato === 'mp3' && (typeof lamejs === 'undefined' || !lamejs.Mp3Encoder)){
+        alert('Encoder MP3 (lame.min.js) não carregado. Grave em WAV.'); return false;
+      }
+      this.taxa = AudioNativo.sps || 48000;
+      this.encoder = (this.formato === 'mp3') ? new lamejs.Mp3Encoder(1, this.taxa, 128) : null;
+      this.parts = []; this.pcm = []; this.pcmLen = 0;
+      this.nativo = true; this.recording = true; this.startTime = Date.now();
+      return true;
+    }
+    this.nativo = false;
     if (typeof AudioOut === 'undefined' || !AudioOut.init){ alert('Sistema de áudio indisponível.'); return false; }
     try { await AudioOut.init(); } catch(e){}
     const ctx = AudioOut.ctx;

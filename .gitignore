@@ -29,10 +29,10 @@
 # scripts de build do Windows (nao tem senha nem IP da rede)
 !/ABRIR.bat
 !/COMPILAR.bat
-!/COMPILAR_WIN7.bat
+!/COMPILAR_NATIVO.bat
 !/ATUALIZAR_WEB.bat
 !/GERAR_INSTALADOR.bat
-!/GERAR_INSTALADOR_WIN7.bat
+!/GERAR_PACOTE_NATIVO.bat
 !/LIMPAR_PROJETO.bat
 !/SUBIR_GITHUB.bat
 !/PUBLICAR_RELEASE.bat
@@ -55,11 +55,21 @@
 !/project/scripts/
 !/project/tests/
 
-!/project-win7/
-/project-win7/*
-!/project-win7/CMakeLists.txt
-!/project-win7/src/
-!/project-win7/installer/
+# RXSDR Nativo (Windows 7 a 11, sem navegador). Substituiu o project-win7,
+# que fica so no PC do autor como referencia.
+!/project-nativo/
+/project-nativo/*
+!/project-nativo/CMakeLists.txt
+!/project-nativo/src/
+!/project-nativo/assets/
+!/project-nativo/third_party/
+!/project-nativo/LEIA-ME.txt
+!/project-nativo/TERCEIROS.txt
+!/project-nativo/dsd_arquivos.txt
+!/project-nativo/decoders_corrigidos/
+/project-nativo/third_party/imgui/examples/
+/project-nativo/third_party/imgui/docs/
+/project-nativo/third_party/imgui/.github/
 
 # ---- 4) NUNCA, em hipotese alguma ----------------------------------------
 # chaves e credenciais
@@ -113,6 +123,9 @@ README_DECODERS_CARTAO.md
 /project/installer/output/
 /project-win7/installer/Output/
 /project-win7/installer/output/
+/project-nativo/build/
+/project-nativo/RXSDR_Nativo/
+/project-nativo/Output/
 /imagens/
 *.exe
 *.obj
@@ -135,3 +148,11 @@ run.txt
 /skills/
 /tools/
 
+# ---- 8) listas de assinatura: NUNCA publicar ------------------------------
+# Listas de frequencias em .dbf sao de uso particular do autor. As frequencias
+# que o painel ALE usa ja estao dentro do index.html; o arquivo em si nao sai
+# daqui - em nenhuma pasta, nem se alguem liberar a pasta por engano.
+*.dbf
+*.DBF
+*.dbt
+*.cdx

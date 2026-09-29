@@ -364,6 +364,23 @@ void RestApi::install(QHttpServer* server)
         return QHttpServerResponse(r);
     });
 
+    // ── ALE 2G (MIL-STD-188-141A/B) ──────────────────────────────────────
+    server->route("/api/ale/status", QHttpServerRequest::Method::Get, [this]() {
+        QJsonObject o = onAleStatus ? onAleStatus() : QJsonObject{{"state","unavailable"}};
+        return QHttpServerResponse(o);
+    });
+    server->route("/api/ale/start", QHttpServerRequest::Method::Post,
+        [this](const QHttpServerRequest& req) {
+            auto j = QJsonDocument::fromJson(req.body()).object();
+            QJsonObject r = onAleStart ? onAleStart(j)
+                                       : QJsonObject{{"ok",false},{"error","indisponivel"}};
+            return QHttpServerResponse(r);
+        });
+    server->route("/api/ale/stop", QHttpServerRequest::Method::Post, [this]() {
+        QJsonObject r = onAleStop ? onAleStop() : QJsonObject{{"ok",false},{"error","indisponivel"}};
+        return QHttpServerResponse(r);
+    });
+
     // ── Memorias (bookmarks) ──────────────────────────────────────────────
     // Formato IGUAL ao do OpenWebRX: lista de objetos com name, frequency,
     // modulation, underlying, description e scannable. Manter compativel

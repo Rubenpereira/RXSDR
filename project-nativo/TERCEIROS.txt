@@ -1,0 +1,91 @@
+RXSDR Nativo - programas e bibliotecas de terceiros
+===================================================
+
+O RXSDR Nativo e de PU1XTB (Ruben) e segue a licenca do arquivo LICENSE.txt:
+uso livre e NAO COMERCIAL, mantendo o credito ao autor.
+
+Essa licenca vale so para o codigo do RXSDR. Os programas abaixo foram feitos
+por outras pessoas, vem junto na pasta apenas para facilitar o uso e continuam
+com a licenca original de cada um. O RXSDR conversa com os decodificadores
+externos como programas separados (entrada e saida de dados), sem juntar o
+codigo deles ao seu.
+
+O codigo-fonte de cada um esta no endereco indicado. Quando houve alguma
+mudanca para compilar ou funcionar no Windows, ela esta descrita aqui.
+
+
+DENTRO DO RXSDR.exe
+-------------------
+Dear ImGui (tela)              MIT               https://github.com/ocornut/imgui
+stb_image (imagens)            dominio publico / MIT
+                                                 https://github.com/nothings/stb
+
+AO LADO DO RXSDR.exe
+--------------------
+rtl-sdr (rtlsdr.dll, librtlsdr.dll)
+                               GPL-2.0           https://github.com/osmocom/rtl-sdr
+libusb (libusb-1.0.dll)        LGPL-2.1          https://github.com/libusb/libusb
+pthreads-win32 (pthreadVC2.dll)
+                               LGPL-2.1          https://sourceware.org/pthreads-win32/
+
+PASTA decoders
+--------------
+dumphfdl (HFDL)                GPL-3.0           https://github.com/szpajder/dumphfdl
+dumpvdl2 (VDL2)                GPL-3.0           https://github.com/szpajder/dumpvdl2
+   Versao 2.7.0 compilada no MSYS2 (UCRT64) com tres mudancas so para o
+   Windows: "#undef I" no avlc.c (conflito com o complex.h), cabecalhos de
+   rede trocados pelos equivalentes do Windows, e a saida UDP retirada
+   (output-udp.c fora do CMakeLists.txt e do output-common.c). A decodificacao
+   nao foi alterada.
+libacars                       MIT               https://github.com/szpajder/libacars
+acarsdec (ACARS)               GPL-2.0           https://github.com/f00b4r0/acarsdec
+direwolf (APRS)                GPL-2.0           https://github.com/wb2osz/direwolf
+AIS-catcher (AIS, pasta ais)   GPL-3.0           https://github.com/jvde-github/AIS-catcher
+dsd-fme (DMR, P25, NXDN...)    ISC / GPL-2.0 (partes)
+                                                 https://github.com/lwvmobile/dsd-fme
+   Veja tambem LICENSE-DSD.txt.
+mbelib (voz AMBE/IMBE)         ISC               https://github.com/lwvmobile/mbelib-neo
+codec2                         LGPL-2.1          https://github.com/drowe67/codec2
+osmo-tetra (tetra-rx)          AGPL-3.0          https://github.com/sq5bpf/osmo-tetra-sq5bpf
+   tetra-rx.c recebeu a chamada WSAStartup antes do socket() (#ifdef _WIN32),
+   sem a qual o TETMON nao saia pela rede no Windows.
+libosmocore                    GPL-2.0           https://gitea.osmocom.org/osmocom/libosmocore
+talloc                         LGPL-3.0          https://talloc.samba.org
+cdecoder / sdecoder (voz TETRA)
+                               codigo de referencia da ETSI (norma EN 300 395-2),
+                               direitos da ETSI  https://www.etsi.org
+liquid-dsp                     MIT               https://github.com/jgaeddert/liquid-dsp
+FFTW                           GPL-2.0           https://www.fftw.org
+libconfig                      LGPL-2.1          https://github.com/hyperrealm/libconfig
+GLib                           LGPL-2.1          https://gitlab.gnome.org/GNOME/glib
+libsndfile                     LGPL-2.1          https://github.com/libsndfile/libsndfile
+FLAC, Ogg, Vorbis, Opus        BSD               https://xiph.org
+mpg123                         LGPL-2.1          https://www.mpg123.de
+LAME                           LGPL-2.0          https://lame.sourceforge.io
+libxml2                        MIT               https://gitlab.gnome.org/GNOME/libxml2
+SQLite                         dominio publico   https://www.sqlite.org
+zlib                           zlib              https://zlib.net
+PCRE2                          BSD               https://github.com/PCRE2Project/pcre2
+libiconv, gettext (libintl)    LGPL              https://www.gnu.org/software/libiconv/
+Cygwin (cygwin1.dll e cyg*.dll)
+                               LGPL-3.0 e as licencas de cada biblioteca
+                                                 https://cygwin.com
+MinGW-w64 (libgcc, libwinpthread)
+                               GPL com excecao de runtime / MIT
+                                                 https://www.mingw-w64.org
+OpenSSL 3 (pasta ais)          Apache-2.0        https://www.openssl.org
+ZeroMQ (pasta ais)             MPL-2.0           https://zeromq.org
+libpq (pasta ais)              PostgreSQL        https://www.postgresql.org
+soxr (pasta ais)               LGPL-2.1          https://sourceforge.net/projects/soxr/
+airspy, airspyhf, hackrf (pasta ais)
+                               GPL-2.0 / BSD     https://github.com/airspy  https://github.com/greatscottgadgets/hackrf
+Microsoft Visual C++ Runtime (msvcp140, vcruntime140, msvcr100)
+                               redistribuivel da Microsoft
+
+NAO VEM JUNTO
+-------------
+SDRplay API: instale a versao oficial em https://www.sdrplay.com/api/
+
+
+Os textos completos das licencas GPL, LGPL e AGPL estao em
+https://www.gnu.org/licenses/

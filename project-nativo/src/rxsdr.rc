@@ -1,0 +1,30 @@
+#include <windows.h>
+#include "ui/Recursos.h"
+
+IDI_APP        ICON    "../assets/app.ico"
+IDR_SMETER_PNG RCDATA  "../assets/smeter_face.png"
+IDR_OLHO_PNG   RCDATA  "../assets/eye_bezel.png"
+
+1 VERSIONINFO
+ FILEVERSION 1,0,0,0
+ PRODUCTVERSION 1,0,0,0
+ FILEOS 0x40004
+ FILETYPE 0x1
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "041604b0"
+    BEGIN
+      VALUE "CompanyName", "PU1XTB"
+      VALUE "FileDescription", "RXSDR Nativo - receptor SDR"
+      VALUE "FileVersion", "1.0.0"
+      VALUE "ProductName", "RXSDR Nativo"
+      VALUE "ProductVersion", "1.0.0"
+      VALUE "OriginalFilename", "RXSDR.exe"
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x416, 1200
+  END
+END

@@ -55,7 +55,9 @@ if ($LASTEXITCODE -ne 0) {
 # ---- 2) acha os instaladores e tira a versao do nome -----------------------
 $win = Get-ChildItem "project\installer\output\RXSDR_Setup_*.exe" -ErrorAction SilentlyContinue |
        Where-Object { $_.Name -notmatch '_Win7' } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-$win7 = Get-ChildItem "project-win7\installer\output\RXSDR_Setup_*_Win7.exe" -ErrorAction SilentlyContinue |
+# RXSDR Nativo (Windows 7 a 11, sem navegador): pacote .zip portatil, com
+# numeracao propria (comecou em 1.0.0). Substituiu o instalador "Win7".
+$win7 = Get-ChildItem "project-nativo\Output\RXSDR_Nativo_*.zip" -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTime -Descending | Select-Object -First 1
 
 if (-not $win) { Erro "Nao achei o instalador do Windows 10/11 em project\installer\output. Rode GERAR_INSTALADOR.bat antes." }
@@ -69,21 +71,10 @@ if (-not $ver) { Erro "Nao consegui ler a versao do nome '$($win.Name)'." }
 
 $anexos = @($win.FullName)
 if ($win7) {
-    $ver7 = VersaoDe $win7
-    if ($ver7 -ne $ver) {
-        # As duas versoes divergindo e o erro mais facil de cometer: gerar um
-        # instalador e esquecer o outro. Melhor parar do que publicar torto.
-        Write-Host ""
-        Write-Host "  ATENCAO: as versoes nao batem." -ForegroundColor Yellow
-        Write-Host "    Windows 10/11 : $($win.Name)"
-        Write-Host "    Windows 7     : $($win7.Name)"
-        Write-Host ""
-        $r = Read-Host "  Publicar assim mesmo? [s/N]"
-        if ($r -ne 's' -and $r -ne 'S') { Write-Host "  Cancelado."; exit 1 }
-    }
+    # O Nativo tem numeracao propria - nao precisa bater com a do 10/11.
     $anexos += $win7.FullName
 } else {
-    Info "Aviso: nao achei o instalador do Windows 7. A release ira so com o de 10/11."
+    Info "Aviso: nao achei o pacote do RXSDR Nativo (rode GERAR_PACOTE_NATIVO.bat). A release ira so com o de 10/11."
 }
 
 $tag = "v$ver"
@@ -110,9 +101,9 @@ $linhas += ""
 $linhas += "| Arquivo | Windows |"
 $linhas += "| --- | --- |"
 $linhas += "| **$($win.Name)** | 10 e 11 |"
-if ($win7) { $linhas += "| **$($win7.Name)** | 7 SP1, 8, 10 e 11 |" }
+if ($win7) { $linhas += "| **$($win7.Name)** | 7 SP1, 8, 10 e 11 - **RXSDR Nativo**: sem navegador e sem instalar (descompacte e rode o RXSDR.exe) |" }
 $linhas += ""
-if ($win7) { $linhas += "Baixe apenas um dos dois. Ambos já trazem todas as DLLs necessárias." }
+if ($win7) { $linhas += "Baixe apenas um dos dois. Ambos já trazem todas as DLLs necessárias. O RXSDR Nativo é o indicado para PCs antigos ou mais fracos." }
 else       { $linhas += "O instalador já traz todas as DLLs necessárias." }
 $linhas += ""
 $linhas += "## Novidades desta versão"
@@ -128,7 +119,7 @@ $linhas += "[API oficial](https://www.sdrplay.com/api/)."
 $linhas += ""
 $linhas += "## Instalação"
 $linhas += ""
-$linhas += "Baixe, execute e siga o assistente. Ao abrir o RXSDR, o painel aparece no navegador."
+$linhas += "Windows 10/11: baixe, execute e siga o assistente; o painel aparece no navegador. RXSDR Nativo: descompacte a pasta e rode o RXSDR.exe."
 
 $corpo = Join-Path $env:TEMP "rxsdr_release_$ver.md"
 # UTF8 sem BOM: com BOM o GitHub mostra um caractere estranho na primeira linha
@@ -170,6 +161,13 @@ if ($existe) {
     # --clobber troca o anexo se ja houver um com o mesmo nome
     gh release upload $tag @anexos --clobber
     if ($LASTEXITCODE -ne 0) { Erro "falha ao enviar os anexos." }
+    # A versao "Win7" foi substituida pelo RXSDR Nativo: se a release ainda
+    # tiver o instalador antigo anexado, ele sai daqui para ninguem baixar.
+    $antigos = gh release view $tag --json assets -q '.assets[].name' | Where-Object { $_ -match '_Win7' }
+    foreach ($a in $antigos) {
+        Info "Removendo anexo antigo: $a"
+        gh release delete-asset $tag $a -y
+    }
 } else {
     Info "Criando a release $tag."
     gh release create $tag @anexos --title "RXSDR $ver" --notes-file $corpo

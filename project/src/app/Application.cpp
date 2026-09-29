@@ -26,6 +26,7 @@
 #include "../decoders/AprsIsClient.h"
 #include "../decoders/SitorBManager.h"
 #include "../decoders/RttyManager.h"
+#include "../decoders/AleManager.h"
 #include "../decoders/CwManager.h"
 #include "../decoders/PactorManager.h"
 #include "../decoders/DscManager.h"
@@ -861,7 +862,13 @@ bool Application::start()
     };
 
     rest_->onAprsStart = [this](const QJsonObject& j) -> QJsonObject {
-        Q_UNUSED(j)
+        // "baud": 300 = APRS de HF, qualquer outro valor (ou nada) = 1200 VHF.
+        // O start() nao faz nada se o Direwolf ja esta rodando, e a velocidade
+        // vai no arquivo de configuracao: para trocar, tem de parar antes.
+        const int baud = (j.value("baud").toInt(1200) == 300) ? 300 : 1200;
+        if (baud != aprsDeco_->baud() && aprsDeco_->state() != AprsManager::State::Stopped)
+            aprsDeco_->stop();
+        aprsDeco_->setBaud(baud);
         aprsDeco_->start();
         QJsonObject r = aprsDeco_->statusJson();
         r["ok"] = (aprsDeco_->state() == AprsManager::State::Running);
@@ -1032,6 +1039,33 @@ bool Application::start()
         return r;
     };
 
+    // ── ALE 2G (MIL-STD-188-141A/B, FED-STD-1045) ─────────────────────────
+    // Nativo (AleCore), como o RTTY: cada chamada que termina vira uma linha.
+    aleDeco_ = std::make_unique<AleManager>(this);
+    connect(aleDeco_.get(), &AleManager::logLine, this, [this](const QString& line) {
+        Logger::info(line);
+        ws_->broadcastJson(QJsonObject{
+            {"t",       "dec_line"},
+            {"decoder", "ALE"},
+            {"text",    line}
+        });
+    });
+    rest_->onAleStatus = [this]() { return aleDeco_->statusJson(); };
+    rest_->onAleStart = [this](const QJsonObject& j) -> QJsonObject {
+        aleDeco_->stop();
+        aleDeco_->setModo(j.value("modo").toString(QStringLiteral("2g")));
+        aleDeco_->start();
+        QJsonObject r = aleDeco_->statusJson();
+        r["ok"] = (aleDeco_->state() == AleManager::State::Running);
+        return r;
+    };
+    rest_->onAleStop = [this]() -> QJsonObject {
+        aleDeco_->stop();
+        QJsonObject r = aleDeco_->statusJson();
+        r["ok"] = true;
+        return r;
+    };
+
     // ── PACTOR Decoder (Pactor-I FSK) ──────────────────────────────────────
     pactorDeco_ = std::make_unique<PactorManager>(this);
 
@@ -1129,6 +1163,12 @@ bool Application::start()
             cwDeco_->feedAudio(pcm, n, sps);
         else if (alvo == QLatin1String("RTTY") && rttyDeco_)
             rttyDeco_->feedAudio(pcm, n, sps);
+        else if (alvo == QLatin1String("ALE") && aleDeco_)
+            aleDeco_->feedAudio(pcm, n, sps);
+        // APRS: o Direwolf precisa estar rodando (painel aberto). Serve para
+        // testar o HF 300 baud com gravacao, sem esperar sinal no ar.
+        else if (alvo == QLatin1String("APRS") && aprsDeco_)
+            aprsDeco_->feedAudio(pcm, n, sps);
         else
             return QJsonObject{{"ok",false},{"error","decoder desconhecido: " + alvo}};
 
@@ -1530,6 +1570,7 @@ void Application::stop()
     if (aprsDeco_) aprsDeco_->stop();
     if (sitorBDeco_) sitorBDeco_->stop();
     if (rttyDeco_) rttyDeco_->stop();
+    if (aleDeco_)  aleDeco_->stop();
     if (pactorDeco_) pactorDeco_->stop();
     if (dscDeco_) dscDeco_->stop();
     if (analiseDeco_) analiseDeco_->stop();
@@ -2206,6 +2247,9 @@ void Application::handleAudioCallback(const std::vector<int16_t>& pcm, uint32_t 
         }
         if (rttyDeco_ && rttyDeco_->state() == RttyManager::State::Running) {
             rttyDeco_->feedAudio(chunk.data(), static_cast<int>(chunk.size()), sps);
+        }
+        if (aleDeco_ && aleDeco_->state() == AleManager::State::Running) {
+            aleDeco_->feedAudio(chunk.data(), static_cast<int>(chunk.size()), sps);
         }
         if (selcalDeco_ && selcalDeco_->state() == SelcalManager::State::Running) {
             selcalDeco_->feedAudio(chunk.data(), static_cast<int>(chunk.size()), sps);

@@ -64,6 +64,8 @@ set(SOURCES
     src/decoders/CwManager.cpp
     src/decoders/RttyCore.cpp
     src/decoders/RttyManager.cpp
+    src/decoders/AleCore.cpp
+    src/decoders/AleManager.cpp
     src/decoders/PactorManager.cpp
     src/decoders/DscManager.cpp
     src/decoders/DscCore.cpp
@@ -108,6 +110,8 @@ set(HEADERS
     src/decoders/CwManager.h
     src/decoders/RttyCore.h
     src/decoders/RttyManager.h
+    src/decoders/AleCore.h
+    src/decoders/AleManager.h
     src/decoders/PactorManager.h
     src/decoders/DscCore.h
     src/decoders/AnaliseCore.h
