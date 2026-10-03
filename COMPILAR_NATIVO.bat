@@ -46,6 +46,8 @@ rem --- VDL2: dumpvdl2 compilado no MSYS2 (project-nativo\decoders_corrigidos) -
 if exist "%~dp0project-nativo\decoders_corrigidos\dumpvdl2.exe" copy /y "%~dp0project-nativo\decoders_corrigidos\dumpvdl2.exe" "%PRONTO%\decoders\" >nul
 rem --- TETRA: tetra-rx corrigido (WSAStartup - sem ele o TETMON e a voz nao saem) ---
 if exist "%~dp0project-nativo\decoders_corrigidos\tetra-rx.exe" copy /y "%~dp0project-nativo\decoders_corrigidos\tetra-rx.exe" "%PRONTO%\decoders\" >nul
+rem --- DRM: dream.exe (Dream 2.x de console, xHE-AAC) em decoders\drm, com as DLLs dele ---
+if exist "%~dp0project-nativo\decoders_corrigidos\drm\dream.exe" xcopy /y /q /i "%~dp0project-nativo\decoders_corrigidos\drm\*" "%PRONTO%\decoders\drm\" >nul
 echo.
 echo [OK] Pronto: %PRONTO%
 echo      E so copiar essa pasta para qualquer PC e rodar o RXSDR.exe

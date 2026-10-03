@@ -22,7 +22,7 @@ Na tela:
  - Setas esquerda/direita do teclado: um passo. Setas para cima/para baixo: 1 MHz.
  - Arraste a regua de frequencia (entre o espectro e a cachoeira) para cima ou para baixo para mudar o tamanho dos dois.
  - MEMORIAS: menu com os filtros (todas, utilitarias, broadcast no ar agora, broadcast no ar para as Americas, broadcast todas). As memorias ficam no bookmarks.json, ao lado do programa.
- - DECODERS: CW, RTTY, SITOR-B/NAVTEX, DSC, ALE, DMR (P25, NXDN, dPMR, YSF, D-STAR), TETRA, HFDL, AIS, APRS, ACARS, VDL2 e analisador de sinal. Escolha o decodificador e o canal; o texto pode ser selecionado, copiado ou salvo (pasta Decodificados). O DMR usa o dsd-fme da pasta decoders e precisa do Windows 8.1, 10 ou 11.
+ - DECODERS: CW, RTTY, SITOR-B/NAVTEX, DSC, ALE, DMR (P25, NXDN, dPMR, YSF, D-STAR), TETRA, HFDL, AIS, APRS, ACARS, VDL2, DRM (radio digital em ondas curtas, AAC e xHE-AAC) e analisador de sinal. Escolha o decodificador e o canal; o texto pode ser selecionado, copiado ou salvo (pasta Decodificados). O DMR usa o dsd-fme da pasta decoders e precisa do Windows 8.1, 10 ou 11.
  - IF DISPLAY: 20 kHz em torno da sintonia, a esquerda da cachoeira.
  - GRAVAR salva o audio em WAV (pasta Gravacoes).
 

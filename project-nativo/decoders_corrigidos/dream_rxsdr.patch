@@ -1,0 +1,325 @@
+diff --git a/dream.pro b/dream.pro
+index 097ff69..b1901b5 100644
+--- a/dream.pro
++++ b/dream.pro
+@@ -278,8 +278,11 @@ win32:cross_compile {
+ }
+ win32 {
+   CONFIG += fdk-aac
+-  LIBS += -lwpcap -lpacket -lmincore
+-  DEFINES += HAVE_SETUPAPI HAVE_LIBZ _CRT_SECURE_NO_WARNINGS HAVE_LIBZ HAVE_LIBPCAP
++  # RXSDR: sem libpcap no Windows (so serve para gravar/ler RSCI em .pcap)
++  !stdio:LIBS += -lwpcap -lpacket
++  LIBS += -lmincore
++  DEFINES += HAVE_SETUPAPI HAVE_LIBZ _CRT_SECURE_NO_WARNINGS HAVE_LIBZ
++  !stdio:DEFINES += HAVE_LIBPCAP
+   SOURCES += src/windows/Pacer.cpp src/windows/platform_util.cpp
+   HEADERS += src/windows/platform_util.h
+   LIBS += -lsetupapi
+@@ -330,6 +333,17 @@ win32 {
+     }
+   }
+ }
++stdio {
++     CONFIG += sound
++     DEFINES += USE_STDIO
++     HEADERS += src/sound/soundstdio.h
++     SOURCES += src/sound/soundstdio.cpp
++     win32 {
++         SOURCES -= src/windows/Sound.cpp
++         HEADERS -= src/windows/Sound.h
++     }
++     message("with stdin/stdout (RXSDR)")
++}
+ fdk-aac {
+      DEFINES += HAVE_LIBFDK_AAC HAVE_USAC
+      LIBS += -lfdk-aac
+diff --git a/src/main.cpp b/src/main.cpp
+index c3fc5de..0e8ec81 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -32,7 +32,7 @@
+ #if defined(__unix__) && !defined(__APPLE__)
+ # include <csignal>
+ #endif
+-#ifdef USE_CONSOLEIO
++#if defined(USE_CONSOLEIO) && !defined(_WIN32) && !defined(USE_STDIO)
+ # include "linux/ConsoleIO.h"
+ #endif
+ #include "GlobalDefinitions.h"
+@@ -82,7 +82,9 @@ main(int argc, char **argv)
+                             statusBroadcast.GetSocketPath().c_str());
+                 }
+ 
++#if !defined(_WIN32) && !defined(USE_STDIO)
+                 CConsoleIO::Enter(&DRMReceiver);
++#endif
+ #endif
+                 ERunState eRunState = RESTART;
+                 do
+@@ -94,7 +96,7 @@ main(int argc, char **argv)
+                     {
+                         DRMReceiver.updatePosition();
+                         DRMReceiver.process();
+-#ifdef USE_CONSOLEIO
++#if defined(USE_CONSOLEIO) && !defined(_WIN32) && !defined(USE_STDIO)
+                         eRunState = CConsoleIO::Update();
+ #endif
+                     }
+@@ -102,7 +104,7 @@ main(int argc, char **argv)
+                 }
+                 while (eRunState == RESTART);
+                 DRMReceiver.CloseSoundInterfaces();
+-#ifdef USE_CONSOLEIO
++#if defined(USE_CONSOLEIO) && !defined(_WIN32) && !defined(USE_STDIO)
+                 CConsoleIO::Leave();
+ #endif
+                 // StatusBroadcast will be stopped automatically by destructor
+diff --git a/src/sound/sound.h b/src/sound/sound.h
+index 34b7443..1b00fc1 100644
+--- a/src/sound/sound.h
++++ b/src/sound/sound.h
+@@ -29,7 +29,12 @@
+ #ifndef _SOUND_H
+ #define _SOUND_H
+ 
+-#if defined(WIN32) && !defined(USE_PORTAUDIO) && !defined(USE_JACK) && !defined(QT_MULTIMEDIA_LIB)
++#if defined(USE_STDIO)
++/* RXSDR: IQ pelo stdin, audio pelo stdout */
++# include "soundstdio.h"
++typedef CSoundInStdio CSoundIn;
++typedef CSoundOutStdio CSoundOut;
++#elif defined(WIN32) && !defined(USE_PORTAUDIO) && !defined(USE_JACK) && !defined(QT_MULTIMEDIA_LIB)
+ /* mmsystem sound interface */
+ # include "../windows/Sound.h"
+ #else
+diff --git a/src/sound/soundstdio.cpp b/src/sound/soundstdio.cpp
+new file mode 100644
+index 0000000..101efd1
+--- /dev/null
++++ b/src/sound/soundstdio.cpp
+@@ -0,0 +1,68 @@
++/******************************************************************************\
++ * RXSDR (PU1XTB) - entrada e saida pelo stdin/stdout. Veja soundstdio.h.
++ * GPL v2, como o resto do Dream.
++\******************************************************************************/
++#include "soundstdio.h"
++#include <cstdio>
++#include <cstdlib>
++#ifdef _WIN32
++# include <fcntl.h>
++# include <io.h>
++#endif
++
++static void modoBinario()
++{
++#ifdef _WIN32
++    static bool feito = false;
++    if (!feito) {
++        _setmode(_fileno(stdin), _O_BINARY);
++        _setmode(_fileno(stdout), _O_BINARY);
++        feito = true;
++    }
++#endif
++}
++
++CSoundInStdio::CSoundInStdio() { modoBinario(); }
++CSoundInStdio::~CSoundInStdio() {}
++
++bool CSoundInStdio::Init(int, int, bool) { return false; }
++
++bool CSoundInStdio::Read(CVector<short>& psData)
++{
++    const size_t n = size_t(psData.Size());
++    size_t lidos = 0;
++    while (lidos < n) {
++        const size_t r = fread(&psData[int(lidos)], sizeof(short), n - lidos, stdin);
++        if (r == 0) {
++            /* quem nos chamou fechou o cano: acabou */
++            fflush(stdout);
++            exit(0);
++        }
++        lidos += r;
++    }
++    return false;   /* false = sem erro */
++}
++
++void CSoundInStdio::Enumerate(std::vector<std::string>& names, std::vector<std::string>& desc, std::string& def)
++{
++    names.push_back("-"); desc.push_back("stdin"); def = "-";
++}
++
++CSoundOutStdio::CSoundOutStdio() { modoBinario(); }
++CSoundOutStdio::~CSoundOutStdio() {}
++
++bool CSoundOutStdio::Init(int, int, bool) { return false; }
++
++bool CSoundOutStdio::Write(CVector<short>& psData)
++{
++    const size_t n = size_t(psData.Size());
++    if (n == 0) return false;
++    if (fwrite(&psData[0], sizeof(short), n, stdout) != n) exit(0);
++    fflush(stdout);
++    return false;
++}
++
++void CSoundOutStdio::Enumerate(std::vector<std::string>& names, std::vector<std::string>& desc, std::string& def)
++{
++    names.push_back("-"); desc.push_back("stdout"); def = "-";
++}
+diff --git a/src/sound/soundstdio.h b/src/sound/soundstdio.h
+new file mode 100644
+index 0000000..6ea9388
+--- /dev/null
++++ b/src/sound/soundstdio.h
+@@ -0,0 +1,47 @@
++/******************************************************************************\
++ * RXSDR (PU1XTB) - entrada e saida pelo stdin/stdout, para rodar o Dream como
++ * decodificador externo em qualquer sistema (inclusive Windows).
++ *
++ *  entrada : IQ 16 bits com sinal, intercalado (I,Q,I,Q...) no stdin
++ *  saida   : audio 16 bits estereo intercalado (E,D,E,D...) no stdout
++ *
++ * GPL v2, como o resto do Dream.
++\******************************************************************************/
++#ifndef SOUNDSTDIO_H
++#define SOUNDSTDIO_H
++
++#include "soundinterface.h"
++
++class CSoundInStdio : public CSoundInInterface
++{
++public:
++    CSoundInStdio();
++    virtual ~CSoundInStdio();
++    virtual bool Init(int iSampleRate, int iNewBufferSize, bool bNewBlocking);
++    virtual bool Read(CVector<short>& psData);
++    virtual void Enumerate(std::vector<std::string>& names, std::vector<std::string>& desc, std::string& def);
++    virtual std::string GetDev() { return sDev; }
++    virtual void SetDev(std::string sNewDev) { sDev = sNewDev; }
++    virtual void Close() {}
++    virtual std::string GetVersion() { return "stdin"; }
++private:
++    std::string sDev;
++};
++
++class CSoundOutStdio : public CSoundOutInterface
++{
++public:
++    CSoundOutStdio();
++    virtual ~CSoundOutStdio();
++    virtual bool Init(int iSampleRate, int iNewBufferSize, bool bNewBlocking);
++    virtual bool Write(CVector<short>& psData);
++    virtual void Enumerate(std::vector<std::string>& names, std::vector<std::string>& desc, std::string& def);
++    virtual std::string GetDev() { return sDev; }
++    virtual void SetDev(std::string sNewDev) { sDev = sNewDev; }
++    virtual void Close() {}
++    virtual std::string GetVersion() { return "stdout"; }
++private:
++    std::string sDev;
++};
++
++#endif
+diff --git a/src/sourcedecoders/AudioSourceEncoder.cpp b/src/sourcedecoders/AudioSourceEncoder.cpp
+index b1270df..c77d7bb 100644
+--- a/src/sourcedecoders/AudioSourceEncoder.cpp
++++ b/src/sourcedecoders/AudioSourceEncoder.cpp
+@@ -314,12 +314,12 @@ CAudioSourceEncoderImplementation::InitInternalTx(CParameter & Parameters,
+             {
+             case CAudioParam::AS_12KHZ:
+                 iTimeEachAudBloMS = 80;	/* ms */
+-                iNumAudioFrames = 5;
++                iNumAudioFrames = 5; lEncSamprate = 12000;
+                 break;
+ 
+             case CAudioParam::AS_24KHZ:
+                 iTimeEachAudBloMS = 40;	/* ms */
+-                iNumAudioFrames = 10;
++                iNumAudioFrames = 10; lEncSamprate = 24000;
+                 break;
+             }
+ 
+@@ -495,12 +495,12 @@ CAudioSourceEncoderImplementation::InitInternalRx(CParameter& Parameters,
+         {
+         case CAudioParam::AS_12KHZ:
+             iTimeEachAudBloMS = 80;	/* ms */
+-            iNumAudioFrames = 5;
++            iNumAudioFrames = 5; lEncSamprate = 12000;
+             break;
+ 
+         case CAudioParam::AS_24KHZ:
+             iTimeEachAudBloMS = 40;	/* ms */
+-            iNumAudioFrames = 10;
++            iNumAudioFrames = 10; lEncSamprate = 24000;
+             break;
+         }
+ 
+diff --git a/src/util/StatusBroadcast.cpp b/src/util/StatusBroadcast.cpp
+index e5742fa..16dff00 100644
+--- a/src/util/StatusBroadcast.cpp
++++ b/src/util/StatusBroadcast.cpp
+@@ -65,6 +65,19 @@ CStatusBroadcast::~CStatusBroadcast()
+ 
+ bool CStatusBroadcast::Start(CDRMReceiver* pReceiver, const std::string& strCustomPath)
+ {
++    // RXSDR: "-" = uma linha JSON por atualizacao no stderr (funciona tambem
++    // no Windows, onde nao ha socket Unix). Linhas comecam com "STATUS ".
++    if (strCustomPath == "-")
++    {
++        if (bRunning || pReceiver == nullptr)
++            return false;
++        pDRMReceiver = pReceiver;
++        strSocketPath = "stderr";
++        bStderr = true;
++        bRunning = true;
++        broadcastThread = std::thread(&CStatusBroadcast::BroadcastLoop, this);
++        return true;
++    }
+ #ifdef _WIN32
+     // Windows: Unix Domain Sockets not supported
+     // TODO: Implement Windows Named Pipes or TCP socket alternative
+@@ -144,6 +157,14 @@ bool CStatusBroadcast::Start(CDRMReceiver* pReceiver, const std::string& strCust
+ 
+ void CStatusBroadcast::Stop()
+ {
++    if (bStderr)
++    {
++        bRunning = false;
++        if (broadcastThread.joinable())
++            broadcastThread.join();
++        bStderr = false;
++        return;
++    }
+ #ifdef _WIN32
+     // Windows: Nothing to stop (not implemented)
+     return;
+@@ -190,6 +211,17 @@ void CStatusBroadcast::Stop()
+ 
+ void CStatusBroadcast::BroadcastLoop()
+ {
++    if (bStderr)
++    {
++        while (bRunning)
++        {
++            std::string strJSON = CollectStatusJSON();
++            fprintf(stderr, "STATUS %s\n", strJSON.c_str());
++            fflush(stderr);
++            std::this_thread::sleep_for(std::chrono::milliseconds(UPDATE_INTERVAL_MS));
++        }
++        return;
++    }
+ #ifdef _WIN32
+     // Windows: Not implemented
+     return;
+diff --git a/src/util/StatusBroadcast.h b/src/util/StatusBroadcast.h
+index 43adac8..282a5f7 100644
+--- a/src/util/StatusBroadcast.h
++++ b/src/util/StatusBroadcast.h
+@@ -145,6 +145,7 @@ private:
+     std::vector<int>        vecClientFds;
+     std::thread             broadcastThread;
+     std::atomic<bool>       bRunning;
++    bool                    bStderr = false;   // RXSDR: "--status-socket -" = JSON no stderr
+ 
+     // Media content tracking (to avoid duplicate pushes)
+     std::map<std::string, int> mapLastPushedMedia;  // key: "type_transportID", value: iUniqueBodyVersion

@@ -71,7 +71,7 @@ private:
     // HFDL / AIS / APRS mudam a frequencia (e o HFDL a taxa): ao fechar, volta
     uint64_t decFreqAntes_ = 0; unsigned decTaxaAntes_ = 0;
     bool decMudouFreq_ = false, decMudouTaxa_ = false;
-    int decHfdlBanda_ = 5, decAprsCanal_ = 0;
+    int decHfdlBanda_ = 5, decAprsCanal_ = 0, decDrmSel_ = -1;
     void sintonizarDecoder(int tipo);
     void tabelaAvioes(const char* id, const std::vector<AeronaveHfdl>& avs);
     // squelch automatico (clique no SQL)
