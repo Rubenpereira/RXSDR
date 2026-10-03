@@ -39,6 +39,9 @@ public:
     bool vivo() const { return vivo_.load(); }
     void escrever(const void* p, size_t n);          // so enfileira
     std::function<void(const std::string&)> aoLinha; // stdout+stderr, linha a linha (sem \n)
+    // Se definido ANTES de iniciar(): o stdout vem cru (binario) por aqui e
+    // so o stderr vai para aoLinha (DRM: audio no stdout, estado no stderr).
+    std::function<void(const char*, size_t)> aoBinario;
     size_t teto = 16u << 20;                          // fila maxima (bytes)
     uint64_t descartados() const { return descartados_.load(); }
 
@@ -50,6 +53,8 @@ private:
     void* proc_ = nullptr;
     void* entrada_ = nullptr;       // stdin ou o cano nomeado
     void* saidaR_ = nullptr;
+    void* binR_ = nullptr;
+    std::thread thBin_;
     std::wstring nomePipe_;
     bool usaPipe_ = false;
     std::thread thLer_, thEsc_;
@@ -248,6 +253,73 @@ private:
     bool emMsg_ = false;
     std::string bloco_;
     std::map<std::string, AeronaveHfdl> avioes_;
+};
+
+// ---------------------------------------------------------------------------
+//  DRM - Digital Radio Mondiale (dream.exe, Dream 2.x de console com xHE-AAC)
+//
+//  IQ com o VFO no ZERO (o centro do canal DRM) -> reamostrado para 48 kS/s
+//  -> S16 I/Q pelo stdin do dream ("-c 6": I/Q, FI em 0 Hz).
+//  O audio decodificado volta pelo stdout (S16 estereo 48 kHz) e toca no
+//  lugar do audio do radio; o estado (JSON) chega pelo stderr a cada 0,5 s.
+// ---------------------------------------------------------------------------
+struct EstadoDrm {
+    bool rodando = false;
+    std::string erro;
+    bool comStatus = false;          // ja chegou alguma linha de estado
+    int io = -1, tempo = -1, quadro = -1, fac = -1, sdc = -1, msc = -1;   // 0 = ok, 1 = CRC, 2 = dados, -1 = nada
+    double snr = 0, nivelDb = 0, desvioHz = 0, larguraKHz = 0, doppler = -1, atrasoMs = -1;
+    int robustez = -1, mscQam = -1, sdcQam = -1, intercalador = -1;
+    int servicosAudio = 0, servicosDados = 0;
+    std::string estacao, idServico, texto, codec, modoAudio, idioma, programa, pais, horaDrm, protecao;
+    double kbps = 0;
+    double ultStatus = 0, ultAudio = 0;   // relogio (s) da ultima linha / do ultimo audio
+    double bufferS = 0;                   // audio guardado para tocar (s)
+};
+
+class Drm {
+public:
+    ~Drm() { parar(); }
+    bool iniciar(std::string& erro);
+    void parar();
+    bool rodando() const { return ext_.vivo(); }
+    void alimentarIQ(const std::complex<float>* iq, size_t n, uint32_t sps);   // VFO no zero
+    void puxarAudio(int16_t* out, size_t n, uint32_t sps);
+    EstadoDrm estado();
+    // Audio DRM bom ha pouco (MSC sem erro nos ultimos 5 s)? So entao o audio
+    // decodificado toma o lugar do audio do radio; antes disso ouve-se o radio.
+    bool audioBom() const;
+    std::function<void(const std::string&)> aoTexto;
+    std::atomic<bool> linhasCruas{false};
+    bool inverter = false;            // espectro invertido ("-c 7"); vale no proximo iniciar()
+private:
+    void linha(const std::string& l);
+    void binario(const char* p, size_t n);
+    void prepararReamostragem(uint32_t sps);
+    Externo ext_;
+    std::mutex m_;
+    EstadoDrm est_;
+    std::string ultTexto_, ultEstacao_;
+    // IQ -> 48 kS/s: 1) FIR + decimacao inteira  2) interpolador polifasico
+    uint32_t sps_ = 0;
+    int D1_ = 1, cont1_ = 0;
+    std::vector<float> h1_;
+    std::vector<std::complex<float>> hist1_;     // dobrado (2 x L1) para leitura continua
+    size_t pos1_ = 0;
+    double S1_ = 0, passo2_ = 1, pos2_ = 0;
+    int L2_ = 0, P2_ = 0;
+    std::vector<float> tab2_;                    // P2 fases x L2 coeficientes
+    std::vector<std::complex<float>> buf2_;
+    double ganho_ = 0, potMedia_ = 0;
+    std::vector<int16_t> saida_;
+    // audio que volta do dream
+    std::mutex audMutex_;
+    std::vector<int16_t> aud_;                   // mono 48 kHz (fila)
+    size_t audIni_ = 0;
+    bool tocando_ = false;
+    std::string restoBin_;
+    double posAud_ = 0;
+    std::atomic<double> ultMscOk_{0};            // relogio (s) do ultimo MSC sem erro
 };
 
 } // namespace masdr

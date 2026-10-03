@@ -40,6 +40,16 @@ dumpvdl2 (VDL2)                GPL-3.0           https://github.com/szpajder/dum
 libacars                       MIT               https://github.com/szpajder/libacars
 acarsdec (ACARS)               GPL-2.0           https://github.com/f00b4r0/acarsdec
 direwolf (APRS)                GPL-2.0           https://github.com/wb2osz/direwolf
+Dream (DRM, pasta drm)         GPL-2.0           https://sourceforge.net/projects/drm/
+   Versao 2.3 com xHE-AAC (https://github.com/wwek/dream), compilada no MSYS2
+   UCRT64 em modo console. Mudancas do RXSDR, todas no arquivo
+   dream_rxsdr.patch (pasta project-nativo/decoders_corrigidos no GitHub):
+   entrada de IQ pelo stdin e audio pelo stdout (soundstdio.cpp), estado em
+   JSON pelo stderr ("--status-socket -"), sem libpcap no Windows e a taxa
+   do codificador AAC do transmissor de teste. A decodificacao nao mudou.
+FDK-AAC 2.0.3 (pasta drm)      licenca da Fraunhofer (LICENSE-fdk-aac.txt na pasta drm)
+                                                 https://github.com/mstorsjo/fdk-aac
+SpeexDSP (pasta drm)           BSD               https://github.com/xiph/speexdsp
 AIS-catcher (AIS, pasta ais)   GPL-3.0           https://github.com/jvde-github/AIS-catcher
 dsd-fme (DMR, P25, NXDN...)    ISC / GPL-2.0 (partes)
                                                  https://github.com/lwvmobile/dsd-fme

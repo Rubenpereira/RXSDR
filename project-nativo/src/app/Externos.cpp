@@ -224,21 +224,34 @@ bool Externo::iniciar(const std::wstring& exe, const std::wstring& args, const s
         entrada_ = inW;
     }
 
+    HANDLE binR = nullptr, binW = nullptr;
+    if (aoBinario) {
+        if (!CreatePipe(&binR, &binW, &sa, 1 << 18)) {
+            CloseHandle(outR); CloseHandle(outW);
+            if (inR && inR != INVALID_HANDLE_VALUE) CloseHandle(inR);
+            CloseHandle((HANDLE)entrada_); entrada_ = nullptr;
+            erro = "CreatePipe falhou"; return false;
+        }
+        SetHandleInformation(binR, HANDLE_FLAG_INHERIT, 0);
+    }
+
     std::wstring cmd = L"\"" + exe + L"\" " + args;
     STARTUPINFOW si{};
     si.cb = sizeof si;
     si.dwFlags = STARTF_USESTDHANDLES;
-    si.hStdInput = inR; si.hStdOutput = outW; si.hStdError = outW;
+    si.hStdInput = inR; si.hStdOutput = binW ? binW : outW; si.hStdError = outW;
     PROCESS_INFORMATION pi{};
     std::vector<wchar_t> linha(cmd.begin(), cmd.end()); linha.push_back(0);
     const BOOL ok = CreateProcessW(nullptr, linha.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr,
                                    pasta.c_str(), &si, &pi);
     if (inR && inR != INVALID_HANDLE_VALUE) CloseHandle(inR);
     CloseHandle(outW);
+    if (binW) CloseHandle(binW);
     if (!ok) {
         const DWORD e = GetLastError();
         CloseHandle((HANDLE)entrada_); entrada_ = nullptr;
         CloseHandle(outR);
+        if (binR) CloseHandle(binR);
         erro = "nao consegui abrir " + utf8(exe) + " (erro " + std::to_string(e) + ")";
         return false;
     }
@@ -253,12 +266,23 @@ bool Externo::iniciar(const std::wstring& exe, const std::wstring& args, const s
     vivo_ = true;
     thLer_ = std::thread([this] { lerSaida(); });
     thEsc_ = std::thread([this] { lacoEscrita(); });
+    if (binR) {
+        binR_ = binR;
+        thBin_ = std::thread([this] {
+            std::vector<char> buf(1 << 16);
+            for (;;) {
+                DWORD n = 0;
+                if (!ReadFile((HANDLE)binR_, buf.data(), (DWORD)buf.size(), &n, nullptr) || n == 0) break;
+                if (aoBinario) aoBinario(buf.data(), n);
+            }
+        });
+    }
     return true;
 }
 
 void Externo::parar()
 {
-    if (!proc_ && !thLer_.joinable() && !thEsc_.joinable()) return;
+    if (!proc_ && !thLer_.joinable() && !thEsc_.joinable() && !thBin_.joinable()) return;
     vivo_ = false;
     {
         std::lock_guard<std::mutex> lk(filaMutex_);
@@ -278,6 +302,8 @@ void Externo::parar()
     if (thEsc_.joinable()) thEsc_.join();
     if (entrada_) { CloseHandle((HANDLE)entrada_); entrada_ = nullptr; }
     if (thLer_.joinable()) thLer_.join();
+    if (thBin_.joinable()) thBin_.join();
+    if (binR_) { CloseHandle((HANDLE)binR_); binR_ = nullptr; }
     if (saidaR_) { CloseHandle((HANDLE)saidaR_); saidaR_ = nullptr; }
     if (proc_) { CloseHandle((HANDLE)proc_); proc_ = nullptr; }
 }
@@ -1168,6 +1194,441 @@ EstadoExterno Vdl2::estado()
     std::lock_guard<std::mutex> lk(m_);
     EstadoExterno e = est_;
     e.rodando = ext_.vivo();
+    return e;
+}
+
+// ===========================================================================
+//  DRM - Digital Radio Mondiale (dream.exe)
+// ===========================================================================
+namespace {
+constexpr double kPiDrm = 3.14159265358979323846;
+constexpr uint32_t kDrmTaxa = 48000;           // sinal e audio do dream
+
+// texto JSON com escapes (\" \\ \n \uXXXX), procurado so em [de, ate)
+bool txtJsonEm(const std::string& l, size_t de, size_t ate, const char* chave, std::string& v)
+{
+    const std::string k = std::string("\"") + chave + "\":\"";
+    const auto p = l.find(k, de);
+    if (p == std::string::npos || p >= ate) return false;
+    v.clear();
+    for (size_t i = p + k.size(); i < l.size(); ++i) {
+        const char c = l[i];
+        if (c == '"') {
+            while (!v.empty() && (v.back() == ' ' || v.back() == '\0')) v.pop_back();
+            return true;
+        }
+        if (c == '\\' && i + 1 < l.size()) {
+            const char e = l[++i];
+            if (e == 'n' || e == 'r' || e == 't') v += ' ';
+            else if (e == 'u' && i + 4 < l.size()) {
+                const unsigned cp = (unsigned)std::strtoul(l.substr(i + 1, 4).c_str(), nullptr, 16);
+                i += 4;
+                if (cp == 0) continue;
+                if (cp < 0x80) v += (char)cp;
+                else if (cp < 0x800) { v += (char)(0xC0 | (cp >> 6)); v += (char)(0x80 | (cp & 0x3F)); }
+                else { v += (char)(0xE0 | (cp >> 12)); v += (char)(0x80 | ((cp >> 6) & 0x3F)); v += (char)(0x80 | (cp & 0x3F)); }
+            } else v += e;
+        } else v += c;
+    }
+    return false;
+}
+
+bool numJsonEm(const std::string& l, size_t de, size_t ate, const char* chave, double& v)
+{
+    const std::string k = std::string("\"") + chave + "\":";
+    const auto p = l.find(k, de);
+    if (p == std::string::npos || p >= ate) return false;
+    const char* c = l.c_str() + p + k.size();
+    if (*c == '"' || *c == '{' || *c == '[') return false;
+    if (std::strncmp(c, "true", 4) == 0) { v = 1; return true; }
+    if (std::strncmp(c, "false", 5) == 0) { v = 0; return true; }
+    char* f = nullptr;
+    v = std::strtod(c, &f);
+    return f != c;
+}
+
+// fim (exclusivo) do objeto/lista que comeca em l[i] ('{' ou '[')
+size_t fimJson(const std::string& l, size_t i)
+{
+    int nivel = 0;
+    bool aspas = false;
+    for (size_t j = i; j < l.size(); ++j) {
+        const char c = l[j];
+        if (aspas) { if (c == '\\') ++j; else if (c == '"') aspas = false; continue; }
+        if (c == '"') aspas = true;
+        else if (c == '{' || c == '[') ++nivel;
+        else if (c == '}' || c == ']') { if (--nivel == 0) return j + 1; }
+    }
+    return std::string::npos;
+}
+
+// "chave":{...} dentro de [de, ate) -> [ini, fim)
+bool objJsonEm(const std::string& l, size_t de, size_t ate, const char* chave, size_t& ini, size_t& fim)
+{
+    const std::string k = std::string("\"") + chave + "\":";
+    const auto p = l.find(k, de);
+    if (p == std::string::npos || p >= ate) return false;
+    const size_t i = p + k.size();
+    if (i >= l.size() || (l[i] != '{' && l[i] != '[')) return false;
+    const size_t f = fimJson(l, i);
+    if (f == std::string::npos) return false;
+    ini = i; fim = f;
+    return true;
+}
+
+double blackman(double x)   // x em [0, 1]
+{
+    return 0.42 - 0.5 * std::cos(2 * kPiDrm * x) + 0.08 * std::cos(4 * kPiDrm * x);
+}
+} // namespace
+
+bool Drm::iniciar(std::string& erro)
+{
+    parar();
+    const std::wstring exe = pastaDecoders() + L"\\drm\\dream.exe";
+    {
+        std::lock_guard<std::mutex> lk(m_);
+        est_ = EstadoDrm{};
+        ultTexto_.clear(); ultEstacao_.clear();
+    }
+    {
+        std::lock_guard<std::mutex> la(audMutex_);
+        aud_.clear(); audIni_ = 0; tocando_ = false; restoBin_.clear(); posAud_ = 0;
+    }
+    sps_ = 0; ganho_ = 0; potMedia_ = 0;
+    ultMscOk_ = 0;
+
+    // pasta de trabalho propria: o dream le/grava o Dream.ini na pasta atual
+    wchar_t tmp[MAX_PATH]{};
+    GetTempPathW(MAX_PATH, tmp);
+    const std::wstring trab = std::wstring(tmp) + L"rxsdr_drm_" + std::to_wstring(GetCurrentProcessId());
+    CreateDirectoryW(trab.c_str(), nullptr);
+
+    ext_.aoLinha = [this](const std::string& l) { linha(l); };
+    ext_.aoBinario = [this](const char* p, size_t n) { binario(p, n); };
+    ext_.teto = 4u << 20;     // ~20 s de IQ (48 kS/s x 4 bytes); se o dream atrasar, perde o mais velho
+    std::wstring args = std::wstring(L"-c ") + (inverter ? L"7" : L"6") +
+                        // -i 2: duas iteracoes do decodificador MLC (~1 dB a mais em sinal fraco)
+                        L" -i 2 --sigsrate 48000 --audsrate 48000 -I - -O - --status-socket -";
+    if (!ext_.iniciar(exe, args, trab, L"", erro)) {
+        std::lock_guard<std::mutex> lk(m_);
+        est_.erro = erro;
+        return false;
+    }
+    {
+        std::lock_guard<std::mutex> lk(m_);
+        est_.rodando = true;
+    }
+    if (aoTexto) aoTexto("[DRM] " + horaUtc() + " UTC  dream iniciado - procurando o sinal DRM...\n");
+    return true;
+}
+
+void Drm::parar()
+{
+    ext_.parar();
+    std::lock_guard<std::mutex> lk(m_);
+    est_.rodando = false;
+}
+
+void Drm::prepararReamostragem(uint32_t sps)
+{
+    sps_ = sps;
+    // 1) FIR + decimacao inteira ate ~200 kS/s (corte no meio da faixa de
+    //    transicao 12 kHz .. S1-12 kHz, para nada dobrar em cima do canal)
+    D1_ = std::max(1, (int)(sps / 192000));
+    S1_ = double(sps) / D1_;
+    cont1_ = 0; pos1_ = 0;
+    h1_.clear(); hist1_.clear();
+    if (D1_ > 1) {
+        const double trans = std::max(20000.0, S1_ - 24000.0);
+        int L = (int)std::ceil(5.5 * double(sps) / trans);
+        L = std::clamp(L | 1, 31, 1201);
+        const double fc = (S1_ / 2.0) / double(sps);
+        h1_.resize(L);
+        double soma = 0;
+        for (int i = 0; i < L; ++i) {
+            const double t = i - (L - 1) / 2.0;
+            const double s = t == 0 ? 2 * fc : std::sin(2 * kPiDrm * fc * t) / (kPiDrm * t);
+            const double w = blackman(double(i) / (L - 1));
+            h1_[i] = (float)(s * w);
+            soma += s * w;
+        }
+        for (auto& v : h1_) v = (float)(v / soma);
+        hist1_.assign((size_t)2 * L, {0, 0});
+    }
+    // 2) interpolador polifasico S1 -> 48 kS/s (passa ate 12 kHz, corta a
+    //    partir de 36 kHz: o que sobrar dobra fora do canal DRM)
+    passo2_ = S1_ / kDrmTaxa;
+    const double fc2 = 24000.0 / S1_;
+    L2_ = (int)std::ceil(5.5 * S1_ / 24000.0);
+    if (L2_ & 1) ++L2_;
+    L2_ = std::clamp(L2_, 8, 256);
+    P2_ = 256;
+    tab2_.assign((size_t)P2_ * L2_, 0.f);
+    const int meio = L2_ / 2 - 1;
+    for (int p = 0; p < P2_; ++p) {
+        const double frac = double(p) / P2_;
+        double soma = 0;
+        for (int j = 0; j < L2_; ++j) {
+            const double t = (j - meio) - frac;
+            const double s = std::fabs(t) < 1e-9 ? 2 * fc2 : std::sin(2 * kPiDrm * fc2 * t) / (kPiDrm * t);
+            const double x = (t + L2_ / 2.0) / L2_;
+            const double w = (x <= 0 || x >= 1) ? 0 : blackman(x);
+            tab2_[(size_t)p * L2_ + j] = (float)(s * w);
+            soma += s * w;
+        }
+        if (soma != 0)
+            for (int j = 0; j < L2_; ++j) tab2_[(size_t)p * L2_ + j] = (float)(tab2_[(size_t)p * L2_ + j] / soma);
+    }
+    buf2_.assign((size_t)L2_, {0, 0});
+    pos2_ = L2_;
+}
+
+void Drm::alimentarIQ(const std::complex<float>* iq, size_t n, uint32_t sps)
+{
+    if (!ext_.vivo() || !iq || !n || sps < 96000) return;
+    if (sps != sps_) prepararReamostragem(sps);
+
+    // estagio 1
+    if (D1_ > 1) {
+        const int L = (int)h1_.size();
+        for (size_t i = 0; i < n; ++i) {
+            hist1_[pos1_] = hist1_[pos1_ + L] = iq[i];
+            pos1_ = (pos1_ + 1) % (size_t)L;
+            if (++cont1_ < D1_) continue;
+            cont1_ = 0;
+            const std::complex<float>* x = &hist1_[pos1_];     // L amostras seguidas (da mais velha para a nova)
+            float re = 0, im = 0;
+            for (int k = 0; k < L; ++k) { re += h1_[k] * x[k].real(); im += h1_[k] * x[k].imag(); }
+            buf2_.emplace_back(re, im);
+        }
+    } else {
+        buf2_.insert(buf2_.end(), iq, iq + n);
+    }
+
+    // estagio 2
+    const int meio = L2_ / 2 - 1;
+    saida_.clear();
+    std::vector<std::complex<float>> y;
+    y.reserve((size_t)(buf2_.size() / passo2_) + 4);
+    for (;;) {
+        const size_t base = (size_t)pos2_;
+        if (base + (size_t)(L2_ / 2) >= buf2_.size()) break;
+        const double frac = pos2_ - (double)base;
+        const int p = std::min(P2_ - 1, (int)(frac * P2_ + 0.5));
+        const float* h = &tab2_[(size_t)p * L2_];
+        const std::complex<float>* x = &buf2_[base - meio];
+        float re = 0, im = 0;
+        for (int j = 0; j < L2_; ++j) { re += h[j] * x[j].real(); im += h[j] * x[j].imag(); }
+        y.emplace_back(re, im);
+        pos2_ += passo2_;
+    }
+    const size_t gasto = (size_t)pos2_ > (size_t)meio ? (size_t)pos2_ - (size_t)meio : 0;
+    if (gasto > 0) {
+        buf2_.erase(buf2_.begin(), buf2_.begin() + (long long)std::min(gasto, buf2_.size()));
+        pos2_ -= (double)gasto;
+    }
+    if (y.empty()) return;
+
+    // ganho automatico lento (~2 s): o OFDM tem picos ~10 dB acima da media,
+    // entao o valor eficaz fica perto de 3000 (de 32767)
+    double pot = 0;
+    for (const auto& v : y) pot += (double)v.real() * v.real() + (double)v.imag() * v.imag();
+    pot /= (double)y.size();
+    const double a = 1.0 - std::exp(-(double)y.size() / (kDrmTaxa * 2.0));
+    potMedia_ = potMedia_ <= 0 ? pot : potMedia_ + a * (pot - potMedia_);
+    ganho_ = potMedia_ > 1e-20 ? 3000.0 / std::sqrt(potMedia_) : 1.0;
+
+    saida_.resize(y.size() * 2);
+    for (size_t i = 0; i < y.size(); ++i) {
+        saida_[2 * i]     = (int16_t)std::clamp(std::lround(y[i].real() * ganho_), -32767L, 32767L);
+        saida_[2 * i + 1] = (int16_t)std::clamp(std::lround(y[i].imag() * ganho_), -32767L, 32767L);
+    }
+    ext_.escrever(saida_.data(), saida_.size() * sizeof(int16_t));
+}
+
+// audio do dream: S16 estereo 48 kHz -> mono na fila
+void Drm::binario(const char* p, size_t n)
+{
+    std::lock_guard<std::mutex> la(audMutex_);
+    restoBin_.append(p, n);
+    const size_t quadros = restoBin_.size() / 4;
+    const int16_t* s = reinterpret_cast<const int16_t*>(restoBin_.data());
+    for (size_t i = 0; i < quadros; ++i)
+        aud_.push_back((int16_t)(((int)s[2 * i] + (int)s[2 * i + 1]) / 2));
+    restoBin_.erase(0, quadros * 4);
+    // nunca mais de 6 s guardados (sobra o mais novo). Enquanto o audio nao
+    // presta (o radio esta tocando o proprio som), so 1 s: quando o DRM
+    // entrar, entra sem atraso
+    const size_t disp = aud_.size() - audIni_;
+    if (!audioBom()) {
+        if (disp > kDrmTaxa) audIni_ = aud_.size() - kDrmTaxa;
+        tocando_ = false; posAud_ = 0;
+    }
+    else if (disp > kDrmTaxa * 6) audIni_ = aud_.size() - kDrmTaxa * 3;
+    if (audIni_ > kDrmTaxa * 4) { aud_.erase(aud_.begin(), aud_.begin() + (long long)audIni_); audIni_ = 0; }
+    if (quadros) {
+        std::lock_guard<std::mutex> lk(m_);
+        est_.ultAudio = agora();
+    }
+}
+
+void Drm::puxarAudio(int16_t* out, size_t n, uint32_t sps)
+{
+    if (!out || !n) return;
+    std::lock_guard<std::mutex> la(audMutex_);
+    size_t disp = aud_.size() - audIni_;
+    if (!tocando_ && disp >= kDrmTaxa * 8 / 10) tocando_ = true;     // 0,8 s de folga
+    size_t i = 0;
+    if (tocando_ && sps >= 8000) {
+        // relogios diferentes (dongle x dream): corrige devagar pelo tamanho da fila
+        double passo = double(kDrmTaxa) / double(sps);
+        if (disp > kDrmTaxa * 25 / 10) passo *= 1.005;
+        else if (disp < kDrmTaxa * 4 / 10) passo *= 0.995;
+        for (; i < n; ++i) {
+            const size_t k = audIni_ + (size_t)posAud_;
+            if (k + 1 >= aud_.size()) { tocando_ = false; break; }
+            const double f = posAud_ - std::floor(posAud_);
+            out[i] = (int16_t)std::lround(aud_[k] * (1.0 - f) + aud_[k + 1] * f);
+            posAud_ += passo;
+        }
+        const size_t pulo = (size_t)posAud_;
+        audIni_ = std::min(aud_.size(), audIni_ + pulo);
+        posAud_ -= (double)pulo;
+    }
+    for (; i < n; ++i) out[i] = 0;
+}
+
+void Drm::linha(const std::string& l)
+{
+    if (l.compare(0, 7, "STATUS ") != 0) {
+        if (linhasCruas && aoTexto && !l.empty()) aoTexto("[dream] " + l + "\n");
+        return;
+    }
+    EstadoDrm e;
+    {
+        std::lock_guard<std::mutex> lk(m_);
+        e = est_;
+    }
+    e.comStatus = true;
+    e.ultStatus = agora();
+    const size_t N = l.size();
+    size_t a = 0, b = 0;
+    double v = 0;
+    if (objJsonEm(l, 0, N, "status", a, b)) {
+        if (numJsonEm(l, a, b, "io", v)) e.io = (int)v;
+        if (numJsonEm(l, a, b, "time", v)) e.tempo = (int)v;
+        if (numJsonEm(l, a, b, "frame", v)) e.quadro = (int)v;
+        if (numJsonEm(l, a, b, "fac", v)) e.fac = (int)v;
+        if (numJsonEm(l, a, b, "sdc", v)) e.sdc = (int)v;
+        if (numJsonEm(l, a, b, "msc", v)) e.msc = (int)v;
+    }
+    const bool travado = e.tempo == 0 && e.fac == 0;
+    if (travado && e.msc == 0) ultMscOk_ = agora();
+    if (objJsonEm(l, 0, N, "signal", a, b)) {
+        if (numJsonEm(l, a, b, "snr_db", v)) e.snr = v;
+        if (numJsonEm(l, a, b, "if_level_db", v)) e.nivelDb = v;
+        e.doppler = numJsonEm(l, a, b, "doppler_hz", v) ? v : -1;
+        e.atrasoMs = numJsonEm(l, a, b, "delay_max_ms", v) ? v : (numJsonEm(l, a, b, "delay_min_ms", v) ? v : -1);
+    }
+    if (objJsonEm(l, 0, N, "mode", a, b)) {
+        if (numJsonEm(l, a, b, "robustness", v)) e.robustez = (int)v;
+        if (numJsonEm(l, a, b, "bandwidth_khz", v)) e.larguraKHz = v;
+        if (numJsonEm(l, a, b, "interleaver", v)) e.intercalador = (int)v;
+    } else if (!travado) {
+        e.robustez = -1; e.larguraKHz = 0;
+    }
+    if (objJsonEm(l, 0, N, "coding", a, b)) {
+        if (numJsonEm(l, a, b, "msc_qam", v)) e.mscQam = (int)v;
+        if (numJsonEm(l, a, b, "sdc_qam", v)) e.sdcQam = (int)v;
+    }
+    if (objJsonEm(l, 0, N, "services", a, b)) {
+        if (numJsonEm(l, a, b, "audio", v)) e.servicosAudio = (int)v;
+        if (numJsonEm(l, a, b, "data", v)) e.servicosDados = (int)v;
+    }
+    // o primeiro servico de audio da lista (e o que o dream toca)
+    if (objJsonEm(l, 0, N, "service_list", a, b)) {
+        size_t oi = std::string::npos, of = 0;
+        for (size_t i = a + 1; i < b; ++i) {
+            if (l[i] != '{') continue;
+            const size_t f = fimJson(l, i);
+            if (f == std::string::npos || f > b) break;
+            double au = 0;
+            if (numJsonEm(l, i, f, "is_audio", au) && au > 0) { oi = i; of = f; break; }
+            i = f - 1;
+        }
+        if (oi != std::string::npos) {
+            std::string s;
+            if (txtJsonEm(l, oi, of, "label", s) && !s.empty()) e.estacao = s;
+            if (txtJsonEm(l, oi, of, "id", s)) e.idServico = s;
+            if (numJsonEm(l, oi, of, "audio_coding", v)) {
+                const int c = (int)v;
+                e.codec = c == 0 ? "AAC" : c == 1 ? "Opus" : c == 3 ? "xHE-AAC" : "?";
+            }
+            if (numJsonEm(l, oi, of, "bitrate_kbps", v)) e.kbps = v;
+            if (txtJsonEm(l, oi, of, "audio_mode", s)) e.modoAudio = s == "Mono" ? "mono" : s == "Stereo" ? "estéreo" : s == "P-Stereo" ? "estéreo paramétrico" : s;
+            if (txtJsonEm(l, oi, of, "protection_mode", s)) e.protecao = s;
+            if (txtJsonEm(l, oi, of, "text", s)) e.texto = s;
+            size_t si = 0, sf = 0;
+            if (objJsonEm(l, oi, of, "language", si, sf) && txtJsonEm(l, si, sf, "name", s)) e.idioma = s;
+            if (objJsonEm(l, oi, of, "program_type", si, sf) && txtJsonEm(l, si, sf, "name", s)) e.programa = s;
+            if (objJsonEm(l, oi, of, "country", si, sf) && txtJsonEm(l, si, sf, "name", s)) e.pais = s;
+        }
+    }
+    if (objJsonEm(l, 0, N, "drm_time", a, b)) {
+        double ok = 0, h = 0, mi = 0;
+        if (numJsonEm(l, a, b, "valid", ok) && ok > 0 && numJsonEm(l, a, b, "hour", h) && numJsonEm(l, a, b, "min", mi)) {
+            char t[16];
+            std::snprintf(t, sizeof t, "%02d:%02d", (int)h, (int)mi);
+            e.horaDrm = t;
+        }
+    }
+
+    // mensagens para a caixa de texto: estacao nova e texto novo
+    std::string novo;
+    {
+        std::lock_guard<std::mutex> lk(m_);
+        if (!e.estacao.empty() && e.estacao != ultEstacao_) {
+            ultEstacao_ = e.estacao;
+            static const char kRob[] = "ABCDE";
+            char q[200];
+            std::snprintf(q, sizeof q, "  (modo %c, %.0f kHz, %s %.1f kbps, SNR %.1f dB)",
+                          e.robustez >= 0 && e.robustez < 5 ? kRob[e.robustez] : '?', e.larguraKHz,
+                          e.codec.c_str(), e.kbps, e.snr);
+            novo += "[DRM] " + horaUtc() + " UTC  Estacao: " + e.estacao + q + "\n";
+            std::string extra;
+            if (!e.pais.empty()) extra += e.pais;
+            if (!e.idioma.empty()) extra += (extra.empty() ? "" : ", ") + e.idioma;
+            if (!e.programa.empty()) extra += (extra.empty() ? "" : ", ") + e.programa;
+            if (!extra.empty()) novo += "      " + extra + "\n";
+        }
+        if (!e.texto.empty() && e.texto != ultTexto_) {
+            ultTexto_ = e.texto;
+            novo += "[DRM] " + horaUtc() + " UTC  " + e.texto + "\n";
+        }
+        est_ = e;
+    }
+    if (!novo.empty() && aoTexto) aoTexto(novo);
+}
+
+bool Drm::audioBom() const
+{
+    const double t = ultMscOk_.load();
+    return t > 0 && agora() - t < 5.0;
+}
+
+EstadoDrm Drm::estado()
+{
+    EstadoDrm e;
+    {
+        std::lock_guard<std::mutex> lk(m_);
+        e = est_;
+    }
+    e.rodando = e.rodando && ext_.vivo();
+    {
+        std::lock_guard<std::mutex> la(audMutex_);
+        e.bufferS = double(aud_.size() - audIni_) / kDrmTaxa;
+    }
     return e;
 }
 

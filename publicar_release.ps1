@@ -163,7 +163,10 @@ if ($existe) {
     if ($LASTEXITCODE -ne 0) { Erro "falha ao enviar os anexos." }
     # A versao "Win7" foi substituida pelo RXSDR Nativo: se a release ainda
     # tiver o instalador antigo anexado, ele sai daqui para ninguem baixar.
-    $antigos = gh release view $tag --json assets -q '.assets[].name' | Where-Object { $_ -match '_Win7' }
+    # O mesmo para um pacote do Nativo de numero anterior (ex.: 1.0.0 quando sobe o 1.0.1).
+    $nomesNovos = $anexos | ForEach-Object { Split-Path $_ -Leaf }
+    $antigos = gh release view $tag --json assets -q '.assets[].name' |
+               Where-Object { $_ -match '_Win7' -or ($_ -match '^RXSDR_Nativo_' -and $nomesNovos -notcontains $_) }
     foreach ($a in $antigos) {
         Info "Removendo anexo antigo: $a"
         gh release delete-asset $tag $a -y

@@ -46,6 +46,7 @@ const char* Decoders::nome(Tipo t)
     case ACARS: return "ACARS (131,550 / 131,825)";
     case VDL2: return "VDL2 (136,975)";
     case ANALISE: return "Analisar sinal";
+    case DRM: return "DRM (rádio digital)";
     default: return "Nenhum";
     }
 }
@@ -59,7 +60,7 @@ Decoders::~Decoders()
 {
     dsd_.parar();
     tetra_.parar();
-    hfdl_.parar(); ais_.parar(); aprs_.parar(); acars_.parar(); vdl2_.parar();
+    hfdl_.parar(); ais_.parar(); aprs_.parar(); acars_.parar(); vdl2_.parar(); drm_.parar();
     {
         std::lock_guard<std::mutex> lk(filaMutex_);
         sair_ = true;
@@ -81,6 +82,7 @@ void Decoders::iniciar(Tipo t, const Ajustes& a)
     if (t != APRS) aprs_.parar();
     if (t != ACARS) acars_.parar();
     if (t != VDL2) vdl2_.parar();
+    if (t != DRM) drm_.parar();
     switch (t) {
     case CW: {
         CwCore::Params p;
@@ -168,6 +170,13 @@ void Decoders::iniciar(Tipo t, const Ajustes& a)
         if (!vdl2_.iniciar(a.vdl2Canais, a.vdl2CentroHz, a.vdl2Taxa, erro)) escrever("[VDL2] " + erro + "\n");
         break;
     }
+    case DRM: {
+        drm_.aoTexto = [this](const std::string& s) { escrever(s); };
+        drm_.inverter = a.drmInverter;
+        std::string erro;
+        if (!drm_.iniciar(erro)) escrever("[DRM] " + erro + "\n");
+        break;
+    }
     case ANALISE:
         analise_ = std::make_unique<AnaliseCore>(kTaxa);
         escrever("[ANALISE] juntando 12 s de audio do sinal sintonizado...\n");
@@ -185,7 +194,7 @@ void Decoders::parar()
 {
     dsd_.parar();
     tetra_.parar();
-    hfdl_.parar(); ais_.parar(); aprs_.parar(); acars_.parar(); vdl2_.parar();
+    hfdl_.parar(); ais_.parar(); aprs_.parar(); acars_.parar(); vdl2_.parar(); drm_.parar();
     std::lock_guard<std::mutex> lk(coreMutex_);
     tipo_ = NENHUM;
     cw_.reset(); rtty_.reset(); sitor_.reset(); dsc_.reset(); ale_.reset(); analise_.reset();
@@ -194,7 +203,7 @@ void Decoders::parar()
 void Decoders::empurrar(const int16_t* pcm, size_t n, uint32_t sps)
 {
     const Tipo tp = tipo_.load();
-    if (tp == NENHUM || tp == TETRA || tp == HFDL || tp == AIS || tp == ACARS || tp == VDL2 || !pcm || !n || !sps) return;
+    if (tp == NENHUM || tp == TETRA || tp == HFDL || tp == AIS || tp == ACARS || tp == VDL2 || tp == DRM || !pcm || !n || !sps) return;
     {
         std::lock_guard<std::mutex> lk(filaMutex_);
         if (sps != filaSps_) { fila_.clear(); filaAmostras_ = 0; filaSps_ = sps; }
@@ -452,6 +461,21 @@ std::string Decoders::estado()
         if (!e.rodando) std::snprintf(b, sizeof b, "%s", e.erro.empty() ? "direwolf parado" : e.erro.c_str());
         else std::snprintf(b, sizeof b, "direwolf ouvindo  |  %d pacotes  |  %s", e.mensagens, e.info.c_str());
     }
+    else if (tipo_.load() == DRM) {
+        const EstadoDrm e = drm_.estado();
+        static const char kRob[] = "ABCDE";
+        static const char* kQam[] = {"4-QAM", "16-QAM", "64-QAM", "64-QAM", "64-QAM"};
+        if (!e.rodando) std::snprintf(b, sizeof b, "%s", e.erro.empty() ? "dream parado" : e.erro.c_str());
+        else if (!e.comStatus) std::snprintf(b, sizeof b, "abrindo o dream...");
+        else if (e.tempo != 0) std::snprintf(b, sizeof b, "procurando o sinal DRM  |  sintonize o centro do canal");
+        else if (e.fac != 0) std::snprintf(b, sizeof b, "sinal achado, sincronizando (FAC)  |  SNR %.1f dB", e.snr);
+        else std::snprintf(b, sizeof b, "DRM %s  |  SNR %.1f dB  |  modo %c  %.0f kHz  %s  |  %s %.1f kbps%s",
+                           e.estacao.empty() ? "(lendo SDC)" : e.estacao.c_str(), e.snr,
+                           e.robustez >= 0 && e.robustez < 5 ? kRob[e.robustez] : '?', e.larguraKHz,
+                           e.mscQam >= 0 && e.mscQam < 5 ? kQam[e.mscQam] : "?",
+                           e.codec.empty() ? "?" : e.codec.c_str(), e.kbps,
+                           e.msc == 0 ? "" : "  |  áudio com erros");
+    }
     else if (analise_)
         std::snprintf(b, sizeof b, analiseFeita_ ? "analise pronta - clique Reiniciar para medir de novo"
                                                  : "juntando audio: %.0f de %.0f s",
@@ -468,6 +492,7 @@ bool Decoders::travado()
     if (ale_) return ale_->sincronizado();
     if (cw_) return cw_->ppm() > 0;
     if (tipo_.load() == TETRA) return tetra_.estado().travado;
+    if (tipo_.load() == DRM) { const EstadoDrm e = drm_.estado(); return e.tempo == 0 && e.fac == 0; }
     if (tipo_.load() == DMR) {
         const EstadoDmr e = dsd_.estado();
         using namespace std::chrono;

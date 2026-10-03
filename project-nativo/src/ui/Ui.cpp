@@ -18,6 +18,7 @@
 #include <shellapi.h>
 
 #include <algorithm>
+#include <unordered_map>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -790,8 +791,73 @@ void Ui::olhoMagico(float x, float y, float w, float h)
 }
 
 // ---------------------------------------------------------------------------
-//  Sliders no estilo da pagina: rotulo a esquerda, valor a direita, trilho
-//  fino com a bolinha verde. Roda do mouse ajusta.
+//  Fader de mesa de som, deitado: canaleta preta com a escala embaixo e o
+//  botao preto brilhante com o friso branco no meio. Arrastando, o botao fica
+//  vermelho. A parte ja percorrida da canaleta tem um filete colorido (verde,
+//  ou a cor pedida - laranja piscando no Ganho de RF com AGC).
+//  Tudo desenhado aqui, sem arquivo de imagem.
+// ---------------------------------------------------------------------------
+namespace {
+ImU32 misturar(ImU32 a, int d)       // clareia (d>0) ou escurece (d<0)
+{
+    auto c = [&](int sh) { return std::clamp((int)((a >> sh) & 0xff) + d, 0, 255); };
+    return IM_COL32(c(IM_COL32_R_SHIFT), c(IM_COL32_G_SHIFT), c(IM_COL32_B_SHIFT), (a >> IM_COL32_A_SHIFT) & 0xff);
+}
+
+void desenharFader(ImDrawList* dl, float x, float ty, float w, float t,
+                   bool ativo, bool sobre, unsigned corTrilho, float s, bool escala = true)
+{
+    // escala: marquinhas embaixo da canaleta (maiores a cada 50%)
+    for (int i = 0; escala && i <= 10; ++i) {
+        const float xi = std::floor(x + w * i / 10.f) + 0.5f;
+        const float comp = (i % 5 == 0) ? 5.f * s : 3.f * s;
+        dl->AddLine(ImVec2(xi, ty + 5.f * s), ImVec2(xi, ty + 5.f * s + comp), IM_COL32(0x8a, 0x94, 0x8e, 150), 1.f);
+    }
+    // canaleta
+    const float g = 2.6f * s;
+    dl->AddRectFilled(ImVec2(x - 1 * s, ty - g - 1 * s), ImVec2(x + w + 1 * s, ty + g + 1 * s), IM_COL32(0x3a, 0x44, 0x3e, 255), g + 1 * s);
+    dl->AddRectFilled(ImVec2(x, ty - g), ImVec2(x + w, ty + g), IM_COL32(0x04, 0x06, 0x05, 255), g);
+    const ImU32 cor = corTrilho ? (ImU32)corTrilho : IM_COL32(0x18, 0xa0, 0x50, 255);
+    if (t > 0) dl->AddRectFilled(ImVec2(x + 1 * s, ty - 0.9f * s), ImVec2(x + std::max(1.f * s, w * t), ty + 0.9f * s), cor, 1 * s);
+
+    // botao
+    const float cx = std::floor(x + w * t) + 0.5f;
+    const float hw = 7.f * s, hh = 8.f * s, r = 2.f * s;
+    const ImVec2 a(cx - hw, ty - hh), b(cx + hw, ty + hh);
+    dl->AddRectFilled(ImVec2(a.x + 1.5f * s, a.y + 2 * s), ImVec2(b.x + 1.5f * s, b.y + 2 * s), IM_COL32(0, 0, 0, 130), r);   // sombra
+
+    ImU32 c1, c2, c3, c4;                // alto claro -> meio -> meio -> base
+    if (ativo) { c1 = IM_COL32(0xff, 0x6a, 0x6a, 255); c2 = IM_COL32(0xd8, 0x1c, 0x1c, 255);
+                 c3 = IM_COL32(0xb0, 0x0c, 0x0c, 255); c4 = IM_COL32(0x62, 0x00, 0x00, 255); }
+    else       { c1 = IM_COL32(0x78, 0x78, 0x78, 255); c2 = IM_COL32(0x30, 0x30, 0x30, 255);
+                 c3 = IM_COL32(0x1c, 0x1c, 0x1c, 255); c4 = IM_COL32(0x06, 0x06, 0x06, 255); }
+    if (sobre && !ativo) { c1 = misturar(c1, 0x20); c2 = misturar(c2, 0x18); c3 = misturar(c3, 0x14); c4 = misturar(c4, 0x10); }
+
+    dl->AddRectFilled(a, b, c4, r);
+    const float ym = ty - 0.5f * s;
+    dl->AddRectFilledMultiColor(ImVec2(a.x + 1, a.y + 1), ImVec2(b.x - 1, ym), c1, c1, c2, c2);
+    dl->AddRectFilledMultiColor(ImVec2(a.x + 1, ym), ImVec2(b.x - 1, b.y - 1), c3, c3, c4, c4);
+    dl->AddLine(ImVec2(a.x + 1.5f, a.y + 1.5f), ImVec2(b.x - 1.5f, a.y + 1.5f), IM_COL32(255, 255, 255, 80), 1.f);   // brilho no alto
+    dl->AddRect(a, b, IM_COL32(0, 0, 0, 255), r, 0, 1.f);
+    // friso branco no meio, com a sombrinha ao lado
+    dl->AddLine(ImVec2(cx + 1.2f * s, a.y + 2.5f * s), ImVec2(cx + 1.2f * s, b.y - 2.5f * s), IM_COL32(0, 0, 0, 160), 1.2f * s);
+    dl->AddLine(ImVec2(cx, a.y + 2.5f * s), ImVec2(cx, b.y - 2.5f * s), IM_COL32(0xf2, 0xf2, 0xf2, 245), 1.4f * s);
+}
+// Rodinha do mouse: o botao fica vermelho enquanto gira e mais 0,6 s depois,
+// igual a quando se arrasta. Guarda a hora do ultimo giro de cada fader.
+std::unordered_map<ImGuiID, double>& giroRoda() { static std::unordered_map<ImGuiID, double> m; return m; }
+bool rodaRecente(ImGuiID id, bool girou)
+{
+    const double agora = ImGui::GetTime();
+    if (girou) giroRoda()[id] = agora;
+    const auto it = giroRoda().find(id);
+    return it != giroRoda().end() && agora - it->second < 0.6;
+}
+} // namespace
+
+// ---------------------------------------------------------------------------
+//  Sliders no estilo da pagina: rotulo a esquerda, valor a direita e o fader
+//  deitado embaixo. Roda do mouse ajusta.
 // ---------------------------------------------------------------------------
 bool Ui::slider(const char* id, const char* rotulo, const char* valor, float* v,
                 float mn, float mx, float x, float y, float w, float passoRoda, unsigned corRotulo,
@@ -804,12 +870,13 @@ bool Ui::slider(const char* id, const char* rotulo, const char* valor, float* v,
     dl->AddText(ImVec2(x + w - tv.x, y), corValor ? (ImU32)corValor : C_RX, valor);
     const float th = ImGui::GetFontSize();
     ImGui::PopFont();
-    const float ty = y + th + 7 * s_;
+    const float ty = y + th + 9 * s_;
     const float kr = 5.5f * s_;
     ImGui::SetCursorScreenPos(ImVec2(x - kr, ty - kr - 2 * s_));
     ImGui::PushID(id);
     ImGui::InvisibleButton("##s", ImVec2(w + 2 * kr, 2 * kr + 4 * s_));
     const bool ativo = ImGui::IsItemActive(), sobre = ImGui::IsItemHovered();
+    const bool vermelho = ativo || rodaRecente(ImGui::GetItemID(), sobre && ImGui::GetIO().MouseWheel != 0 && passoRoda > 0);
     ImGui::PopID();
     bool mudou = false;
     if (ativo) {
@@ -822,9 +889,7 @@ bool Ui::slider(const char* id, const char* rotulo, const char* valor, float* v,
         if (nv != *v) { *v = nv; mudou = true; }
     }
     const float t = (mx > mn) ? (*v - mn) / (mx - mn) : 0.f;
-    dl->AddRectFilled(ImVec2(x, ty - 1.5f * s_), ImVec2(x + w, ty + 1.5f * s_), IM_COL32(0x1e, 0x38, 0x26, 255), 2 * s_);
-    dl->AddRectFilled(ImVec2(x, ty - 1.5f * s_), ImVec2(x + w * t, ty + 1.5f * s_), corTrilho ? (ImU32)corTrilho : IM_COL32(0x10, 0x80, 0x40, 255), 2 * s_);
-    dl->AddCircleFilled(ImVec2(x + w * t, ty), kr, (ativo || sobre) ? IM_COL32(0x80, 0xff, 0xa0, 255) : corTrilho ? (ImU32)corTrilho : C_RX, 16);
+    desenharFader(dl, x, ty, w, t, vermelho, sobre, corTrilho, s_);
     return mudou;
 }
 
@@ -924,7 +989,7 @@ void Ui::linhaModos(float y, float h)
 
     // Range / Brilho / Speed da cachoeira
     char b[16];
-    const float sw = 118 * s_;
+    const float sw = 160 * s_;        // faders mais compridos (sobrava espaco na linha)
     auto grupo = [&](const char* id, const char* rot, float* v, float mn, float mx, const char* fmt, float passo) {
         dl->AddRect(ImVec2(x, by), ImVec2(x + sw, by + bh), C_BORDER_L, bh * 0.5f);
         std::snprintf(b, sizeof b, fmt, *v);
@@ -934,20 +999,20 @@ void Ui::linhaModos(float y, float h)
         const float lx = x + 8 * s_ + ImGui::CalcTextSize(rot).x + 6 * s_;
         const float vw = ImGui::CalcTextSize("200x").x;
         ImGui::PopFont();
-        const float trilho = x + sw - vw - 12 * s_ - lx;
+        const float trilho = x + sw - vw - 20 * s_ - lx;
         // slider compacto
         const float cy = by + bh * 0.5f;
         ImGui::SetCursorScreenPos(ImVec2(lx - 4 * s_, by));
-        ImGui::PushID(id);
-        ImGui::InvisibleButton("##c", ImVec2(trilho + 8 * s_, bh));
+        ImGui::PushID(id);   // o fader comeca 4 px depois de lx (espaco para o botao)
+        ImGui::InvisibleButton("##c", ImVec2(trilho + 16 * s_, bh));
         const bool at = ImGui::IsItemActive(), so = ImGui::IsItemHovered();
+        const bool vermelho = at || rodaRecente(ImGui::GetItemID(), so && ImGui::GetIO().MouseWheel != 0);
         ImGui::PopID();
         bool mudou = false;
-        if (at) { *v = std::round(mn + std::clamp((ImGui::GetIO().MousePos.x - lx) / trilho, 0.f, 1.f) * (mx - mn)); mudou = true; }
+        if (at) { *v = std::round(mn + std::clamp((ImGui::GetIO().MousePos.x - lx - 4 * s_) / trilho, 0.f, 1.f) * (mx - mn)); mudou = true; }
         if (so && ImGui::GetIO().MouseWheel != 0) { *v = std::clamp(*v + (ImGui::GetIO().MouseWheel > 0 ? passo : -passo), mn, mx); mudou = true; }
         const float t = (*v - mn) / (mx - mn);
-        dl->AddRectFilled(ImVec2(lx, cy - 1.5f * s_), ImVec2(lx + trilho, cy + 1.5f * s_), IM_COL32(0x1e, 0x38, 0x26, 255));
-        dl->AddCircleFilled(ImVec2(lx + trilho * t, cy), 5 * s_, (at || so) ? IM_COL32(0x80, 0xff, 0xa0, 255) : C_RX, 12);
+        desenharFader(dl, lx + 4 * s_, cy, trilho, t, vermelho, so, 0, s_, false);
         ImGui::PushFont(f_.pequenaNeg);
         dl->AddText(ImVec2(x + sw - vw - 4 * s_, by + (bh - ImGui::GetFontSize()) * 0.5f), C_RX, b);
         ImGui::PopFont();
@@ -2324,6 +2389,119 @@ static const CanalAprs kAprs[] = {
     {10147600,  "10,1476 MHz - APRS de HF (USB, 300 baud)", 300},
 };
 
+// DRM: grade de ondas curtas (drmrx.org, temporada A26, atualizada em 03/10/2026).
+// Horas em UTC (HHMM). As duas primeiras sao as que chegam bem aqui.
+struct EmissoraDrm { int khz, ini, fim; const char* nome; const char* local; const char* lingua; bool fav; };
+static const EmissoraDrm kDrm[] = {
+    {17560, 1530, 1600, "TDF DRM", "Issoudun, França", "francês", true},
+    {17575, 1500, 1600, "BBC World Service", "Woofferton, Inglaterra (para a Índia)", "inglês", true},
+    {3205, 2000, 1800, "Korean Central Broadcasting", "Pyongyang, Coreia do Norte", "coreano", false},
+    {3955, 500, 600, "BBC World Service", "Woofferton, Inglaterra (Europa)", "inglês", false},
+    {5910, 1800, 1830, "Radio Romania International", "Saftica, Romênia (Europa)", "italiano", false},
+    {5950, 2300, 2330, "TDF DRM", "Issoudun, França", "francês", false},
+    {5960, 2130, 2200, "TDF DRM", "Issoudun, França", "francês", false},
+    {5980, 0, 30, "TDF DRM", "Issoudun, França", "francês", false},
+    {5980, 30, 100, "TDF DRM", "Issoudun, França", "francês", false},
+    {5980, 100, 130, "TDF DRM", "Issoudun, França", "francês", false},
+    {5980, 200, 230, "TDF DRM", "Issoudun, França", "francês", false},
+    {5980, 230, 300, "TDF DRM", "Issoudun, França", "francês", false},
+    {5980, 530, 600, "TDF DRM", "Issoudun, França", "francês", false},
+    {6030, 2025, 1805, "CNR-1 Voz da China", "Pequim, China", "chinês", false},
+    {6120, 530, 600, "TDF DRM", "Issoudun, França", "francês", false},
+    {6120, 600, 630, "TDF DRM", "Issoudun, França", "francês", false},
+    {6120, 1900, 1930, "TDF DRM", "Issoudun, França", "francês", false},
+    {6120, 2000, 2030, "TDF DRM", "Issoudun, França", "francês", false},
+    {6120, 2030, 2100, "TDF DRM", "Issoudun, França", "francês", false},
+    {6140, 2000, 1800, "Korean Central Broadcasting", "Pyongyang, Coreia do Norte", "coreano", false},
+    {6175, 1900, 1930, "TDF DRM", "Issoudun, França", "francês", false},
+    {7205, 300, 330, "TDF DRM", "Issoudun, França", "francês", false},
+    {7205, 700, 730, "TDF DRM", "Issoudun, França", "francês", false},
+    {7425, 1651, 1758, "RNZ Pacific", "Rangitaiki, Nova Zelândia (Pacífico)", "inglês", false},
+    {9430, 800, 900, "CNR-1 Voz da China", "China", "chinês", false},
+    {9520, 530, 600, "TDF DRM", "Issoudun, França", "francês", false},
+    {9570, 1800, 1900, "Radio Romania International", "Tiganesti, Romênia (Europa)", "alemão", false},
+    {9610, 530, 600, "TDF DRM", "Issoudun, França", "francês", false},
+    {9610, 830, 900, "TDF DRM", "Issoudun, França", "francês", false},
+    {9655, 800, 1200, "CNR-1 Voz da China", "Urumqi, China", "chinês", false},
+    {9655, 2200, 100, "CNR-1 Voz da China", "Urumqi, China", "chinês", false},
+    {9720, 2300, 2330, "TDF DRM", "Issoudun, França", "francês", false},
+    {9780, 1759, 1858, "RNZ Pacific", "Rangitaiki, Nova Zelândia (Pacífico)", "inglês", false},
+    {9865, 200, 230, "TDF DRM", "Issoudun, França", "francês", false},
+    {9865, 400, 430, "TDF DRM", "Issoudun, França", "francês", false},
+    {11615, 2000, 2100, "Music 4 Joy", "Nauen, Alemanha (África Ocidental)", "música", false},
+    {11640, 1130, 1200, "TDF DRM", "Issoudun, França", "francês", false},
+    {11650, 700, 730, "TDF DRM", "Issoudun, França", "francês", false},
+    {11650, 2330, 2400, "TDF DRM", "Issoudun, França", "francês", false},
+    {11660, 1200, 1230, "TDF DRM", "Issoudun, França", "francês", false},
+    {11690, 1859, 1958, "RNZ Pacific", "Rangitaiki, Nova Zelândia (Pacífico)", "inglês", false},
+    {11695, 100, 900, "CNR-1 Voz da China", "Dongfang, China", "chinês", false},
+    {11710, 1830, 1930, "Music 4 Joy", "Nauen, Alemanha (Leste Europeu)", "música", false},
+    {11790, 830, 900, "TDF DRM", "Issoudun, França", "francês", false},
+    {11820, 1130, 1200, "TDF DRM", "Issoudun, França", "francês", false},
+    {11870, 400, 430, "TDF DRM", "Issoudun, França", "francês", false},
+    {11875, 530, 600, "TDF DRM", "Issoudun, França", "francês", false},
+    {11900, 1530, 1600, "TDF DRM", "Issoudun, França", "francês", false},
+    {12070, 1300, 1330, "TDF DRM", "Issoudun, França", "francês", false},
+    {13600, 1000, 1030, "TDF DRM", "Issoudun, França", "francês", false},
+    {13600, 1700, 1730, "TDF DRM", "Issoudun, França", "francês", false},
+    {13690, 1600, 1700, "Radio Romania International", "Tiganesti, Romênia (Europa)", "francês", false},
+    {13710, 2330, 2400, "TDF DRM", "Issoudun, França", "francês", false},
+    {13730, 1800, 1900, "Music 4 Joy", "Nauen, Alemanha (África Oriental)", "música", false},
+    {13740, 2200, 2300, "TDF DRM", "Issoudun, França", "francês", false},
+    {13750, 1700, 1800, "Radio Romania International", "Tiganesti, Romênia (Europa)", "inglês", false},
+    {13790, 0, 1000, "CNR-1 Voz da China", "Qiqihar, China", "chinês", false},
+    {13810, 400, 1100, "CNR-1 Voz da China", "Kunming, China", "chinês", false},
+    {13825, 100, 900, "CNR-1 Voz da China", "Pequim, China", "chinês", false},
+    {13835, 1000, 1200, "CNR-1 Voz da China", "Qiqihar, China", "chinês", false},
+    {13840, 1959, 2058, "RNZ Pacific", "Rangitaiki, Nova Zelândia (Pacífico)", "inglês", false},
+    {15145, 430, 500, "TDF DRM", "Issoudun, França", "francês", false},
+    {15180, 100, 400, "CNR-1 Voz da China", "Kunming, China", "chinês", false},
+    {15215, 630, 700, "TDF DRM", "Issoudun, França", "francês", false},
+    {15290, 800, 1000, "CNR-1 Voz da China", "China", "chinês", false},
+    {15460, 900, 930, "TDF DRM", "Issoudun, França", "francês", false},
+    {15495, 800, 830, "TDF DRM", "Issoudun, França", "francês", false},
+    {15505, 900, 930, "TDF DRM", "Issoudun, França", "francês", false},
+    {15610, 700, 800, "CNR-1 Voz da China", "Pequim, China", "chinês", false},
+    {15725, 1400, 1500, "TDF DRM", "Issoudun, França", "francês", false},
+    {15730, 1300, 1330, "TDF DRM", "Issoudun, França", "francês", false},
+    {15750, 1700, 1730, "TDF DRM", "Issoudun, França", "francês", false},
+    {15750, 1930, 2000, "TDF DRM", "Issoudun, França", "francês", false},
+    {15785, 0, 2400, "funklust", "Erlangen, Alemanha (Europa)", "alemão", false},
+    {17580, 2100, 2200, "Radio Romania International", "Tiganesti, Romênia (América do Sul)", "espanhol", false},
+    {17585, 1400, 1430, "TDF DRM", "Issoudun, França", "francês", false},
+    {17670, 1300, 1400, "Music 4 Joy", "Nauen, Alemanha (China, Japão)", "música", false},
+    {17680, 530, 600, "Radio Romania International", "Tiganesti, Romênia (Índia)", "inglês", false},
+    {17685, 1600, 1630, "TDF DRM", "Issoudun, França", "francês", false},
+    {17710, 930, 1000, "TDF DRM", "Issoudun, França", "francês", false},
+    {17710, 1100, 1130, "TDF DRM", "Issoudun, França", "francês", false},
+    {17710, 1230, 1300, "TDF DRM", "Issoudun, França", "francês", false},
+    {17720, 800, 1200, "CNR-1 Voz da China", "Pequim, China", "chinês", false},
+    {17760, 1230, 1300, "Radio Romania International", "Tiganesti, Romênia (China)", "chinês", false},
+    {17770, 100, 900, "CNR-1 Voz da China", "Dongfang, China", "chinês", false},
+    {17790, 300, 400, "Radio Romania International", "Tiganesti, Romênia (Índia)", "inglês", false},
+    {17825, 1130, 1200, "TDF DRM", "Issoudun, França", "francês", false},
+    {17830, 100, 800, "CNR-1 Voz da China", "Urumqi, China", "chinês", false},
+    {17855, 1300, 1330, "TDF DRM", "Issoudun, França", "francês", false},
+};
+
+// No ar agora? (os horarios podem virar a meia-noite: 2200-0100)
+static bool drmNoAr(const EmissoraDrm& e)
+{
+    SYSTEMTIME st; GetSystemTime(&st);
+    const int m = st.wHour * 60 + st.wMinute;
+    const int a = (e.ini / 100) * 60 + e.ini % 100, b = (e.fim / 100) * 60 + e.fim % 100;
+    return a < b ? (m >= a && m < b) : (m >= a || m < b);
+}
+
+static std::string rotuloDrm(const EmissoraDrm& e)
+{
+    char s[220];
+    std::snprintf(s, sizeof s, "%s%5d kHz   %02d:%02d-%02d:%02d UTC   %s - %s (%s)",
+                  drmNoAr(e) ? "\xE2\x97\x8F NO AR  " : "",
+                  e.khz, e.ini / 100, e.ini % 100, e.fim / 100, e.fim % 100, e.nome, e.local, e.lingua);
+    return s;
+}
+
 // Leva o radio para onde o decodificador precisa estar
 void Ui::sintonizarDecoder(int t)
 {
@@ -2393,7 +2571,12 @@ void Ui::escolherDecoder(int t, bool sintonizarModo)
     decRodando_ = true;
     if (!sintonizarModo || externoComSintonia) return;
     const std::string m = r_.modo();
-    if (t == Decoders::DMR) {
+    if (t == Decoders::DRM) {
+        // o dream recebe o IQ (canal inteiro); AM 10 kHz so marca o canal na
+        // tela. O audio decodificado toca no lugar do audio do radio.
+        if (m != "AM") mudarModo("AM");
+        r_.setBanda(10000);
+    } else if (t == Decoders::DMR) {
         // o dsd-fme quer o FM cru de um canal de 12,5 kHz
         if (m != "NFM" && m != "FM") mudarModo("NFM");
         if (r_.banda() < 12500) r_.setBanda(12500);
@@ -2510,7 +2693,11 @@ void Ui::janelaDecoders()
     ImGui::SameLine();
     ImGui::SetNextItemWidth(200 * s_);
     if (ImGui::BeginCombo("##dectipo", Decoders::nome((Decoders::Tipo)decTipo_), ImGuiComboFlags_HeightLarge)) {
-        for (int i = 0; i < Decoders::N_TIPOS; ++i)
+        static const int kOrdem[] = {Decoders::NENHUM, Decoders::CW, Decoders::RTTY, Decoders::SITORB, Decoders::DSC,
+                                     Decoders::ALE, Decoders::DMR, Decoders::TETRA, Decoders::HFDL, Decoders::AIS,
+                                     Decoders::APRS, Decoders::ACARS, Decoders::VDL2, Decoders::DRM, Decoders::ANALISE};
+        static_assert(sizeof kOrdem / sizeof kOrdem[0] == Decoders::N_TIPOS, "faltou um decodificador no menu");
+        for (int i : kOrdem)
             if (ImGui::Selectable(Decoders::nome((Decoders::Tipo)i), decTipo_ == i)) escolherDecoder(i, true);
         ImGui::EndCombo();
     }
@@ -2537,7 +2724,7 @@ void Ui::janelaDecoders()
         std::string pasta = pastaDoExe() + "\\Decodificados";
         CreateDirectoryA(pasta.c_str(), nullptr);
         SYSTEMTIME st; GetLocalTime(&st);
-        static const char* kTag[] = {"", "CW", "RTTY", "SITORB", "DSC", "ALE", "DMR", "TETRA", "HFDL", "AIS", "APRS", "ACARS", "VDL2", "ANALISE"};
+        static const char* kTag[] = {"", "CW", "RTTY", "SITORB", "DSC", "ALE", "DMR", "TETRA", "HFDL", "AIS", "APRS", "ACARS", "VDL2", "ANALISE", "DRM"};
         char nome[96];
         std::snprintf(nome, sizeof nome, "\\RXSDR_%s_%04d%02d%02d_%02d%02d%02d.txt",
                       decTipo_ > 0 && decTipo_ < Decoders::N_TIPOS ? kTag[decTipo_] : "DEC",
@@ -2810,6 +2997,127 @@ void Ui::janelaDecoders()
             }
             ImGui::EndTable();
         }
+        break;
+    }
+    case Decoders::DRM: {
+        // emissoras: as que estao no ar agora aparecem em verde
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted("Emissora"); ImGui::SameLine();
+        ImGui::SetNextItemWidth(std::max(wCombo, ImGui::GetContentRegionAvail().x - 4 * s_));
+        const int nDrm = (int)(sizeof kDrm / sizeof kDrm[0]);
+        const std::string atual = decDrmSel_ >= 0 && decDrmSel_ < nDrm ? rotuloDrm(kDrm[decDrmSel_])
+                                                                        : std::string("- escolha para sintonizar -");
+        // sintoniza a emissora i (so quando voce clica; nada e varrido sozinho)
+        auto irPara = [&](int i) {
+            decDrmSel_ = i;
+            const uint64_t hz = (uint64_t)kDrm[i].khz * 1000;
+            if (r_.modo() != "AM") mudarModo("AM");
+            r_.setBanda(10000);
+            sintonizar(hz, false);
+            // o centro do dongle 20 kHz ao lado: o DC nao cai no canal
+            if (zoom_ <= 0 && r_.taxa() >= 200000) r_.centralizar(hz + 20000);
+            decMudouFreq_ = true;
+            escolherDecoder(Decoders::DRM, false);    // recomeca a procura do sinal
+        };
+        if (ImGui::BeginCombo("##drmemis", atual.c_str(), ImGuiComboFlags_HeightLarge)) {
+            for (int i = 0; i < nDrm; ++i) {
+                const bool noAr = drmNoAr(kDrm[i]);
+                if (noAr) ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 1.f, 0.5f, 1));
+                ImGui::PushID(i);
+                const bool escolheu = ImGui::Selectable(rotuloDrm(kDrm[i]).c_str(), decDrmSel_ == i);
+                ImGui::PopID();
+                if (noAr) ImGui::PopStyleColor();
+                if (escolheu) irPara(i);
+            }
+            ImGui::EndCombo();
+        }
+        // No ar agora (pela grade): um botao por emissora; clicou, sintonizou
+        {
+            ImGui::AlignTextToFramePadding();
+            ImGui::TextColored(ImVec4(0.3f, 1.f, 0.5f, 1), "\xE2\x97\x8F No ar agora:");
+            int mostradas = 0;
+            for (int i = 0; i < nDrm; ++i) {
+                if (!drmNoAr(kDrm[i])) continue;
+                ImGui::SameLine();
+                if (ImGui::GetContentRegionAvail().x < 90 * s_) ImGui::NewLine();
+                char rot[48];
+                std::snprintf(rot, sizeof rot, "%d##noar%d", kDrm[i].khz, i);
+                const bool atualEsta = (int64_t)r_.vfo() == (int64_t)kDrm[i].khz * 1000;
+                if (atualEsta) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.1f, 0.45f, 0.2f, 1));
+                if (ImGui::SmallButton(rot)) irPara(i);
+                if (atualEsta) ImGui::PopStyleColor();
+                if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip("%s - %s (%s)\n%02d:%02d-%02d:%02d UTC", kDrm[i].nome, kDrm[i].local, kDrm[i].lingua,
+                                      kDrm[i].ini / 100, kDrm[i].ini % 100, kDrm[i].fim / 100, kDrm[i].fim % 100);
+                ++mostradas;
+            }
+            if (!mostradas) { ImGui::SameLine(); ImGui::TextDisabled("nenhuma pela grade"); }
+        }
+        if (ImGui::Checkbox("Inverter espectro", &decAj_.drmInverter) && decRodando_)
+            escolherDecoder(decTipo_, false);
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Só se o sinal nunca travar: troca I e Q (espectro de cabeça para baixo)");
+        ImGui::SameLine();
+        bool cruas = d.drm().linhasCruas.load();
+        if (ImGui::Checkbox("Linhas do dream", &cruas)) d.drm().linhasCruas = cruas;
+
+        const EstadoDrm e = d.drm().estado();
+        // as "luzes" do Dream: verde = ok, amarelo = erro de CRC, vermelho = erro, cinza = nada ainda
+        auto luz = [&](const char* nome, int v, const char* dica) {
+            const ImVec4 c = v == 0 ? ImVec4(0.2f, 1.f, 0.4f, 1) : v == 1 ? ImVec4(1.f, 0.85f, 0.2f, 1)
+                           : v == 2 ? ImVec4(1.f, 0.3f, 0.3f, 1) : ImVec4(0.35f, 0.35f, 0.35f, 1);
+            ImGui::TextColored(c, "\xE2\x97\x8F");
+            ImGui::SameLine(0, 3 * s_);
+            ImGui::TextUnformatted(nome);
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", dica);
+            ImGui::SameLine(0, 14 * s_);
+        };
+        luz("Entrada", e.io, "IQ chegando ao dream");
+        luz("Tempo", e.tempo, "sincronismo de tempo (achou o sinal OFDM)");
+        luz("Quadro", e.quadro, "sincronismo de quadro");
+        luz("FAC", e.fac, "canal de acesso rápido: modo, largura e QAM");
+        luz("SDC", e.sdc, "descrição do serviço: nome da emissora, idioma, país");
+        luz("Áudio", e.msc, "canal principal (o áudio)");
+        ImGui::NewLine();
+
+        static const char kRob[] = "ABCDE";
+        static const char* kQam[] = {"4-QAM", "16-QAM", "64-QAM", "64-QAM (hier.)", "64-QAM (hier.)"};
+        if (ImGui::BeginTable("##drm", 2, ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_SizingStretchSame)) {
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0);
+            ImGui::TextColored(ImVec4(0.88f, 0.56f, 1.f, 1), "SINAL");
+            if (e.comStatus && e.tempo == 0) ImGui::Text("SNR: %.1f dB", e.snr); else ImGui::TextUnformatted("SNR: -");
+            if (e.robustez >= 0 && e.robustez < 5)
+                ImGui::Text("Modo %c   %.0f kHz   intercalador %s", kRob[e.robustez], e.larguraKHz,
+                            e.intercalador == 1 ? "curto" : e.intercalador == 0 ? "longo" : "-");
+            else ImGui::TextUnformatted("Modo: -");
+            ImGui::Text("MSC %s   SDC %s", e.mscQam >= 0 && e.mscQam < 5 ? kQam[e.mscQam] : "-",
+                        e.sdcQam == 0 ? "4-QAM" : e.sdcQam == 1 ? "16-QAM" : "-");
+            if (e.doppler >= 0) ImGui::Text("Doppler %.2f Hz   atraso %.2f ms", e.doppler, e.atrasoMs >= 0 ? e.atrasoMs : 0.0);
+            else ImGui::TextUnformatted("Doppler / atraso: -");
+            ImGui::Text("Áudio guardado: %.1f s", e.bufferS);
+            ImGui::TableSetColumnIndex(1);
+            ImGui::TextColored(ImVec4(0.88f, 0.56f, 1.f, 1), "EMISSORA");
+            ImGui::PushFont(f_.negrito);
+            ImGui::TextColored(ImVec4(0, 0.83f, 0.83f, 1), "%s", e.estacao.empty() ? "-" : e.estacao.c_str());
+            ImGui::PopFont();
+            std::string lugar = e.pais;
+            if (!e.idioma.empty()) lugar += (lugar.empty() ? "" : "  |  ") + e.idioma;
+            ImGui::TextUnformatted(lugar.empty() ? "-" : lugar.c_str());
+            if (!e.programa.empty()) ImGui::Text("Programa: %s", e.programa.c_str());
+            if (!e.codec.empty())
+                ImGui::Text("%s  %.1f kbps  %s%s%s", e.codec.c_str(), e.kbps, e.modoAudio.c_str(),
+                            e.protecao.empty() ? "" : "  |  ", e.protecao.c_str());
+            if (!e.horaDrm.empty()) ImGui::Text("Hora da emissora: %s UTC", e.horaDrm.c_str());
+            ImGui::EndTable();
+        }
+        if (!e.texto.empty()) {
+            ImGui::TextColored(ImVec4(1, 0.85f, 0.4f, 1), "Texto:");
+            ImGui::SameLine();
+            ImGui::TextWrapped("%s", e.texto.c_str());
+        }
+        ImGui::TextDisabled("Sintonize a frequência anunciada (o centro do canal). Enquanto o áudio DRM não sai limpo, você");
+        ImGui::TextDisabled("ouve o rádio normal; quando a luz Áudio fica verde, entra o som decodificado (AAC / xHE-AAC).");
+        ImGui::TextDisabled("Precisa de uns 10 dB de SNR em 16-QAM ou 15 dB em 64-QAM.");
         break;
     }
     case Decoders::ACARS:

@@ -1,5 +1,15 @@
 # Histórico de mudanças
 
+## 1.0.67
+
+Nova Versão RXSDR v1.0.67
+
+Corrigido: o TETRA nunca abria a voz no Windows. O programa que lê o sinal (tetra-rx) não conseguia mandar os dados da célula para o RXSDR, porque faltava ligar a rede do Windows antes de abrir a conexão (WSAStartup). Sem esses dados não chegavam as informações da célula, as chamadas nem a voz. O tetra-rx foi recompilado com a correção, a mesma que já estava no RXSDR Nativo.
+
+RXSDR Nativo 1.0.1: novo decodificador DRM (Digital Radio Mondiale), o rádio digital das ondas curtas. Usa o Dream, o receptor DRM de código aberto, com áudio AAC e xHE-AAC. Escolha DRM na janela dos decodificadores e uma emissora da lista (a grade de ondas curtas do drmrx.org; as que estão no ar na hora aparecem em verde). O rádio vai para AM com 10 kHz só para marcar o canal; o áudio decodificado toca no lugar do áudio do rádio. A janela mostra o nome da emissora, país, idioma, o texto que ela transmite, SNR, modo, QAM e as luzes de sincronismo.
+
+RXSDR Nativo 1.0.1: os sliders ganharam o desenho de fader de mesa de som, deitados como antes. O botão fica vermelho ao arrastar ou ao girar a rodinha do mouse, e os ajustes Range, Brilho e Speed da cachoeira ficaram mais compridos. O pacote agora traz as licenças (LICENSE.txt e TERCEIROS.txt, com a lista dos programas de outros autores).
+
 ## 1.0.66
 
 Nova Versão RXSDR v1.0.66

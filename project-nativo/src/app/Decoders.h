@@ -37,7 +37,7 @@ class AnaliseCore;
 
 class Decoders {
 public:
-    enum Tipo { NENHUM = 0, CW, RTTY, SITORB, DSC, ALE, DMR, TETRA, HFDL, AIS, APRS, ACARS, VDL2, ANALISE, N_TIPOS };
+    enum Tipo { NENHUM = 0, CW, RTTY, SITORB, DSC, ALE, DMR, TETRA, HFDL, AIS, APRS, ACARS, VDL2, ANALISE, DRM, N_TIPOS };
 
     struct Ajustes {
         float rttyBaud = 45.45f, rttyShift = 170.f;
@@ -60,6 +60,7 @@ public:
         std::vector<double> vdl2Canais;   // Hz
         double   vdl2CentroHz = 0;
         uint32_t vdl2Taxa = 0;
+        bool  drmInverter = false;        // espectro invertido (I/Q trocados)
     };
 
     Decoders();
@@ -83,10 +84,11 @@ public:
     // (DMR e TETRA)
     bool substituiAudio() const {
         const Tipo t = tipo_.load();
-        return (t == DMR && dsd_.rodando()) || (t == TETRA && tetra_.rodando());
+        return (t == DMR && dsd_.rodando()) || (t == TETRA && tetra_.rodando()) || (t == DRM && drm_.rodando() && drm_.audioBom());   // DRM: so com audio bom; antes, o som do radio
     }
     void puxarVoz(int16_t* out, size_t n, uint32_t sps) {
         if (tipo_.load() == TETRA) { tetra_.puxarVoz(out, n, sps); return; }
+        if (tipo_.load() == DRM) { drm_.puxarAudio(out, n, sps); return; }
         dsd_.setTaxaSaida(sps); dsd_.puxarVoz(out, n);
     }
     // TETRA trabalha com o IQ (o demodulador de FM nao serve para pi/4-DQPSK)
@@ -94,6 +96,7 @@ public:
         const Tipo t = tipo_.load();
         if (t == TETRA) tetra_.alimentarIQ(iq, n, sps);
         else if (t == AIS) ais_.alimentarIQ(iq, n, sps);
+        else if (t == DRM) drm_.alimentarIQ(iq, n, sps);
     }
     // HFDL: o IQ CRU, centrado no centro do dongle (a banda inteira de uma vez)
     void empurrarIQCru(const std::complex<float>* iq, size_t n, uint32_t sps, uint64_t centro) {
@@ -107,6 +110,7 @@ public:
     Aprs& aprs() { return aprs_; }
     Acars& acars() { return acars_; }
     Vdl2& vdl2() { return vdl2_; }
+    Drm& drm() { return drm_; }
     Dsd& dsd() { return dsd_; }
     Tetra& tetra() { return tetra_; }
 
@@ -146,6 +150,7 @@ private:
     Aprs aprs_;
     Acars acars_;
     Vdl2 vdl2_;
+    Drm drm_;
     std::unique_ptr<CwCore> cw_;
     std::unique_ptr<RttyCore> rtty_;
     std::unique_ptr<SitorBCore> sitor_;
