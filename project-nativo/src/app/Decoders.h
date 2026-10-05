@@ -25,6 +25,8 @@
 #include "Dsd.h"
 #include "Externos.h"
 #include "Tetra.h"
+#include "../decoders/SstvCore.h"
+#include "../decoders/WefaxCore.h"
 
 namespace masdr {
 
@@ -37,7 +39,7 @@ class AnaliseCore;
 
 class Decoders {
 public:
-    enum Tipo { NENHUM = 0, CW, RTTY, SITORB, DSC, ALE, DMR, TETRA, HFDL, AIS, APRS, ACARS, VDL2, ANALISE, DRM, N_TIPOS };
+    enum Tipo { NENHUM = 0, CW, RTTY, SITORB, DSC, ALE, DMR, TETRA, HFDL, AIS, APRS, ACARS, VDL2, ANALISE, DRM, SSTV, WEFAX, N_TIPOS };
 
     struct Ajustes {
         float rttyBaud = 45.45f, rttyShift = 170.f;
@@ -111,6 +113,19 @@ public:
     Acars& acars() { return acars_; }
     Vdl2& vdl2() { return vdl2_; }
     Drm& drm() { return drm_; }
+    SstvCore& sstv() { return sstv_; }
+    WefaxCore& wefax() { return wefax_; }
+    // WEFAX: igual ao SSTV, o PNG e salvo aqui (pasta WEFAX); a tela pega para o historico
+    struct ImagemWefax { std::vector<uint8_t> cinza; int w = 0, h = 0, lpm = 120, ioc = 576; std::string arquivo, rotulo; };
+    bool pegarImagemWefax(ImagemWefax& im);
+    std::atomic<bool> wefaxSalvar{true};
+    // SSTV: a imagem terminada e salva AQUI (thread dos decodificadores), nao
+    // na tela - com a tela bloqueada o RXSDR nao desenha, mas continua
+    // recebendo e salvando a noite toda. A tela so pega para o historico.
+    struct ImagemSstv { std::vector<uint32_t> argb; int w = 0, h = 0, modo = 0; bool porVis = false; std::string arquivo, rotulo; };
+    bool pegarImagemSstv(ImagemSstv& im);
+    std::atomic<bool> sstvSalvar{true};
+    std::atomic<uint64_t> sstvVfoHz{0};      // so para o nome/rotulo
     Dsd& dsd() { return dsd_; }
     Tetra& tetra() { return tetra_; }
 
@@ -118,6 +133,11 @@ private:
     void laco();
     void alimentar(const float* x, size_t n);   // ja em 8 kHz, com mutex do nucleo
     void escrever(const std::string& s);
+    void colherSstv();
+    void colherWefax();
+    std::deque<ImagemWefax> wefaxProntas_;
+    std::mutex sstvMutex_;
+    std::deque<ImagemSstv> sstvProntas_;
 
     std::atomic<Tipo> tipo_{NENHUM};
     Ajustes aj_;
@@ -151,6 +171,8 @@ private:
     Acars acars_;
     Vdl2 vdl2_;
     Drm drm_;
+    SstvCore sstv_;      // SSTV: imagens (o audio vai direto, na taxa do radio)
+    WefaxCore wefax_;    // WEFAX: fax meteorologico (idem)
     std::unique_ptr<CwCore> cw_;
     std::unique_ptr<RttyCore> rtty_;
     std::unique_ptr<SitorBCore> sitor_;

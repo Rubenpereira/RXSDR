@@ -9,6 +9,11 @@
 
 #include <windows.h>
 
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#define STBI_WRITE_NO_STDIO
+#include "stb_image_write.h"
+#include <fstream>
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -47,6 +52,8 @@ const char* Decoders::nome(Tipo t)
     case VDL2: return "VDL2 (136,975)";
     case ANALISE: return "Analisar sinal";
     case DRM: return "DRM (rádio digital)";
+    case SSTV: return "SSTV (imagens)";
+    case WEFAX: return "WEFAX (fax meteorológico)";
     default: return "Nenhum";
     }
 }
@@ -177,6 +184,18 @@ void Decoders::iniciar(Tipo t, const Ajustes& a)
         if (!drm_.iniciar(erro)) escrever("[DRM] " + erro + "\n");
         break;
     }
+    case SSTV:
+        sstv_.parar();      // Reiniciar: a imagem pela metade (1/4 ou mais) ainda e salva
+        colherSstv();
+        sstv_.limpar();
+        escrever("[SSTV] esperando o VIS (cabecalho) - Robot, Martin, Scottie, SC2 e PD sao reconhecidos sozinhos\n");
+        break;
+    case WEFAX:
+        wefax_.parar();     // Reiniciar: a imagem pela metade ainda e salva
+        colherWefax();
+        wefax_.limpar();
+        escrever("[WEFAX] esperando o tom de inicio (300 Hz) - a fase acerta a margem e as linhas por minuto sozinha\n");
+        break;
     case ANALISE:
         analise_ = std::make_unique<AnaliseCore>(kTaxa);
         escrever("[ANALISE] juntando 12 s de audio do sinal sintonizado...\n");
@@ -195,6 +214,8 @@ void Decoders::parar()
     dsd_.parar();
     tetra_.parar();
     hfdl_.parar(); ais_.parar(); aprs_.parar(); acars_.parar(); vdl2_.parar(); drm_.parar();
+    if (tipo_.load() == SSTV) { sstv_.parar(); colherSstv(); }   // a imagem pela metade fica salva como esta
+    if (tipo_.load() == WEFAX) { wefax_.parar(); colherWefax(); }
     std::lock_guard<std::mutex> lk(coreMutex_);
     tipo_ = NENHUM;
     cw_.reset(); rtty_.reset(); sitor_.reset(); dsc_.reset(); ale_.reset(); analise_.reset();
@@ -257,6 +278,20 @@ void Decoders::laco()
             dmrPos_ = 0; dmrTemUlt_ = false;
             hist_.assign(fir_.size() * 2, 0.f); histPos_ = 0;
             fase_ = 0; posLin_ = 0; temUlt_ = false;
+        }
+        if (tipo_.load() == SSTV) {
+            // o SstvCore reduz sozinho para ~12 kS/s (precisa de 1100-2300 Hz
+            // com folga; os 8 kHz dos outros nucleos ficariam no limite)
+            for (const auto& b : pegos) sstv_.alimentar(b.data(), b.size(), sps);
+            pegos.clear();
+            colherSstv();
+            continue;
+        }
+        if (tipo_.load() == WEFAX) {
+            for (const auto& b : pegos) wefax_.alimentar(b.data(), b.size(), sps);
+            pegos.clear();
+            colherWefax();
+            continue;
         }
         const bool ehDmr = tipo_.load() == DMR;
         if (ehDmr || tipo_.load() == APRS) {   // dsd-fme e direwolf querem 48 kHz EXATOS
@@ -384,6 +419,110 @@ void Decoders::alimentar(const float* x, size_t n)
     if (!saida.empty()) escrever(saida);
 }
 
+// Imagem SSTV terminada: PNG na pasta SSTV ao lado do RXSDR.exe + linha no texto
+void Decoders::colherSstv()
+{
+    ImagemSstv im;
+    while (sstv_.pegarTerminada(im.argb, im.w, im.h, im.modo, im.porVis)) {
+        SYSTEMTIME st; GetLocalTime(&st);
+        const std::string nomeModo = SstvCore::nomeModo(im.modo);
+        std::string tag;
+        for (char c : nomeModo) if (c != ' ') tag += c;
+        const uint64_t hz = sstvVfoHz.load();
+        char rot[128];
+        std::snprintf(rot, sizeof rot, "%s  %s UTC  %.3f MHz", nomeModo.c_str(), horaUtc().substr(0, 5).c_str(), hz / 1e6);
+        im.rotulo = rot;
+        std::string linha = std::string("[SSTV] ") + rot + (im.porVis ? "" : "  (sem VIS)");
+        if (sstvSalvar.load()) {
+            char exe[MAX_PATH]{};
+            GetModuleFileNameA(nullptr, exe, MAX_PATH);
+            std::string pasta(exe);
+            const auto p = pasta.find_last_of("\\/");
+            pasta = (p == std::string::npos ? std::string(".") : pasta.substr(0, p)) + "\\SSTV";
+            CreateDirectoryA(pasta.c_str(), nullptr);
+            char nome[96];
+            std::snprintf(nome, sizeof nome, "\\RXSDR_SSTV_%04d%02d%02d_%02d%02d%02d_%s.png", st.wYear, st.wMonth,
+                          st.wDay, st.wHour, st.wMinute, st.wSecond, tag.c_str());
+            std::vector<uint8_t> rgb(size_t(im.w) * im.h * 3);
+            for (size_t i = 0; i < size_t(im.w) * im.h; ++i) {
+                const uint32_t v = im.argb[i];
+                rgb[3 * i] = uint8_t(v >> 16); rgb[3 * i + 1] = uint8_t(v >> 8); rgb[3 * i + 2] = uint8_t(v);
+            }
+            std::string png;
+            stbi_write_png_to_func([](void* ctx, void* d, int n) { ((std::string*)ctx)->append((const char*)d, size_t(n)); },
+                                   &png, im.w, im.h, 3, rgb.data(), im.w * 3);
+            const std::string cam = pasta + nome;
+            std::ofstream f(cam, std::ios::binary);
+            f.write(png.data(), (std::streamsize)png.size());
+            if (!png.empty() && f) { im.arquivo = cam; linha += std::string("  salva em SSTV") + nome; }
+            else linha += "  (nao consegui salvar em " + pasta + ")";
+        }
+        escrever(linha + "\n");
+        std::lock_guard<std::mutex> lk(sstvMutex_);
+        sstvProntas_.push_back(std::move(im));
+        while (sstvProntas_.size() > 12) sstvProntas_.pop_front();
+        im = ImagemSstv();
+    }
+}
+
+// Fax terminado: PNG em tons de cinza na pasta WEFAX ao lado do RXSDR.exe
+void Decoders::colherWefax()
+{
+    WefaxCore::Terminada t;
+    while (wefax_.pegarTerminada(t)) {
+        ImagemWefax im;
+        im.cinza = std::move(t.cinza); im.w = t.w; im.h = t.h; im.lpm = t.lpm; im.ioc = t.ioc;
+        SYSTEMTIME st; GetLocalTime(&st);
+        const uint64_t hz = sstvVfoHz.load();
+        char rot[128];
+        std::snprintf(rot, sizeof rot, "%s UTC  %.1f kHz  %d LPM / IOC %d  %dx%d", horaUtc().substr(0, 5).c_str(), hz / 1e3,
+                      im.lpm, im.ioc, im.w, im.h);
+        im.rotulo = rot;
+        std::string linha = std::string("[WEFAX] ") + rot;
+        if (wefaxSalvar.load()) {
+            char exe[MAX_PATH]{};
+            GetModuleFileNameA(nullptr, exe, MAX_PATH);
+            std::string pasta(exe);
+            const auto p = pasta.find_last_of("\\/");
+            pasta = (p == std::string::npos ? std::string(".") : pasta.substr(0, p)) + "\\WEFAX";
+            CreateDirectoryA(pasta.c_str(), nullptr);
+            char nome[96];
+            std::snprintf(nome, sizeof nome, "\\RXSDR_WEFAX_%04d%02d%02d_%02d%02d%02d_%.0fkHz.png", st.wYear, st.wMonth,
+                          st.wDay, st.wHour, st.wMinute, st.wSecond, hz / 1e3);
+            std::string png;
+            stbi_write_png_to_func([](void* ctx, void* d, int n) { ((std::string*)ctx)->append((const char*)d, size_t(n)); },
+                                   &png, im.w, im.h, 1, im.cinza.data(), im.w);
+            const std::string cam = pasta + nome;
+            std::ofstream f(cam, std::ios::binary);
+            f.write(png.data(), (std::streamsize)png.size());
+            if (!png.empty() && f) { im.arquivo = cam; linha += std::string("  salva em WEFAX") + nome; }
+            else linha += "  (nao consegui salvar em " + pasta + ")";
+        }
+        escrever(linha + "\n");
+        std::lock_guard<std::mutex> lk(sstvMutex_);
+        wefaxProntas_.push_back(std::move(im));
+        while (wefaxProntas_.size() > 6) wefaxProntas_.pop_front();
+    }
+}
+
+bool Decoders::pegarImagemWefax(ImagemWefax& im)
+{
+    std::lock_guard<std::mutex> lk(sstvMutex_);
+    if (wefaxProntas_.empty()) return false;
+    im = std::move(wefaxProntas_.front());
+    wefaxProntas_.pop_front();
+    return true;
+}
+
+bool Decoders::pegarImagemSstv(ImagemSstv& im)
+{
+    std::lock_guard<std::mutex> lk(sstvMutex_);
+    if (sstvProntas_.empty()) return false;
+    im = std::move(sstvProntas_.front());
+    sstvProntas_.pop_front();
+    return true;
+}
+
 void Decoders::escrever(const std::string& s)
 {
     std::lock_guard<std::mutex> lk(textoMutex_);
@@ -476,6 +615,25 @@ std::string Decoders::estado()
                            e.codec.empty() ? "?" : e.codec.c_str(), e.kbps,
                            e.msc == 0 ? "" : "  |  áudio com erros");
     }
+    else if (tipo_.load() == SSTV) {
+        const SstvCore::Status s = sstv_.status();
+        if (s.estado == SstvCore::RECEBENDO)
+            std::snprintf(b, sizeof b, "recebendo %s%s  |  linha %d de %d  |  sintonia %+.0f Hz  |  inclinacao %+.0f ppm",
+                          SstvCore::nomeModo(s.modo), s.porVis ? " (VIS)" : "", s.linha, s.linhas, s.desvioHz,
+                          s.inclinacaoPpm);
+        else
+            std::snprintf(b, sizeof b, "esperando o VIS  |  sinal %.0f dB  |  %d imagens recebidas", s.nivelDb, s.imagens);
+    }
+    else if (tipo_.load() == WEFAX) {
+        const WefaxCore::Status s = wefax_.status();
+        static const char* kEst[] = {"esperando o tom de inicio", "tom de inicio - IOC %d", "fase: medindo a margem e as linhas por minuto",
+                                     "recebendo", "pronta"};
+        if (s.estado == WefaxCore::RECEBENDO)
+            std::snprintf(b, sizeof b, "recebendo  |  %d LPM, IOC %d  |  %d linhas  |  margem %s", s.lpm, s.ioc, s.linhas,
+                          s.alinhadoPelaFase ? "pela fase" : "manual");
+        else if (s.estado == WefaxCore::INICIO) std::snprintf(b, sizeof b, kEst[1], s.ioc);
+        else std::snprintf(b, sizeof b, "%s  |  sinal %.0f dB  |  %d imagens recebidas", kEst[s.estado], s.nivelDb, s.imagens);
+    }
     else if (analise_)
         std::snprintf(b, sizeof b, analiseFeita_ ? "analise pronta - clique Reiniciar para medir de novo"
                                                  : "juntando audio: %.0f de %.0f s",
@@ -492,6 +650,8 @@ bool Decoders::travado()
     if (ale_) return ale_->sincronizado();
     if (cw_) return cw_->ppm() > 0;
     if (tipo_.load() == TETRA) return tetra_.estado().travado;
+    if (tipo_.load() == SSTV) return sstv_.status().estado == SstvCore::RECEBENDO;
+    if (tipo_.load() == WEFAX) return wefax_.status().estado == WefaxCore::RECEBENDO;
     if (tipo_.load() == DRM) { const EstadoDrm e = drm_.estado(); return e.tempo == 0 && e.fac == 0; }
     if (tipo_.load() == DMR) {
         const EstadoDmr e = dsd_.estado();

@@ -158,6 +158,8 @@ std::string CwCore::feed(const float* samples, size_t n)
         std::string r; r.swap(saida_); return r;
     }
 
+    if (p_.autoTom) acompanharTom(samples, n);
+
     for (size_t k = 0; k < n; ++k) {
         // oscilador local por recorrencia, renormalizado de vez em quando
         const double ni = oscI_ * passoCos_ - oscQ_ * passoSen_;
@@ -371,7 +373,11 @@ void CwCore::fecharEspaco(double ms)
     // Os cortes ficam no meio: 2 e 5.
     if (ms < unidadeMs_ * 2.0) return;              // dentro da mesma letra
     emitirLetra();
-    if (ms > unidadeMs_ * 5.0) espacoPendente_ = true;
+    // Palavra: a norma diz 7 unidades, mas muita gente aperta o espaco. Medido
+    // em 7.019 (31 PPM): letras com 3 unidades, palavras com 3,6 a 5,6. Com o
+    // corte em 5 quase todas as palavras saiam grudadas; 4,5 separa a maioria
+    // sem partir palavra no meio.
+    if (ms > unidadeMs_ * 4.5) espacoPendente_ = true;
 }
 
 void CwCore::emitirLetra()
@@ -447,6 +453,59 @@ bool CwCore::estimarTom(const std::vector<float>& buf, double& tom) const
     const double d = (std::abs(den) < 1e-20) ? 0.0 : 0.5 * (y0 - y2) / den;
     tom = (double(melhor) + d) * hzRaia;
     return tom > 200.0 && tom < 2500.0;
+}
+
+// ---------------------------------------------------------------------------
+//  O tom pode mudar depois da primeira medida: basta mexer na sintonia. Antes
+//  ele era medido uma vez so, e o decodificador ficava surdo - visto no ar em
+//  7.019: a medida inicial deu 1500 Hz, a estacao foi para 1000 e saiu so
+//  lixo. Agora os ultimos 3 s sao medidos de novo a cada 1,5 s; quando duas
+//  medidas seguidas concordam num tom diferente (mais de 30 Hz do atual), o
+//  oscilador muda para ele. A medida da velocidade continua como estava.
+// ---------------------------------------------------------------------------
+void CwCore::acompanharTom(const float* s, size_t n)
+{
+    const size_t tam = size_t(3.0 * p_.sampleRate);
+    if (anelTom_.size() != tam) { anelTom_.assign(tam, 0.f); anelPos_ = 0; desdeMedida_ = 0; }
+    for (size_t i = 0; i < n; ++i) {
+        anelTom_[anelPos_] = s[i];
+        if (++anelPos_ >= tam) anelPos_ = 0;
+    }
+    desdeMedida_ += n;
+    if (desdeMedida_ < size_t(1.5 * p_.sampleRate)) return;
+    desdeMedida_ = 0;
+    std::vector<float> buf(tam);
+    for (size_t i = 0; i < tam; ++i) buf[i] = anelTom_[(anelPos_ + i) % tam];
+    double tom = 0.0;
+    if (!estimarTom(buf, tom)) { tomCandidato_ = 0.0; return; }
+    if (std::fabs(tom - tomMedido_) <= 30.0) { tomCandidato_ = 0.0; return; }
+    if (tomCandidato_ > 0.0 && std::fabs(tom - tomCandidato_) <= 20.0) {
+        trocarTom(0.5 * (tom + tomCandidato_));
+        tomCandidato_ = 0.0;
+    } else {
+        tomCandidato_ = tom;
+    }
+}
+
+void CwCore::trocarTom(double tom)
+{
+    tomMedido_ = tom;
+    p_.tomHz = tom;
+    const double w = 2.0 * M_PI * tom / p_.sampleRate;
+    passoCos_ = std::cos(w);
+    passoSen_ = std::sin(w);
+    // envoltoria e limiar recomecam (o nivel no tom novo e outro); a medida
+    // do ponto e o texto continuam
+    std::fill(mediaI_.begin(), mediaI_.end(), 0.0);
+    std::fill(mediaQ_.begin(), mediaQ_.end(), 0.0);
+    somaI_ = somaQ_ = 0.0;
+    piso_ = pico_ = 0.0;
+    bruto_ = ligado_ = false;
+    persistenciaMs_ = amostrasNoEstado_ = 0.0;
+    codigo_.clear();
+    char msg[64];
+    std::snprintf(msg, sizeof(msg), "\n[tom mudou: %.0f Hz]\n", tom);
+    saida_ += msg;
 }
 
 } // namespace masdr

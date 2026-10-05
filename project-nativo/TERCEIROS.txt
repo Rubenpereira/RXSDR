@@ -17,7 +17,7 @@ mudanca para compilar ou funcionar no Windows, ela esta descrita aqui.
 DENTRO DO RXSDR.exe
 -------------------
 Dear ImGui (tela)              MIT               https://github.com/ocornut/imgui
-stb_image (imagens)            dominio publico / MIT
+stb_image / stb_image_write    dominio publico / MIT
                                                  https://github.com/nothings/stb
 
 AO LADO DO RXSDR.exe

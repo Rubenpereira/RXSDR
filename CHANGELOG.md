@@ -1,5 +1,23 @@
 # Histórico de mudanças
 
+## 1.0.68
+
+Nova Versão RXSDR v1.0.68
+
+RXSDR Nativo 1.0.3: novo decodificador SSTV, para receber as imagens que os radioamadores transmitem (o mesmo tipo de sinal do MMSSTV). Escolha SSTV (imagens) na janela dos decodificadores e uma frequência da lista (14.230 USB, a mais movimentada, 14.233, 21.340, 28.680, 7.171 e 3.845 em LSB, ou 145.800 FM da ISS): o rádio vai sozinho para o modo e a largura certos. A imagem começa sozinha quando chega o cabeçalho VIS, que diz o modo. Recebe Robot 36 e 72, Martin 1 e 2, Scottie 1, 2 e DX, SC2-180 e PD 50, 90, 120, 160, 180, 240 e 290.
+
+A imagem aparece linha a linha, com uma linha vermelha mostrando onde está chegando, e ao lado ficam o espectro do áudio com as marcas de 1200, 1500, 1900 e 2300 Hz, o erro de sintonia medido e a inclinação. A imagem sai reta mesmo quando o relógio da placa de som de quem transmite está fora (a inclinação é medida pelos pulsos de sincronismo e corrigida sozinha), e o erro de sintonia é medido no cabeçalho e descontado. Cada imagem recebida é salva em PNG na pasta SSTV, ao lado do RXSDR.exe, e aparece em miniatura no histórico (um clique abre o arquivo). A gravação acontece mesmo com a tela do Windows bloqueada, então dá para deixar o rádio recebendo a noite toda. Pegou a transmissão no meio, sem o cabeçalho? Escolha o modo e clique Começar agora.
+
+Testado com sinais gerados, com ruído: o cabeçalho é reconhecido até cerca de 3 dB de relação sinal/ruído, e em 10 minutos só de chiado e de tons aleatórios não houve nenhuma imagem falsa. Testado também dentro do programa, com um sinal SSTV entrando pelo rtl_tcp: Robot 36, Martin 1 e PD 120 saíram retos e com as cores certas.
+
+RXSDR Nativo 1.0.3: novo decodificador WEFAX (fax meteorológico), com a lista de estações e horários.
+
+RXSDR e RXSDR Nativo 1.0.3: melhorias no dropdown (lista de canais) das janelas dos decodificadores SITOR-B e DSC.
+
+RXSDR Nativo 1.0.3: ao sintonizar uma frequência fora da faixa que aparece na tela (pelas listas dos decodificadores, pelas memórias ou digitando), a estação não cai mais exatamente no centro do dongle, onde fica o "apito" do DC. O centro vai 20 kHz para o lado (abaixo em USB e CW, acima em LSB, fora do canal em AM e FM), com ou sem zoom, e o risco do DC fica longe da marca de sintonia.
+
+Corrigido o decodificador de CW (RXSDR e RXSDR Nativo): o tom era medido uma vez só, no começo. Se a estação estava em outro tom, ou se você mexia na sintonia, o texto saía errado. Agora o tom é acompanhado o tempo todo e, quando muda, o decodificador troca sozinho e avisa. O espaço entre palavras ficou mais curto, como os operadores costumam fazer, e no RXSDR Nativo o controle de ganho do modo CW deixou de encher de chiado os intervalos entre os pontos e traços.
+
 ## 1.0.67
 
 Nova Versão RXSDR v1.0.67

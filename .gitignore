@@ -107,8 +107,6 @@ README_DECODERS_CARTAO.md
 # (AIS, APRS, SITOR-B, DSD...) nunca subia. Quem clonasse o repositorio nao
 # conseguia compilar. Os caminhos agora sao ancorados com barra inicial.
 /project/decoders/
-/project-win7/decoders/
-/project-win7/build-win7/decoders/
 
 # codigo de terceiros trazido para dentro da pasta
 /direwolf/
@@ -119,10 +117,7 @@ README_DECODERS_CARTAO.md
 
 # ---- 6) resultado de compilacao (pesado, se refaz sozinho) ----------------
 /project/build/
-/project-win7/build-win7/
 /project/installer/output/
-/project-win7/installer/Output/
-/project-win7/installer/output/
 /project-nativo/build/
 /project-nativo/RXSDR_Nativo/
 /project-nativo/Output/

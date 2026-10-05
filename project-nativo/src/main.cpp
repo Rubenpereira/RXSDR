@@ -194,8 +194,8 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
     RegisterClassExW(&wc);
     const int jx = (int)c.num("janela_x", CW_USEDEFAULT), jy = (int)c.num("janela_y", CW_USEDEFAULT);
     const int jw = (int)c.num("janela_w", 1360), jh = (int)c.num("janela_h", 760);
-    // o nome da pasta no titulo separa uma copia da outra na barra de tarefas
-    const std::wstring titulo = std::wstring(L"RXSDR Nativo " RXSDR_VERSAO_W) + L"  -  " + nomePasta;
+    // titulo: so o nome e a versao (pedido do autor)
+    const std::wstring titulo = std::wstring(L"RXSDR Nativo " RXSDR_VERSAO_W);
     HWND hwnd = CreateWindowW(wc.lpszClassName, titulo.c_str(), WS_OVERLAPPEDWINDOW,
                               jx, jy, jw, jh, nullptr, nullptr, hInst, nullptr);
     if (!criarD3D(hwnd)) {
@@ -223,6 +223,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
     f.digitos    = fonte("consola.ttf", 36 * s);
     f.digitosPeq = fonte("consola.ttf", 22 * s);
     f.mono       = fonte("consola.ttf", 14 * s);
+    f.freqMouse  = fonte("segoeuib.ttf", 18 * s);
     io.FontDefault = f.normal;
     ImGui_ImplWin32_Init(hwnd);
     ImGui_ImplDX9_Init(g_dev);

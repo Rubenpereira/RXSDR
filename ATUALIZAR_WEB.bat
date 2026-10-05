@@ -27,18 +27,6 @@ REM  atualizar. Da segunda em diante ja estava normal.
 xcopy /Y /S /I /D "%~dp0project\decoders" "%~dp0project\build\decoders" >nul 2>&1
 echo [OK] project\build\decoders atualizado
 
-rem Build Win7 (sem Qt)
-if exist "%~dp0project-win7\build-win7" (
-    xcopy /Y /S /I /EXCLUDE:%~dp0project\web_sem_backup.txt "%~dp0project\web" "%~dp0project-win7\build-win7\web" >nul
-    if errorlevel 1 (
-        echo [AVISO] Falha ao copiar para project-win7\build-win7\web
-    ) else (
-        echo [OK] project-win7\build-win7\web atualizado
-    )
-) else (
-    echo [AVISO] Pasta Win7 nao encontrada, pulando: project-win7\build-win7
-)
-
 echo.
 set /p ABRIR="Deseja abrir o RXSDR agora? [S/N]: "
 if /I "%ABRIR%"=="S" goto :abrir

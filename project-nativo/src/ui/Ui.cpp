@@ -225,6 +225,10 @@ Ui::~Ui()
     if (ifTex_) ifTex_->Release();
     if (texSmeter_) texSmeter_->Release();
     if (texOlho_) texOlho_->Release();
+    if (wfxTex_) wfxTex_->Release();
+    for (auto& f : wfxHist_) if (f.tex) f.tex->Release();
+    if (sstvTex_) sstvTex_->Release();
+    for (auto& f : sstvHist_) if (f.tex) f.tex->Release();
 }
 
 void Ui::carregarImagens()
@@ -1248,8 +1252,10 @@ void Ui::espectro(float x, float y, float w, float h)
         const float mx = ImGui::GetIO().MousePos.x;
         dl->AddLine(ImVec2(mx, y), ImVec2(mx, y + h), IM_COL32(255, 255, 255, 60));
         const std::string t = fmtFreq((uint64_t)std::max(0.0, xParaHz(mx, x, w)));
-        ImGui::PushFont(f_.pequena);
-        dl->AddText(ImVec2(mx + 6 * s_, y + 4 * s_), C_TEXT, t.c_str());
+        ImGui::PushFont(f_.freqMouse ? f_.freqMouse : f_.negrito);
+        const ImVec2 ts = ImGui::CalcTextSize(t.c_str());
+        dl->AddRectFilled(ImVec2(mx + 5 * s_, y + 3 * s_), ImVec2(mx + 13 * s_ + ts.x, y + 7 * s_ + ts.y), IM_COL32(0, 0, 0, 170), 3 * s_);
+        dl->AddText(ImVec2(mx + 9 * s_, y + 5 * s_), IM_COL32(255, 255, 255, 255), t.c_str());
         ImGui::PopFont();
     }
 }
@@ -1409,10 +1415,10 @@ void Ui::cachoeira(float x, float y, float w, float h)
         const float mx = ImGui::GetIO().MousePos.x, my = ImGui::GetIO().MousePos.y;
         dl->AddLine(ImVec2(mx, y), ImVec2(mx, y + h), IM_COL32(255, 255, 255, 50));
         const std::string t = fmtFreq((uint64_t)std::max(0.0, xParaHz(mx, x, w)));
-        ImGui::PushFont(f_.pequena);
+        ImGui::PushFont(f_.freqMouse ? f_.freqMouse : f_.negrito);
         const ImVec2 ts = ImGui::CalcTextSize(t.c_str());
-        dl->AddRectFilled(ImVec2(mx + 6 * s_, my - ts.y - 4 * s_), ImVec2(mx + 12 * s_ + ts.x, my), IM_COL32(0, 0, 0, 170), 3 * s_);
-        dl->AddText(ImVec2(mx + 9 * s_, my - ts.y - 2 * s_), C_TEXT, t.c_str());
+        dl->AddRectFilled(ImVec2(mx + 6 * s_, my - ts.y - 6 * s_), ImVec2(mx + 16 * s_ + ts.x, my), IM_COL32(0, 0, 0, 185), 4 * s_);
+        dl->AddText(ImVec2(mx + 11 * s_, my - ts.y - 3 * s_), IM_COL32(255, 255, 255, 255), t.c_str());
         ImGui::PopFont();
     }
     if (!r_.ligado()) {
@@ -1472,7 +1478,21 @@ void Ui::sintonizar(uint64_t hz, bool arredondar)
         hz = (hz + p / 2) / p * p;
     }
     if (hz < 1000) hz = 1000;
-    if (r_.sintonizar(hz)) muteAte_ = agoraS() + 0.25;   // o dongle foi recentralizado
+    if (r_.sintonizar(hz)) {
+        // O dongle foi recentralizado - e o Radio poe o centro CRAVADO na
+        // sintonia, justo onde mora o "apito" do DC. Tira de cima:
+        //   com zoom : o centrarParaZoom poe o centro 1,5 kHz ao lado (fora do que se ouve)
+        //   sem zoom : o centro vai 20 kHz para o lado (o DC fica longe do canal)
+        muteAte_ = agoraS() + 0.25;
+        const auto td = r_.decoders().tipo();
+        const bool centroFixo = td == Decoders::HFDL || td == Decoders::ACARS || td == Decoders::VDL2;
+        if (zoom_ > 0) centrarParaZoom(true);
+        else if (!centroFixo && r_.modo() != "WFM" && r_.taxa() >= 200000) {
+            const std::string m = r_.modo();
+            r_.centralizar(m == "LSB" ? hz + 20000 : hz - 20000);   // USB/CW: o DC do lado rejeitado
+        }
+        return;
+    }
     centrarParaZoom(false);                              // com zoom, nao deixa a estacao sair da tela
 }
 
@@ -1480,9 +1500,10 @@ void Ui::sintonizar(uint64_t hz, bool arredondar)
 // dela. So nao fica cravada no centro do dongle - ali mora o vazamento do
 // oscilador (o "apito"/risco do DC). O centro vai um pouco para o lado, de
 // modo que o DC caia fora do que se ouve:
-//   USB e CW : centro 1,5 kHz ABAIXO  -> o DC cai na banda lateral rejeitada
-//   LSB      : centro 1,5 kHz ACIMA
-//   AM / FM  : centro meia banda + 1,5 kHz ao lado -> fora do canal
+//   USB e CW : centro 20 kHz ABAIXO  -> o DC cai na banda lateral rejeitada, longe da marca
+//   LSB      : centro 20 kHz ACIMA
+//   AM / FM  : centro meia banda + 20 kHz ao lado -> fora do canal
+// (era 1,5 kHz: o risco do DC ficava colado na marca da sintonia - pedido do autor)
 //   WFM      : no centro (200 kHz de canal; o DC nao atrapalha)
 // forcar = mexeu no zoom (recentraliza sempre que o centro nao estiver no
 // lugar); senao so quando a estacao chega perto da borda do que se ve.
@@ -1496,9 +1517,9 @@ void Ui::centrarParaZoom(bool forcar)
     const double vis = r_.taxa() / (1.0 + zoom_);
     const std::string m = r_.modo();
     int64_t d = 0;
-    if (m == "USB" || m == "CW") d = -1500;
-    else if (m == "LSB") d = 1500;
-    else if (m != "WFM") d = -(int64_t)(r_.banda() / 2 + 1500);
+    if (m == "USB" || m == "CW") d = -20000;
+    else if (m == "LSB") d = 20000;
+    else if (m != "WFM") d = -(int64_t)(r_.banda() / 2 + 20000);
     const int64_t teto = (int64_t)(vis * 0.15);          // nunca mais que 15% da tela para o lado
     d = std::clamp(d, -teto, teto);
     const int64_t vfo = (int64_t)r_.vfo();
@@ -2287,7 +2308,10 @@ void Ui::janelaSobre()
 //  Decodificadores (mesmos nucleos do RXSDR principal, sem programa externo)
 // ===========================================================================
 namespace {
-struct CanalDec { uint64_t hz; const char* nome; float baud; float shift; bool meio; };
+// hor: janelas UTC "hhmm-hhmm hhmm-hhmm" (grade de horarios) - no ar agora fica verde
+// dica: estacoes e horarios (aparece com o mouse em cima). hz = 0: titulo de grupo.
+struct CanalDec { uint64_t hz; const char* nome; float baud; float shift; bool meio;
+                  const char* hor = nullptr; const char* dica = nullptr; };
 
 // RTTY - "meio": a frequencia publicada e o CENTRO do sinal (DWD); o VFO vai
 // 1500 Hz abaixo e os dois tons caem no meio da faixa USB (igual a pagina).
@@ -2304,29 +2328,586 @@ const CanalDec kCanaisRtty[] = {
     {4583000, "4583 kHz - DWD Alemanha (meteorologia)", 50, 450, true},
     {147300, "147,3 kHz - DWD Alemanha (ondas longas)", 50, 450, true},
 };
+// SITOR-B e DSC (lista de estacoes do autor, 04/10/2026): uma linha por
+// transmissao, em ordem de horario UTC; estacoes sem identificacao ficam de fora.
+// A frequencia publicada e o CENTRO do sinal FSK: o VFO (USB) vai 1700 Hz abaixo.
 const CanalDec kCanaisSitor[] = {
-    {8580000, "8580 kHz - Marinha do Brasil (Rio) - principal", 100, 0, false},
-    {6448000, "6448 kHz - Marinha do Brasil (Rio)", 100, 0, false},
-    {12709000, "12709 kHz - Marinha do Brasil (Rio)", 100, 0, false},
-    {16974000, "16974 kHz - Marinha do Brasil (Rio)", 100, 0, false},
-    {4266000, "4266 kHz - Marinha do Brasil (Rio) - só a pedido", 100, 0, false},
-    {8415000, "8415 kHz - costeiras / Marinha argentina", 100, 0, false},
-    {8414500, "8414,5 kHz - NAVTEX HF (padrão ITU)", 100, 0, false},
-    {12578000, "12578 kHz - Marinha argentina (Buenos Aires)", 100, 200, false},
-    {12580000, "12580 kHz - costeiras HF", 100, 170, false},
-    {12579000, "12579 kHz - costeiras HF", 100, 0, false},
-    {16806500, "16806,5 kHz - costeiras HF", 100, 0, false},
-    {518000, "518 kHz - NAVTEX internacional", 100, 0, false},
-    {490000, "490 kHz - NAVTEX local", 100, 0, false},
+    {16808000, "0000-0030   16808 kHz - Tianjin Radio Meteo (China)", 100, 170, false, "0000-0030", "Tianjin Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0600-0630, 0900-0930, 1200-1230, 1400-1430, 1800-1830, 2100-2130"},
+    {490000, "0000-2010   490 kHz - NAVTEX Canarias (Canary Islands) +1", 100, 170, false, "0000-2010", "NAVTEX Canarias (Canary Islands)\nNAVTEX Malin Head (Ireland)\n\nOutros horários nesta frequência: 0000-2400, 0010-2020, 0020-2030, 0040-2050, 0100-2110, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0310-2320, 0320-2330, 0340-2350"},
+    {518000, "0000-2010   518 kHz - NAVTEX Cross Corsen (France)", 100, 170, false, "0000-2010", "NAVTEX Cross Corsen (France)\n\nOutros horários nesta frequência: 0000-2400, 0030-2040, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0230-2240, 0240-2250, 0250-2300, 0300-2310, 0310-2320, 0330-2340, 0340-2350, 0350-2400"},
+    {490000, "0000-2400   490 kHz - NAVTEX WEATHER BROADCASTS (Worldwide)", 100, 170, false, "0000-2400", "NAVTEX WEATHER BROADCASTS (Worldwide)\n\nOutros horários nesta frequência: 0000-2010, 0010-2020, 0020-2030, 0040-2050, 0100-2110, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0310-2320, 0320-2330, 0340-2350"},
+    {518000, "0000-2400   518 kHz - NAVTEX WEATHER BROADCASTS (Worldwide)", 100, 170, false, "0000-2400", "NAVTEX WEATHER BROADCASTS (Worldwide)\n\nOutros horários nesta frequência: 0000-2010, 0030-2040, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0230-2240, 0240-2250, 0250-2300, 0300-2310, 0310-2320, 0330-2340, 0340-2350, 0350-2400"},
+    {4172500, "0000-2400   4172,5 kHz - Istanbul Radio (Turkiye)", 100, 170, false, "0000-2400", "Istanbul Radio (Turkiye)"},
+    {4209500, "0000-2400   4209,5 kHz - Guangzhou Radio (China) +1", 100, 170, false, "0000-2400", "Guangzhou Radio (China)\nIstanbul Radio (Turkiye)\n\nOutros horários nesta frequência: 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
+    {4210500, "0000-2400   4210,5 kHz - Guangzhou Radio (China)", 100, 170, false, "0000-2400", "Guangzhou Radio (China)"},
+    {4211500, "0000-2400   4211,5 kHz - Rogaland Radio MRCC (Norway)", 100, 170, false, "0000-2400", "Rogaland Radio MRCC (Norway)"},
+    {4211700, "0000-2400   4211,7 kHz - Argentine Army (Argentina)", 100, 170, false, "0000-2400", "Argentine Army (Argentina)"},
+    {4212000, "0000-2400   4212 kHz - Guangzhou Radio (China)", 100, 170, false, "0000-2400", "Guangzhou Radio (China)"},
+    {4212500, "0000-2400   4212,5 kHz - Shanghai Radio (China)", 100, 170, false, "0000-2400", "Shanghai Radio (China)\n\nOutros horários nesta frequência: 1200-1230, 1600-1630, 2000-2030"},
+    {4215000, "0000-2400   4215 kHz - Shanghai Radio (China)", 100, 170, false, "0000-2400", "Shanghai Radio (China)"},
+    {4216000, "0000-2400   4216 kHz - Istanbul Radio (Turkiye)", 100, 170, false, "0000-2400", "Istanbul Radio (Turkiye)"},
+    {4217700, "0000-2400   4217,7 kHz - Guangzhou Radio MRCC (China)", 100, 170, false, "0000-2400", "Guangzhou Radio MRCC (China)"},
+    {4219000, "0000-2400   4219 kHz - Guangzhou Radio (China) +1", 100, 170, false, "0000-2400", "Guangzhou Radio (China)\nIstanbul Radio (Turkiye)"},
+    {4241000, "0000-2400   4241 kHz - Vladivostok Radio (Russia)", 100, 170, false, "0000-2400", "Vladivostok Radio (Russia)"},
+    {4560000, "0000-2400   4560 kHz - Istanbul Radio (Turkiye)", 100, 170, false, "0000-2400", "Istanbul Radio (Turkiye)\n\nOutros horários nesta frequência: 2000-2010"},
+    {4590000, "0000-2400   4590 kHz - Istanbul Radio (Turkiye)", 100, 170, false, "0000-2400", "Istanbul Radio (Turkiye)"},
+    {4718500, "0000-2400   4718,5 kHz - Istanbul Radio (Turkiye)", 100, 170, false, "0000-2400", "Istanbul Radio (Turkiye)"},
+    {6264500, "0000-2400   6264,5 kHz - Guangzhou Radio MRCC (China)", 100, 170, false, "0000-2400", "Guangzhou Radio MRCC (China)"},
+    {6316000, "0000-2400   6316 kHz - Guangzhou Radio (China)", 100, 170, false, "0000-2400", "Guangzhou Radio (China)"},
+    {6320000, "0000-2400   6320 kHz - Olympia Radio (Greece)", 100, 170, false, "0000-2400", "Olympia Radio (Greece)"},
+    {6320500, "0000-2400   6320,5 kHz - Olympia Radio (Greece)", 100, 170, false, "0000-2400", "Olympia Radio (Greece)"},
+    {6321500, "0000-2400   6321,5 kHz - Olympia Radio (Greece)", 100, 170, false, "0000-2400", "Olympia Radio (Greece)"},
+    {6324500, "0000-2400   6324,5 kHz - KPH Point Reyes (USA)", 100, 170, false, "0000-2400", "KPH Point Reyes (USA)"},
+    {6326000, "0000-2400   6326 kHz - Shanghai Radio (China)", 100, 170, false, "0000-2400", "Shanghai Radio (China)"},
+    {6329000, "0000-2400   6329 kHz - Guangzhou Radio (China)", 100, 170, false, "0000-2400", "Guangzhou Radio (China)\n\nOutros horários nesta frequência: 0120-0130, 0320-0330, 0720-0730, 0920-0930"},
+    {6488500, "0000-2400   6488,5 kHz - Argentina Radio (Argentina)", 100, 170, false, "0000-2400", "Argentina Radio (Argentina)"},
+    {8383000, "0000-2400   8383 kHz - Olympia Radio (Greece)", 100, 170, false, "0000-2400", "Olympia Radio (Greece)"},
+    {8384000, "0000-2400   8384 kHz - Olympia Radio (Greece)", 100, 170, false, "0000-2400", "Olympia Radio (Greece)"},
+    {8387000, "0000-2400   8387 kHz - Madrid Radio (Spain)", 100, 170, false, "0000-2400", "Madrid Radio (Spain)"},
+    {8390000, "0000-2400   8390 kHz - Shanghai Radio MRCC (China)", 100, 170, false, "0000-2400", "Shanghai Radio MRCC (China)"},
+    {8391000, "0000-2400   8391 kHz - Istanbul Radio (Turkiye)", 100, 170, false, "0000-2400", "Istanbul Radio (Turkiye)"},
+    {8391500, "0000-2400   8391,5 kHz - Moskva Radio (Russia)", 100, 170, false, "0000-2400", "Moskva Radio (Russia)"},
+    {8393000, "0000-2400   8393 kHz - Guangzhou Radio MRCC (China) +2", 100, 170, false, "0000-2400", "Guangzhou Radio MRCC (China)\nShanghai Radio Meteo (China)\nIstanbul Radio (Turkiye)"},
+    {8394000, "0000-2400   8394 kHz - Guangzhou Radio MRCC (China) +1", 100, 170, false, "0000-2400", "Guangzhou Radio MRCC (China)\nIstanbul Radio (Turkiye)"},
+    {8417500, "0000-2400   8417,5 kHz - Tianjin Radio (China)", 100, 170, false, "0000-2400", "Tianjin Radio (China)\n\nOutros horários nesta frequência: 0500-0530, 0700-0730, 1200-1230, 1600-1630, 2000-2030, 2300-2330"},
+    {8418000, "0000-2400   8418 kHz - Argentina Radio (Argentina)", 100, 170, false, "0000-2400", "Argentina Radio (Argentina)"},
+    {8418200, "0000-2400   8418,2 kHz - Tianjin Radio (China)", 100, 170, false, "0000-2400", "Tianjin Radio (China)"},
+    {8419000, "0000-2400   8419 kHz - Tianjin Radio (China)", 100, 170, false, "0000-2400", "Tianjin Radio (China)"},
+    {8421000, "0000-2400   8421 kHz - Guangzhou Radio (China)", 100, 170, false, "0000-2400", "Guangzhou Radio (China)"},
+    {8423000, "0000-2400   8423 kHz - Olympia Radio (Greece)", 100, 170, false, "0000-2400", "Olympia Radio (Greece)"},
+    {8424000, "0000-2400   8424 kHz - Olympia Radio (Greece)", 100, 170, false, "0000-2400", "Olympia Radio (Greece)\n\nOutros horários nesta frequência: 0630-0645, 0700-0710, 0930-0945, 1000-1010, 1100-1110, 1300-1315, 1600-1610, 2130-2145"},
+    {8425500, "0000-2400   8425,5 kHz - Shanghai Radio (China)", 100, 170, false, "0000-2400", "Shanghai Radio (China)\n\nOutros horários nesta frequência: 0850-0900"},
+    {8427000, "0000-2400   8427 kHz - KPH Point Reyes (USA)", 100, 170, false, "0000-2400", "KPH Point Reyes (USA)"},
+    {8431000, "0000-2400   8431 kHz - Guangzhou Radio (China) +1", 100, 170, false, "0000-2400", "Guangzhou Radio (China)\nIstanbul Radio (Turkiye)\n\nOutros horários nesta frequência: 0120-0130, 0320-0330, 0720-0730, 0800-0815, 0920-0930, 1320-1330, 1520-1530, 2000-2015, 2220-2230"},
+    {8431500, "0000-2400   8431,5 kHz - Moskva Radio (Russia)", 100, 170, false, "0000-2400", "Moskva Radio (Russia)"},
+    {8433000, "0000-2400   8433 kHz - Shanghai Radio (China)", 100, 170, false, "0000-2400", "Shanghai Radio (China)"},
+    {8434000, "0000-2400   8434 kHz - Istanbul Radio (Turkiye)", 100, 170, false, "0000-2400", "Istanbul Radio (Turkiye)"},
+    {8435000, "0000-2400   8435 kHz - Guangzhou Radio (China)", 100, 170, false, "0000-2400", "Guangzhou Radio (China)"},
+    {8617000, "0000-2400   8617 kHz - Tianjin Radio (China)", 100, 170, false, "0000-2400", "Tianjin Radio (China)"},
+    {8630000, "0000-2400   8630 kHz - Marinha do Brasil", 100, 170, false, "0000-2400", "Marinha do Brasil"},
+    {8741700, "0000-2400   8741,7 kHz - Olympia Radio (Greece)", 100, 170, false, "0000-2400", "Olympia Radio (Greece)"},
+    {8750700, "0000-2400   8750,7 kHz - Istanbul Radio (Turkiye)", 100, 170, false, "0000-2400", "Istanbul Radio (Turkiye)"},
+    {8813700, "0000-2400   8813,7 kHz - Istanbul Radio (Turkiye)", 100, 170, false, "0000-2400", "Istanbul Radio (Turkiye)"},
+    {10926000, "0000-2400   10926 kHz - Marinha do Brasil", 100, 170, false, "0000-2400", "Marinha do Brasil"},
+    {12190000, "0000-2400   12190 kHz - Marinha do Brasil", 100, 170, false, "0000-2400", "Marinha do Brasil"},
+    {12424000, "0000-2400   12424 kHz - Olympia Radio (Greece)", 100, 170, false, "0000-2400", "Olympia Radio (Greece)"},
+    {12501000, "0000-2400   12501 kHz - Olympia Radio (Greece)", 100, 170, false, "0000-2400", "Olympia Radio (Greece)"},
+    {12510000, "0000-2400   12510 kHz - Guangzhou Radio MRCC (China)", 100, 170, false, "0000-2400", "Guangzhou Radio MRCC (China)"},
+    {12510500, "0000-2400   12510,5 kHz - Guangzhou Radio MRCC (China)", 100, 170, false, "0000-2400", "Guangzhou Radio MRCC (China)"},
+    {12519500, "0000-2400   12519,5 kHz - Guangzhou Radio MRCC (China)", 100, 170, false, "0000-2400", "Guangzhou Radio MRCC (China)"},
+    {12522000, "0000-2400   12522 kHz - Istanbul Radio (Turkiye)", 100, 170, false, "0000-2400", "Istanbul Radio (Turkiye)"},
+    {12526000, "0000-2400   12526 kHz - Istanbul Radio (Turkiye)", 100, 170, false, "0000-2400", "Istanbul Radio (Turkiye)"},
+    {12532500, "0000-2400   12532,5 kHz - Istanbul Radio (Turkiye)", 100, 170, false, "0000-2400", "Istanbul Radio (Turkiye)"},
+    {12535500, "0000-2400   12535,5 kHz - Shanghai Radio MRCC (China)", 100, 170, false, "0000-2400", "Shanghai Radio MRCC (China)"},
+    {12537000, "0000-2400   12537 kHz - Istanbul Radio (Turkiye)", 100, 170, false, "0000-2400", "Istanbul Radio (Turkiye)"},
+    {12557000, "0000-2400   12557 kHz - Istanbul Radio (Turkiye)", 100, 170, false, "0000-2400", "Istanbul Radio (Turkiye)"},
+    {12566700, "0000-2400   12566,7 kHz - Marinha do Brasil", 100, 170, false, "0000-2400", "Marinha do Brasil"},
+    {12580500, "0000-2400   12580,5 kHz - Tianjin Radio (China)", 100, 170, false, "0000-2400", "Tianjin Radio (China)"},
+    {12581000, "0000-2400   12581 kHz - Argentina Radio (Argentina)", 100, 170, false, "0000-2400", "Argentina Radio (Argentina)"},
+    {12581500, "0000-2400   12581,5 kHz - Tianjin Radio (China)", 100, 170, false, "0000-2400", "Tianjin Radio (China)\n\nOutros horários nesta frequência: 0500-0530, 0700-0730, 1200-1230, 1600-1630, 2000-2030, 2300-2330"},
+    {12585500, "0000-2400   12585,5 kHz - KPH Point Reyes (USA)", 100, 170, false, "0000-2400", "KPH Point Reyes (USA)"},
+    {12603500, "0000-2400   12603,5 kHz - Olympia Radio (Greece)", 100, 170, false, "0000-2400", "Olympia Radio (Greece)"},
+    {12613000, "0000-2400   12613 kHz - Guangzhou Radio (China)", 100, 170, false, "0000-2400", "Guangzhou Radio (China)"},
+    {12622500, "0000-2400   12622,5 kHz - Guangzhou Radio Meteo (China)", 100, 170, false, "0000-2400", "Guangzhou Radio Meteo (China)"},
+    {12624000, "0000-2400   12624 kHz - Guangzhou Radio (China) +1", 100, 170, false, "0000-2400", "Guangzhou Radio (China)\nIstanbul Radio (Turkiye)"},
+    {12629000, "0000-2400   12629 kHz - Istanbul Radio (Turkiye)", 100, 170, false, "0000-2400", "Istanbul Radio (Turkiye)"},
+    {12637500, "0000-2400   12637,5 kHz - Shanghai Radio (China)", 100, 170, false, "0000-2400", "Shanghai Radio (China)\n\nOutros horários nesta frequência: 0250-0300, 0850-0900, 1350-1420"},
+    {12648500, "0000-2400   12648,5 kHz - Guangzhou Radio (China)", 100, 170, false, "0000-2400", "Guangzhou Radio (China)"},
+    {12654000, "0000-2400   12654 kHz - Istanbul Radio (Turkiye)", 100, 170, false, "0000-2400", "Istanbul Radio (Turkiye)\n\nOutros horários nesta frequência: 0800-0815, 2000-2015"},
+    {13173000, "0000-2400   13173 kHz - Istanbul Radio (Turkiye)", 100, 170, false, "0000-2400", "Istanbul Radio (Turkiye)"},
+    {16695000, "0000-2400   16695 kHz - Shanghai Radio (China)", 100, 170, false, "0000-2400", "Shanghai Radio (China)"},
+    {16762000, "0000-2400   16762 kHz - Guangzhou Radio (China)", 100, 170, false, "0000-2400", "Guangzhou Radio (China)"},
+    {16778000, "0000-2400   16778 kHz - Olympia Radio (Greece)", 100, 170, false, "0000-2400", "Olympia Radio (Greece)"},
+    {16808000, "0000-2400   16808 kHz - Tianjin Radio (China)", 100, 170, false, "0000-2400", "Tianjin Radio (China)\n\nOutros horários nesta frequência: 0000-0030, 0600-0630, 0900-0930, 1200-1230, 1400-1430, 1800-1830, 2100-2130"},
+    {16830500, "0000-2400   16830,5 kHz - Olympia Radio (Greece)", 100, 170, false, "0000-2400", "Olympia Radio (Greece)"},
+    {16854000, "0000-2400   16854 kHz - Guangzhou Radio Meteo (China)", 100, 170, false, "0000-2400", "Guangzhou Radio Meteo (China)\n\nOutros horários nesta frequência: 0320-0330, 0720-0730, 1320-1340"},
+    {16880000, "0000-2400   16880 kHz - Guangzhou Radio (China)", 100, 170, false, "0000-2400", "Guangzhou Radio (China)"},
+    {16898500, "0000-2400   16898,5 kHz - Shanghai Radio (China)", 100, 170, false, "0000-2400", "Shanghai Radio (China)\n\nOutros horários nesta frequência: 0250-0300, 0850-0900, 1350-1420"},
+    {22744000, "0000-2400   22744 kHz - Olympia Radio (Greece)", 100, 170, false, "0000-2400", "Olympia Radio (Greece)"},
+    {490000, "0010-2020   490 kHz - NAVTEX Oostende (Belgium)", 100, 170, false, "0010-2020", "NAVTEX Oostende (Belgium)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0020-2030, 0040-2050, 0100-2110, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0310-2320, 0320-2330, 0340-2350"},
+    {12799500, "0015-0030   12799,5 kHz - Vladivostok Radio Meteo (Russia)", 100, 170, false, "0015-0030", "Vladivostok Radio Meteo (Russia)\n\nOutros horários nesta frequência: 0430-0445, 0700-0705, 0900-0905, 2100-2105"},
+    {8416500, "0015-0130   8416,5 kHz - USCG San Francisco (USA)", 100, 170, false, "0015-0130", "USCG San Francisco (USA)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140"},
+    {16806500, "0015-0130   16806,5 kHz - USCG San Francisco (USA)", 100, 170, false, "0015-0130", "USCG San Francisco (USA)\n\nOutros horários nesta frequência: 0030-0110, 0230-0300, 0500-0530, 0900-0925, 1000-1140, 1200-1310, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1730-1830, 1900-1940, 2315-2345"},
+    {4209500, "0020-0030   4209,5 kHz - Nha Trang Radio (Vietnam)", 100, 170, false, "0020-0030", "Nha Trang Radio (Vietnam)\n\nOutros horários nesta frequência: 0000-2400, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
+    {490000, "0020-2030   490 kHz - NAVTEX Portpatric (United Kingdom)", 100, 170, false, "0020-2030", "NAVTEX Portpatric (United Kingdom)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0010-2020, 0040-2050, 0100-2110, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0310-2320, 0320-2330, 0340-2350"},
+    {4210000, "0030-0110   4210 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "0030-0110", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0300-0410, 1000-1140, 1400-1440, 1515-1610, 1900-1940, 2100-2140"},
+    {8416500, "0030-0110   8416,5 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "0030-0110", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140"},
+    {12579000, "0030-0110   12579 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "0030-0110", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140, 2250-2300 ..."},
+    {16806500, "0030-0110   16806,5 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "0030-0110", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0230-0300, 0500-0530, 0900-0925, 1000-1140, 1200-1310, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1730-1830, 1900-1940, 2315-2345"},
+    {518000, "0030-2040   518 kHz - NAVTEX La Coruna (Spain) +1", 100, 170, false, "0030-2040", "NAVTEX La Coruna (Spain)\nNAVTEX Faroe Islands (Faroe Islands)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0230-2240, 0240-2250, 0250-2300, 0300-2310, 0310-2320, 0330-2340, 0340-2350, 0350-2400"},
+    {490000, "0040-2050   490 kHz - NAVTEX Cross Corsen (France) +1", 100, 170, false, "0040-2050", "NAVTEX Cross Corsen (France)\nNAVTEX Reykjavik (Iceland)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0010-2020, 0020-2030, 0100-2110, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0310-2320, 0320-2330, 0340-2350"},
+    {518000, "0040-2050   518 kHz - NAVTEX Niton (United Kingdom)", 100, 170, false, "0040-2050", "NAVTEX Niton (United Kingdom)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0030-2040, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0230-2240, 0240-2250, 0250-2300, 0300-2310, 0310-2320, 0330-2340, 0340-2350, 0350-2400"},
+    {518000, "0050-2100   518 kHz - NAVTEX Acores (Azores) +1", 100, 170, false, "0050-2100", "NAVTEX Acores (Azores)\nNAVTEX Tallinn (Estonia)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0030-2040, 0040-2050, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0230-2240, 0240-2250, 0250-2300, 0300-2310, 0310-2320, 0330-2340, 0340-2350, 0350-2400"},
+    {490000, "0100-2110   490 kHz - NAVTEX Lisbon (Portugal)", 100, 170, false, "0100-2110", "NAVTEX Lisbon (Portugal)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0010-2020, 0020-2030, 0040-2050, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0310-2320, 0320-2330, 0340-2350"},
+    {518000, "0100-2110   518 kHz - NAVTEX Tarifa (Spain) +1", 100, 170, false, "0100-2110", "NAVTEX Tarifa (Spain)\nNAVTEX Cullercoats (United Kingdom)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0030-2040, 0040-2050, 0050-2100, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0230-2240, 0240-2250, 0250-2300, 0300-2310, 0310-2320, 0330-2340, 0340-2350, 0350-2400"},
+    {518000, "0110-2120   518 kHz - NAVTEX Stockholm (Sweden)", 100, 170, false, "0110-2120", "NAVTEX Stockholm (Sweden)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0030-2040, 0040-2050, 0050-2100, 0100-2110, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0230-2240, 0240-2250, 0250-2300, 0300-2310, 0310-2320, 0330-2340, 0340-2350, 0350-2400"},
+    {6329000, "0120-0130   6329 kHz - Guangzhou Radio Meteo (China)", 100, 170, false, "0120-0130", "Guangzhou Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0320-0330, 0720-0730, 0920-0930"},
+    {8431000, "0120-0130   8431 kHz - Guangzhou Radio Meteo (China)", 100, 170, false, "0120-0130", "Guangzhou Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0320-0330, 0720-0730, 0800-0815, 0920-0930, 1320-1330, 1520-1530, 2000-2015, 2220-2230"},
+    {490000, "0120-2130   490 kHz - NAVTEX Niton (United Kingdom)", 100, 170, false, "0120-2130", "NAVTEX Niton (United Kingdom)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0010-2020, 0020-2030, 0040-2050, 0100-2110, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0310-2320, 0320-2330, 0340-2350"},
+    {518000, "0120-2130   518 kHz - NAVTEX Canarias (Canary Islands) +1", 100, 170, false, "0120-2130", "NAVTEX Canarias (Canary Islands)\nNAVTEX Stockholm (Sweden)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0030-2040, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0230-2240, 0240-2250, 0250-2300, 0300-2310, 0310-2320, 0330-2340, 0340-2350, 0350-2400"},
+    {8416500, "0130-0220   8416,5 kHz - USCG Honolulu (Hawaii)", 100, 170, false, "0130-0220", "USCG Honolulu (Hawaii)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140"},
+    {12579000, "0130-0220   12579 kHz - USCG Honolulu (Hawaii)", 100, 170, false, "0130-0220", "USCG Honolulu (Hawaii)\n\nOutros horários nesta frequência: 0030-0110, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140, 2250-2300 ..."},
+    {22376000, "0130-0220   22376 kHz - USCG Honolulu (Hawaii)", 100, 170, false, "0130-0220", "USCG Honolulu (Hawaii)\n\nOutros horários nesta frequência: 0230-0300, 0500-0530, 0900-0925, 1500-1530, 1900-1940, 2030-2120, 2315-2345"},
+    {490000, "0130-2140   490 kHz - NAVTEX Acores (Azores)", 100, 170, false, "0130-2140", "NAVTEX Acores (Azores)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0010-2020, 0020-2030, 0040-2050, 0100-2110, 0120-2130, 0140-2150, 0150-2200, 0200-2210, 0310-2320, 0320-2330, 0340-2350"},
+    {518000, "0130-2140   518 kHz - NAVTEX Stockholm (Sweden)", 100, 170, false, "0130-2140", "NAVTEX Stockholm (Sweden)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0030-2040, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0230-2240, 0240-2250, 0250-2300, 0300-2310, 0310-2320, 0330-2340, 0340-2350, 0350-2400"},
+    {6314000, "0140-0230   6314 kHz - USCG Boston (USA)", 100, 170, false, "0140-0230", "USCG Boston (USA)"},
+    {8416500, "0140-0230   8416,5 kHz - USCG Boston (USA)", 100, 170, false, "0140-0230", "USCG Boston (USA)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140"},
+    {12579000, "0140-0230   12579 kHz - USCG Boston (USA)", 100, 170, false, "0140-0230", "USCG Boston (USA)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140, 2250-2300 ..."},
+    {490000, "0140-2150   490 kHz - NAVTEX Reykjavik (Iceland)", 100, 170, false, "0140-2150", "NAVTEX Reykjavik (Iceland)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0010-2020, 0020-2030, 0040-2050, 0100-2110, 0120-2130, 0130-2140, 0150-2200, 0200-2210, 0310-2320, 0320-2330, 0340-2350"},
+    {518000, "0140-2150   518 kHz - NAVTEX Niton (United Kingdom)", 100, 170, false, "0140-2150", "NAVTEX Niton (United Kingdom)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0030-2040, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0230-2240, 0240-2250, 0250-2300, 0300-2310, 0310-2320, 0330-2340, 0340-2350, 0350-2400"},
+    {490000, "0150-2200   490 kHz - NAVTEX Pinneberg (Germany)", 100, 170, false, "0150-2200", "NAVTEX Pinneberg (Germany)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0010-2020, 0020-2030, 0040-2050, 0100-2110, 0120-2130, 0130-2140, 0140-2150, 0200-2210, 0310-2320, 0320-2330, 0340-2350"},
+    {518000, "0150-2200   518 kHz - NAVTEX Arkhangelsk (Norway) +1", 100, 170, false, "0150-2200", "NAVTEX Arkhangelsk (Norway)\nNAVTEX Rogaland (Norway)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0030-2040, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0200-2210, 0210-2220, 0220-2230, 0230-2240, 0240-2250, 0250-2300, 0300-2310, 0310-2320, 0330-2340, 0340-2350, 0350-2400"},
+    {4209500, "0200-0220   4209,5 kHz - Hai Phong Radio Meteo (Vietnam)", 100, 170, false, "0200-0220", "Hai Phong Radio Meteo (Vietnam)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
+    {4209500, "0200-0245   4209,5 kHz - Istanbul Radio Meteo (Turkiye)", 100, 170, false, "0200-0245", "Istanbul Radio Meteo (Turkiye)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
+    {490000, "0200-2210   490 kHz - NAVTEX Madeira (Madeira)", 100, 170, false, "0200-2210", "NAVTEX Madeira (Madeira)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0010-2020, 0020-2030, 0040-2050, 0100-2110, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0310-2320, 0320-2330, 0340-2350"},
+    {518000, "0200-2210   518 kHz - NAVTEX Jeloy (Norway)", 100, 170, false, "0200-2210", "NAVTEX Jeloy (Norway)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0030-2040, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0210-2220, 0220-2230, 0230-2240, 0240-2250, 0250-2300, 0300-2310, 0310-2320, 0330-2340, 0340-2350, 0350-2400"},
+    {518000, "0210-2220   518 kHz - NAVTEX Orland (Norway)", 100, 170, false, "0210-2220", "NAVTEX Orland (Norway)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0030-2040, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0220-2230, 0230-2240, 0240-2250, 0250-2300, 0300-2310, 0310-2320, 0330-2340, 0340-2350, 0350-2400"},
+    {518000, "0220-2230   518 kHz - NAVTEX Portpatric (United Kingdom)", 100, 170, false, "0220-2230", "NAVTEX Portpatric (United Kingdom)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0030-2040, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0230-2240, 0240-2250, 0250-2300, 0300-2310, 0310-2320, 0330-2340, 0340-2350, 0350-2400"},
+    {12579000, "0230-0300   12579 kHz - USCG Apra Harbor (Guam)", 100, 170, false, "0230-0300", "USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140, 2250-2300 ..."},
+    {16806500, "0230-0300   16806,5 kHz - USCG Apra Harbor (Guam)", 100, 170, false, "0230-0300", "USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0500-0530, 0900-0925, 1000-1140, 1200-1310, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1730-1830, 1900-1940, 2315-2345"},
+    {22376000, "0230-0300   22376 kHz - USCG Apra Harbor (Guam)", 100, 170, false, "0230-0300", "USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0130-0220, 0500-0530, 0900-0925, 1500-1530, 1900-1940, 2030-2120, 2315-2345"},
+    {6448000, "0230-0330   6448 kHz - Marinha do Brasil (Rio)", 100, 0, false, "0230-0330", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
+    {8580000, "0230-0330   8580 kHz - Marinha do Brasil (Rio) - principal", 100, 0, false, "0230-0330", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
+    {12709000, "0230-0330   12709 kHz - Marinha do Brasil (Rio)", 100, 0, false, "0230-0330", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
+    {16974000, "0230-0330   16974 kHz - Marinha do Brasil (Rio)", 100, 0, false, "0230-0330", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
+    {518000, "0230-2240   518 kHz - NAVTEX Netherlands (Netherlands) +1", 100, 170, false, "0230-2240", "NAVTEX Netherlands (Netherlands)\nNAVTEX Madeira (Madeira)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0030-2040, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0240-2250, 0250-2300, 0300-2310, 0310-2320, 0330-2340, 0340-2350, 0350-2400"},
+    {4209500, "0240-0250   4209,5 kHz - Shanghai Radio Meteo (China)", 100, 170, false, "0240-0250", "Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
+    {518000, "0240-2250   518 kHz - NAVTEX Malin Head (Ireland)", 100, 170, false, "0240-2250", "NAVTEX Malin Head (Ireland)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0030-2040, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0230-2240, 0250-2300, 0300-2310, 0310-2320, 0330-2340, 0340-2350, 0350-2400"},
+    {12579000, "0250-0300   12579 kHz - Shanghai Radio Meteo (China)", 100, 170, false, "0250-0300", "Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140, 2250-2300 ..."},
+    {12637500, "0250-0300   12637,5 kHz - Shanghai Radio Meteo (China)", 100, 170, false, "0250-0300", "Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0850-0900, 1350-1420"},
+    {16898500, "0250-0300   16898,5 kHz - Shanghai Radio Meteo (China)", 100, 170, false, "0250-0300", "Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0850-0900, 1350-1420"},
+    {518000, "0250-2300   518 kHz - NAVTEX Reykjavik (Iceland) +1", 100, 170, false, "0250-2300", "NAVTEX Reykjavik (Iceland)\nNAVTEX Lisbon (Portugal)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0030-2040, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0230-2240, 0240-2250, 0300-2310, 0310-2320, 0330-2340, 0340-2350, 0350-2400"},
+    {4209500, "0300-0310   4209,5 kHz - Olympia Radio METEO (Greece)", 100, 170, false, "0300-0310", "Olympia Radio METEO (Greece)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
+    {4210000, "0300-0410   4210 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "0300-0410", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 1000-1140, 1400-1440, 1515-1610, 1900-1940, 2100-2140"},
+    {8416500, "0300-0410   8416,5 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "0300-0410", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140"},
+    {518000, "0300-2310   518 kHz - NAVTEX Pinneberg (Germany)", 100, 170, false, "0300-2310", "NAVTEX Pinneberg (Germany)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0030-2040, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0230-2240, 0240-2250, 0250-2300, 0310-2320, 0330-2340, 0340-2350, 0350-2400"},
+    {490000, "0310-2320   490 kHz - NAVTEX Tarifa (Spain) +1", 100, 170, false, "0310-2320", "NAVTEX Tarifa (Spain)\nNAVTEX Niton (United Kingdom)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0010-2020, 0020-2030, 0040-2050, 0100-2110, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0320-2330, 0340-2350"},
+    {518000, "0310-2320   518 kHz - NAVTEX Oostende (Belgium)", 100, 170, false, "0310-2320", "NAVTEX Oostende (Belgium)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0030-2040, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0230-2240, 0240-2250, 0250-2300, 0300-2310, 0330-2340, 0340-2350, 0350-2400"},
+    {6329000, "0320-0330   6329 kHz - Guangzhou Radio Meteo (China)", 100, 170, false, "0320-0330", "Guangzhou Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0120-0130, 0720-0730, 0920-0930"},
+    {8431000, "0320-0330   8431 kHz - Guangzhou Radio Meteo (China)", 100, 170, false, "0320-0330", "Guangzhou Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0120-0130, 0720-0730, 0800-0815, 0920-0930, 1320-1330, 1520-1530, 2000-2015, 2220-2230"},
+    {16854000, "0320-0330   16854 kHz - Guangzhou Radio Meteo (China)", 100, 170, false, "0320-0330", "Guangzhou Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0720-0730, 1320-1340"},
+    {490000, "0320-2330   490 kHz - NAVTEX Cullercoats (United Kingdom)", 100, 170, false, "0320-2330", "NAVTEX Cullercoats (United Kingdom)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0010-2020, 0020-2030, 0040-2050, 0100-2110, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0310-2320, 0340-2350"},
+    {8416500, "0330-0400   8416,5 kHz - Iqaluit Coast Guard Radio (Canada)", 100, 170, false, "0330-0400", "Iqaluit Coast Guard Radio (Canada)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140"},
+    {518000, "0330-2340   518 kHz - NAVTEX Oostende (Belgium)", 100, 170, false, "0330-2340", "NAVTEX Oostende (Belgium)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0030-2040, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0230-2240, 0240-2250, 0250-2300, 0300-2310, 0310-2320, 0340-2350, 0350-2400"},
+    {490000, "0340-2350   490 kHz - NAVTEX La Coruna (Spain)", 100, 170, false, "0340-2350", "NAVTEX La Coruna (Spain)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0010-2020, 0020-2030, 0040-2050, 0100-2110, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0310-2320, 0320-2330"},
+    {518000, "0340-2350   518 kHz - NAVTEX Valentia (Ireland)", 100, 170, false, "0340-2350", "NAVTEX Valentia (Ireland)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0030-2040, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0230-2240, 0240-2250, 0250-2300, 0300-2310, 0310-2320, 0330-2340, 0350-2400"},
+    {518000, "0350-2400   518 kHz - NAVTEX Reykjavik (Iceland)", 100, 170, false, "0350-2400", "NAVTEX Reykjavik (Iceland)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0030-2040, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0230-2240, 0240-2250, 0250-2300, 0300-2310, 0310-2320, 0330-2340, 0340-2350"},
+    {6448000, "0400-0445   6448 kHz - Marinha do Brasil (Rio)", 100, 0, false, "0400-0445", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
+    {8580000, "0400-0445   8580 kHz - Marinha do Brasil (Rio) - principal", 100, 0, false, "0400-0445", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
+    {12709000, "0400-0445   12709 kHz - Marinha do Brasil (Rio)", 100, 0, false, "0400-0445", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
+    {16974000, "0400-0445   16974 kHz - Marinha do Brasil (Rio)", 100, 0, false, "0400-0445", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
+    {16768200, "0400-1800   16768,2 kHz - Istanbul Radio (Turkiye)", 100, 170, false, "0400-1800", "Istanbul Radio (Turkiye)"},
+    {16886000, "0400-1800   16886 kHz - Istanbul Radio (Turkiye)", 100, 170, false, "0400-1800", "Istanbul Radio (Turkiye)"},
+    {4209500, "0420-0430   4209,5 kHz - Nha Trang Radio (Vietnam)", 100, 170, false, "0420-0430", "Nha Trang Radio (Vietnam)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
+    {12799500, "0430-0445   12799,5 kHz - Vladivostok Radio Meteo (Russia)", 100, 170, false, "0430-0445", "Vladivostok Radio Meteo (Russia)\n\nOutros horários nesta frequência: 0015-0030, 0700-0705, 0900-0905, 2100-2105"},
+    {8417500, "0500-0530   8417,5 kHz - Tianjin Radio Meteo (China)", 100, 170, false, "0500-0530", "Tianjin Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0700-0730, 1200-1230, 1600-1630, 2000-2030, 2300-2330"},
+    {12579000, "0500-0530   12579 kHz - USCG Apra Harbor (Guam)", 100, 170, false, "0500-0530", "USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140, 2250-2300 ..."},
+    {12581500, "0500-0530   12581,5 kHz - Tianjin Radio Meteo (China)", 100, 170, false, "0500-0530", "Tianjin Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0700-0730, 1200-1230, 1600-1630, 2000-2030, 2300-2330"},
+    {16806500, "0500-0530   16806,5 kHz - USCG Apra Harbor (Guam)", 100, 170, false, "0500-0530", "USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0230-0300, 0900-0925, 1000-1140, 1200-1310, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1730-1830, 1900-1940, 2315-2345"},
+    {22376000, "0500-0530   22376 kHz - USCG Apra Harbor (Guam)", 100, 170, false, "0500-0530", "USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0130-0220, 0230-0300, 0900-0925, 1500-1530, 1900-1940, 2030-2120, 2315-2345"},
+    {22814800, "0500-0900   22814,8 kHz - Olympia Radio (Greece)", 100, 170, false, "0500-0900", "Olympia Radio (Greece)"},
+    {22387500, "0500-2100   22387,5 kHz - Olympia Radio (Greece)", 100, 170, false, "0500-2100", "Olympia Radio (Greece)"},
+    {4209500, "0600-0620   4209,5 kHz - Hai Phong Radio Meteo (Vietnam)", 100, 170, false, "0600-0620", "Hai Phong Radio Meteo (Vietnam)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
+    {16808000, "0600-0630   16808 kHz - Tianjin Radio Meteo (China)", 100, 170, false, "0600-0630", "Tianjin Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-0030, 0000-2400, 0900-0930, 1200-1230, 1400-1430, 1800-1830, 2100-2130"},
+    {4209500, "0600-0645   4209,5 kHz - Istanbul Radio Meteo (Turkiye)", 100, 170, false, "0600-0645", "Istanbul Radio Meteo (Turkiye)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
+    {6448000, "0600-0730   6448 kHz - Marinha do Brasil (Rio)", 100, 0, false, "0600-0730", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
+    {8580000, "0600-0730   8580 kHz - Marinha do Brasil (Rio) - principal", 100, 0, false, "0600-0730", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
+    {12709000, "0600-0730   12709 kHz - Marinha do Brasil (Rio)", 100, 0, false, "0600-0730", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
+    {16974000, "0600-0730   16974 kHz - Marinha do Brasil (Rio)", 100, 0, false, "0600-0730", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
+    {26163000, "0600-1800   26163 kHz - Olympia Radio (Greece)", 100, 170, false, "0600-1800", "Olympia Radio (Greece)"},
+    {8424000, "0630-0645   8424 kHz - Olympia Radio (Greece)", 100, 170, false, "0630-0645", "Olympia Radio (Greece)\n\nOutros horários nesta frequência: 0000-2400, 0700-0710, 0930-0945, 1000-1010, 1100-1110, 1300-1315, 1600-1610, 2130-2145"},
+    {4209500, "0640-0650   4209,5 kHz - Shanghai Radio Meteo (China)", 100, 170, false, "0640-0650", "Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
+    {12799500, "0700-0705   12799,5 kHz - Vladivostok Radio Meteo (Russia)", 100, 170, false, "0700-0705", "Vladivostok Radio Meteo (Russia)\n\nOutros horários nesta frequência: 0015-0030, 0430-0445, 0900-0905, 2100-2105"},
+    {4209500, "0700-0710   4209,5 kHz - Olympia Radio METEO (Greece)", 100, 170, false, "0700-0710", "Olympia Radio METEO (Greece)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
+    {6322500, "0700-0710   6322,5 kHz - Murmansk Radio (Russia)", 100, 170, false, "0700-0710", "Murmansk Radio (Russia)\n\nOutros horários nesta frequência: 1000-1010, 1100-1110, 1300-1315, 1600-1610"},
+    {8424000, "0700-0710   8424 kHz - Murmansk Radio (Russia)", 100, 170, false, "0700-0710", "Murmansk Radio (Russia)\n\nOutros horários nesta frequência: 0000-2400, 0630-0645, 0930-0945, 1000-1010, 1100-1110, 1300-1315, 1600-1610, 2130-2145"},
+    {12586000, "0700-0710   12586 kHz - Murmansk Radio (Russia)", 100, 170, false, "0700-0710", "Murmansk Radio (Russia)\n\nOutros horários nesta frequência: 1000-1010, 1100-1110, 1300-1315, 1600-1610"},
+    {8417500, "0700-0730   8417,5 kHz - Tianjin Radio Meteo (China)", 100, 170, false, "0700-0730", "Tianjin Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0500-0530, 1200-1230, 1600-1630, 2000-2030, 2300-2330"},
+    {12581500, "0700-0730   12581,5 kHz - Tianjin Radio Meteo (China)", 100, 170, false, "0700-0730", "Tianjin Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0500-0530, 1200-1230, 1600-1630, 2000-2030, 2300-2330"},
+    {12579000, "0700-1400   12579 kHz - Moskva Radio (Russia)", 100, 170, false, "0700-1400", "Moskva Radio (Russia)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140, 2250-2300 ..."},
+    {16822500, "0700-1700   16822,5 kHz - Murmansk Radio (Russia)", 100, 170, false, "0700-1700", "Murmansk Radio (Russia)"},
+    {8416500, "0710-0930   8416,5 kHz - Moskva Radio (Russia)", 100, 170, false, "0710-0930", "Moskva Radio (Russia)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140"},
+    {6329000, "0720-0730   6329 kHz - Guangzhou Radio Meteo (China)", 100, 170, false, "0720-0730", "Guangzhou Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0120-0130, 0320-0330, 0920-0930"},
+    {8431000, "0720-0730   8431 kHz - Guangzhou Radio Meteo (China)", 100, 170, false, "0720-0730", "Guangzhou Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0120-0130, 0320-0330, 0800-0815, 0920-0930, 1320-1330, 1520-1530, 2000-2015, 2220-2230"},
+    {16854000, "0720-0730   16854 kHz - Guangzhou Radio Meteo (China)", 100, 170, false, "0720-0730", "Guangzhou Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0320-0330, 1320-1340"},
+    {8416500, "0730-0850   8416,5 kHz - USCG Honolulu (Hawaii)", 100, 170, false, "0730-0850", "USCG Honolulu (Hawaii)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140"},
+    {12579000, "0730-0850   12579 kHz - USCG Honolulu (Hawaii)", 100, 170, false, "0730-0850", "USCG Honolulu (Hawaii)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140, 2250-2300 ..."},
+    {8431000, "0800-0815   8431 kHz - Istanbul Radio Meteo (Turkiye)", 100, 170, false, "0800-0815", "Istanbul Radio Meteo (Turkiye)\n\nOutros horários nesta frequência: 0000-2400, 0120-0130, 0320-0330, 0720-0730, 0920-0930, 1320-1330, 1520-1530, 2000-2015, 2220-2230"},
+    {12654000, "0800-0815   12654 kHz - Istanbul Radio Meteo (Turkiye)", 100, 170, false, "0800-0815", "Istanbul Radio Meteo (Turkiye)\n\nOutros horários nesta frequência: 0000-2400, 2000-2015"},
+    {12579000, "0800-0840   12579 kHz - Vladivostok Radio Meteo (Russia)", 100, 170, false, "0800-0840", "Vladivostok Radio Meteo (Russia)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140, 2250-2300 ..."},
+    {4209500, "0820-0830   4209,5 kHz - Nha Trang Radio (Vietnam)", 100, 170, false, "0820-0830", "Nha Trang Radio (Vietnam)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
+    {8425500, "0850-0900   8425,5 kHz - Shanghai Radio Meteo (China)", 100, 170, false, "0850-0900", "Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400"},
+    {12579000, "0850-0900   12579 kHz - Shanghai Radio Meteo (China)", 100, 170, false, "0850-0900", "Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140, 2250-2300 ..."},
+    {12637500, "0850-0900   12637,5 kHz - Shanghai Radio Meteo (China)", 100, 170, false, "0850-0900", "Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0250-0300, 1350-1420"},
+    {16898500, "0850-0900   16898,5 kHz - Shanghai Radio Meteo (China)", 100, 170, false, "0850-0900", "Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0250-0300, 1350-1420"},
+    {12799500, "0900-0905   12799,5 kHz - Vladivostok Radio Meteo (Russia)", 100, 170, false, "0900-0905", "Vladivostok Radio Meteo (Russia)\n\nOutros horários nesta frequência: 0015-0030, 0430-0445, 0700-0705, 2100-2105"},
+    {8655000, "0900-0910   8655 kHz - Nakhodka Radio (Russia)", 100, 170, false, "0900-0910", "Nakhodka Radio (Russia)\n\nOutros horários nesta frequência: 1000-1010"},
+    {12579000, "0900-0925   12579 kHz - USCG Apra Harbor (Guam)", 100, 170, false, "0900-0925", "USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140, 2250-2300 ..."},
+    {16806500, "0900-0925   16806,5 kHz - USCG Apra Harbor (Guam)", 100, 170, false, "0900-0925", "USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0230-0300, 0500-0530, 1000-1140, 1200-1310, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1730-1830, 1900-1940, 2315-2345"},
+    {22376000, "0900-0925   22376 kHz - USCG Apra Harbor (Guam)", 100, 170, false, "0900-0925", "USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0130-0220, 0230-0300, 0500-0530, 1500-1530, 1900-1940, 2030-2120, 2315-2345"},
+    {16808000, "0900-0930   16808 kHz - Tianjin Radio Meteo (China)", 100, 170, false, "0900-0930", "Tianjin Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-0030, 0000-2400, 0600-0630, 1200-1230, 1400-1430, 1800-1830, 2100-2130"},
+    {6329000, "0920-0930   6329 kHz - Guangzhou Radio Meteo (China)", 100, 170, false, "0920-0930", "Guangzhou Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0120-0130, 0320-0330, 0720-0730"},
+    {8431000, "0920-0930   8431 kHz - Guangzhou Radio Meteo (China)", 100, 170, false, "0920-0930", "Guangzhou Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0120-0130, 0320-0330, 0720-0730, 0800-0815, 1320-1330, 1520-1530, 2000-2015, 2220-2230"},
+    {8424000, "0930-0945   8424 kHz - Olympia Radio (Greece)", 100, 170, false, "0930-0945", "Olympia Radio (Greece)\n\nOutros horários nesta frequência: 0000-2400, 0630-0645, 0700-0710, 1000-1010, 1100-1110, 1300-1315, 1600-1610, 2130-2145"},
+    {6322500, "1000-1010   6322,5 kHz - Murmansk Radio (Russia)", 100, 170, false, "1000-1010", "Murmansk Radio (Russia)\n\nOutros horários nesta frequência: 0700-0710, 1100-1110, 1300-1315, 1600-1610"},
+    {8424000, "1000-1010   8424 kHz - Murmansk Radio (Russia)", 100, 170, false, "1000-1010", "Murmansk Radio (Russia)\n\nOutros horários nesta frequência: 0000-2400, 0630-0645, 0700-0710, 0930-0945, 1100-1110, 1300-1315, 1600-1610, 2130-2145"},
+    {8655000, "1000-1010   8655 kHz - Nakhodka Radio (Russia)", 100, 170, false, "1000-1010", "Nakhodka Radio (Russia)\n\nOutros horários nesta frequência: 0900-0910"},
+    {12586000, "1000-1010   12586 kHz - Murmansk Radio (Russia)", 100, 170, false, "1000-1010", "Murmansk Radio (Russia)\n\nOutros horários nesta frequência: 0700-0710, 1100-1110, 1300-1315, 1600-1610"},
+    {4209500, "1000-1020   4209,5 kHz - Hai Phong Radio Meteo (Vietnam)", 100, 170, false, "1000-1020", "Hai Phong Radio Meteo (Vietnam)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
+    {4228000, "1000-1035   4228 kHz - Kaliningrad Radio Meteo (Russia)", 100, 170, false, "1000-1035", "Kaliningrad Radio Meteo (Russia)\n\nOutros horários nesta frequência: 1600-1745"},
+    {8454000, "1000-1035   8454 kHz - Kaliningrad Radio Meteo (Russia)", 100, 170, false, "1000-1035", "Kaliningrad Radio Meteo (Russia)\n\nOutros horários nesta frequência: 1200-1230, 1600-1745"},
+    {4209500, "1000-1045   4209,5 kHz - Istanbul Radio Meteo (Turkiye)", 100, 170, false, "1000-1045", "Istanbul Radio Meteo (Turkiye)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
+    {4210000, "1000-1140   4210 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "1000-1140", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0300-0410, 1400-1440, 1515-1610, 1900-1940, 2100-2140"},
+    {12579000, "1000-1140   12579 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "1000-1140", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140, 2250-2300 ..."},
+    {16806500, "1000-1140   16806,5 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "1000-1140", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0230-0300, 0500-0530, 0900-0925, 1200-1310, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1730-1830, 1900-1940, 2315-2345"},
+    {8416500, "1000-1300   8416,5 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "1000-1300", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140"},
+    {4209500, "1040-1050   4209,5 kHz - Shanghai Radio Meteo (China)", 100, 170, false, "1040-1050", "Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
+    {6322500, "1100-1110   6322,5 kHz - Murmansk Radio (Russia)", 100, 170, false, "1100-1110", "Murmansk Radio (Russia)\n\nOutros horários nesta frequência: 0700-0710, 1000-1010, 1300-1315, 1600-1610"},
+    {8424000, "1100-1110   8424 kHz - Murmansk Radio (Russia)", 100, 170, false, "1100-1110", "Murmansk Radio (Russia)\n\nOutros horários nesta frequência: 0000-2400, 0630-0645, 0700-0710, 0930-0945, 1000-1010, 1300-1315, 1600-1610, 2130-2145"},
+    {12586000, "1100-1110   12586 kHz - Murmansk Radio (Russia)", 100, 170, false, "1100-1110", "Murmansk Radio (Russia)\n\nOutros horários nesta frequência: 0700-0710, 1000-1010, 1300-1315, 1600-1610"},
+    {12579000, "1100-1130   12579 kHz - Vladivostok Radio Meteo (Russia)", 100, 170, false, "1100-1130", "Vladivostok Radio Meteo (Russia)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140, 2250-2300 ..."},
+    {8416500, "1100-1200   8416,5 kHz - Vladivostok Radio Meteo (Russia)", 100, 170, false, "1100-1200", "Vladivostok Radio Meteo (Russia)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140"},
+    {4212500, "1200-1230   4212,5 kHz - Tianjin Radio Meteo (China)", 100, 170, false, "1200-1230", "Tianjin Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 1600-1630, 2000-2030"},
+    {8417500, "1200-1230   8417,5 kHz - Tianjin Radio Meteo (China)", 100, 170, false, "1200-1230", "Tianjin Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0500-0530, 0700-0730, 1600-1630, 2000-2030, 2300-2330"},
+    {8454000, "1200-1230   8454 kHz - Kaliningrad Radio Meteo (Russia)", 100, 170, false, "1200-1230", "Kaliningrad Radio Meteo (Russia)\n\nOutros horários nesta frequência: 1000-1035, 1600-1745"},
+    {12581500, "1200-1230   12581,5 kHz - Tianjin Radio Meteo (China)", 100, 170, false, "1200-1230", "Tianjin Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0500-0530, 0700-0730, 1600-1630, 2000-2030, 2300-2330"},
+    {16808000, "1200-1230   16808 kHz - Tianjin Radio Meteo (China)", 100, 170, false, "1200-1230", "Tianjin Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-0030, 0000-2400, 0600-0630, 0900-0930, 1400-1430, 1800-1830, 2100-2130"},
+    {16806500, "1200-1310   16806,5 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "1200-1310", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0230-0300, 0500-0530, 0900-0925, 1000-1140, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1730-1830, 1900-1940, 2315-2345"},
+    {4209500, "1220-1230   4209,5 kHz - Nha Trang Radio (Vietnam)", 100, 170, false, "1220-1230", "Nha Trang Radio (Vietnam)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
+    {4214500, "1300-1315   4214,5 kHz - Murmansk Radio (Russia)", 100, 170, false, "1300-1315", "Murmansk Radio (Russia)"},
+    {6322500, "1300-1315   6322,5 kHz - Murmansk Radio (Russia)", 100, 170, false, "1300-1315", "Murmansk Radio (Russia)\n\nOutros horários nesta frequência: 0700-0710, 1000-1010, 1100-1110, 1600-1610"},
+    {8424000, "1300-1315   8424 kHz - Murmansk Radio (Russia)", 100, 170, false, "1300-1315", "Murmansk Radio (Russia)\n\nOutros horários nesta frequência: 0000-2400, 0630-0645, 0700-0710, 0930-0945, 1000-1010, 1100-1110, 1600-1610, 2130-2145"},
+    {12586000, "1300-1315   12586 kHz - Murmansk Radio (Russia)", 100, 170, false, "1300-1315", "Murmansk Radio (Russia)\n\nOutros horários nesta frequência: 0700-0710, 1000-1010, 1100-1110, 1600-1610"},
+    {12579000, "1300-1340   12579 kHz - Vladivostok Radio Meteo (Russia)", 100, 170, false, "1300-1340", "Vladivostok Radio Meteo (Russia)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140, 2250-2300 ..."},
+    {8431000, "1320-1330   8431 kHz - Guangzhou Radio Meteo (China)", 100, 170, false, "1320-1330", "Guangzhou Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0120-0130, 0320-0330, 0720-0730, 0800-0815, 0920-0930, 1520-1530, 2000-2015, 2220-2230"},
+    {16854000, "1320-1340   16854 kHz - Guangzhou Radio Meteo (China)", 100, 170, false, "1320-1340", "Guangzhou Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0320-0330, 0720-0730"},
+    {8416500, "1330-1450   8416,5 kHz - USCG Honolulu (Hawaii)", 100, 170, false, "1330-1450", "USCG Honolulu (Hawaii)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140"},
+    {12579000, "1330-1450   12579 kHz - USCG Honolulu (Hawaii)", 100, 170, false, "1330-1450", "USCG Honolulu (Hawaii)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140, 2250-2300 ..."},
+    {12579000, "1350-1420   12579 kHz - Shanghai Radio Meteo (China)", 100, 170, false, "1350-1420", "Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140, 2250-2300 ..."},
+    {12637500, "1350-1420   12637,5 kHz - Shanghai Radio Meteo (China)", 100, 170, false, "1350-1420", "Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0250-0300, 0850-0900"},
+    {16898500, "1350-1420   16898,5 kHz - Shanghai Radio Meteo (China)", 100, 170, false, "1350-1420", "Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0250-0300, 0850-0900"},
+    {4209500, "1400-1420   4209,5 kHz - Hai Phong Radio Meteo (Vietnam)", 100, 170, false, "1400-1420", "Hai Phong Radio Meteo (Vietnam)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
+    {16808000, "1400-1430   16808 kHz - Tianjin Radio Meteo (China)", 100, 170, false, "1400-1430", "Tianjin Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-0030, 0000-2400, 0600-0630, 0900-0930, 1200-1230, 1800-1830, 2100-2130"},
+    {4210000, "1400-1440   4210 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "1400-1440", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0300-0410, 1000-1140, 1515-1610, 1900-1940, 2100-2140"},
+    {12579000, "1400-1440   12579 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "1400-1440", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140, 2250-2300 ..."},
+    {16806500, "1400-1440   16806,5 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "1400-1440", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0230-0300, 0500-0530, 0900-0925, 1000-1140, 1200-1310, 1500-1530, 1515-1610, 1630-1720, 1730-1830, 1900-1940, 2315-2345"},
+    {4209500, "1400-1445   4209,5 kHz - Istanbul Radio Meteo (Turkiye)", 100, 170, false, "1400-1445", "Istanbul Radio Meteo (Turkiye)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
+    {8416500, "1400-1500   8416,5 kHz - Vladivostok Radio Meteo (Russia)", 100, 170, false, "1400-1500", "Vladivostok Radio Meteo (Russia)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140"},
+    {8416500, "1400-1610   8416,5 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "1400-1610", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140"},
+    {4209500, "1440-1450   4209,5 kHz - Shanghai Radio Meteo (China)", 100, 170, false, "1440-1450", "Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
+    {4209500, "1500-1510   4209,5 kHz - Guangzhou Radio (China) +1", 100, 170, false, "1500-1510", "Guangzhou Radio (China)\nOlympia Radio METEO (Greece)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
+    {12579000, "1500-1530   12579 kHz - USCG Apra Harbor (Guam)", 100, 170, false, "1500-1530", "USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140, 2250-2300 ..."},
+    {16806500, "1500-1530   16806,5 kHz - USCG Apra Harbor (Guam)", 100, 170, false, "1500-1530", "USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0230-0300, 0500-0530, 0900-0925, 1000-1140, 1200-1310, 1400-1440, 1515-1610, 1630-1720, 1730-1830, 1900-1940, 2315-2345"},
+    {22376000, "1500-1530   22376 kHz - USCG Apra Harbor (Guam)", 100, 170, false, "1500-1530", "USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0130-0220, 0230-0300, 0500-0530, 0900-0925, 1900-1940, 2030-2120, 2315-2345"},
+    {4210000, "1515-1610   4210 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "1515-1610", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0300-0410, 1000-1140, 1400-1440, 1900-1940, 2100-2140"},
+    {12579000, "1515-1610   12579 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "1515-1610", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140, 2250-2300 ..."},
+    {16806500, "1515-1610   16806,5 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "1515-1610", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0230-0300, 0500-0530, 0900-0925, 1000-1140, 1200-1310, 1400-1440, 1500-1530, 1630-1720, 1730-1830, 1900-1940, 2315-2345"},
+    {8431000, "1520-1530   8431 kHz - Guangzhou Radio Meteo (China)", 100, 170, false, "1520-1530", "Guangzhou Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0120-0130, 0320-0330, 0720-0730, 0800-0815, 0920-0930, 1320-1330, 2000-2015, 2220-2230"},
+    {8416500, "1530-1600   8416,5 kHz - Iqaluit Coast Guard Radio (Canada)", 100, 170, false, "1530-1600", "Iqaluit Coast Guard Radio (Canada)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140"},
+    {6322500, "1600-1610   6322,5 kHz - Murmansk Radio (Russia)", 100, 170, false, "1600-1610", "Murmansk Radio (Russia)\n\nOutros horários nesta frequência: 0700-0710, 1000-1010, 1100-1110, 1300-1315"},
+    {8424000, "1600-1610   8424 kHz - Murmansk Radio (Russia)", 100, 170, false, "1600-1610", "Murmansk Radio (Russia)\n\nOutros horários nesta frequência: 0000-2400, 0630-0645, 0700-0710, 0930-0945, 1000-1010, 1100-1110, 1300-1315, 2130-2145"},
+    {12586000, "1600-1610   12586 kHz - Murmansk Radio (Russia)", 100, 170, false, "1600-1610", "Murmansk Radio (Russia)\n\nOutros horários nesta frequência: 0700-0710, 1000-1010, 1100-1110, 1300-1315"},
+    {4212500, "1600-1630   4212,5 kHz - Tianjin Radio Meteo (China)", 100, 170, false, "1600-1630", "Tianjin Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 1200-1230, 2000-2030"},
+    {8417500, "1600-1630   8417,5 kHz - Tianjin Radio Meteo (China)", 100, 170, false, "1600-1630", "Tianjin Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0500-0530, 0700-0730, 1200-1230, 2000-2030, 2300-2330"},
+    {12581500, "1600-1630   12581,5 kHz - Tianjin Radio Meteo (China)", 100, 170, false, "1600-1630", "Tianjin Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0500-0530, 0700-0730, 1200-1230, 2000-2030, 2300-2330"},
+    {4228000, "1600-1745   4228 kHz - Kaliningrad Radio Meteo (Russia)", 100, 170, false, "1600-1745", "Kaliningrad Radio Meteo (Russia)\n\nOutros horários nesta frequência: 1000-1035"},
+    {8454000, "1600-1745   8454 kHz - Kaliningrad Radio Meteo (Russia)", 100, 170, false, "1600-1745", "Kaliningrad Radio Meteo (Russia)\n\nOutros horários nesta frequência: 1000-1035, 1200-1230"},
+    {4209500, "1620-1630   4209,5 kHz - Nha Trang Radio (Vietnam)", 100, 170, false, "1620-1630", "Nha Trang Radio (Vietnam)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
+    {8416500, "1630-1720   8416,5 kHz - USCG Boston (USA)", 100, 170, false, "1630-1720", "USCG Boston (USA)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140"},
+    {12579000, "1630-1720   12579 kHz - USCG Boston (USA)", 100, 170, false, "1630-1720", "USCG Boston (USA)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1700-1815, 1900-1940, 2030-2120, 2100-2140, 2250-2300 ..."},
+    {16806500, "1630-1720   16806,5 kHz - USCG Boston (USA)", 100, 170, false, "1630-1720", "USCG Boston (USA)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0230-0300, 0500-0530, 0900-0925, 1000-1140, 1200-1310, 1400-1440, 1500-1530, 1515-1610, 1730-1830, 1900-1940, 2315-2345"},
+    {6265000, "1700-0500   6265 kHz - Novorossiysk Radio (Russia)", 100, 170, false, "1700-0500", "Novorossiysk Radio (Russia)"},
+    {4209500, "1700-1730   4209,5 kHz - Guangzhou Radio (China)", 100, 170, false, "1700-1730", "Guangzhou Radio (China)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1800-1820, 1800-1845, 1840-1850 ..."},
+    {12579000, "1700-1815   12579 kHz - NAVTEX Lisbon (Portugal)", 100, 170, false, "1700-1815", "NAVTEX Lisbon (Portugal)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1900-1940, 2030-2120, 2100-2140, 2250-2300 ..."},
+    {8416500, "1730-1830   8416,5 kHz - USCG San Francisco (USA)", 100, 170, false, "1730-1830", "USCG San Francisco (USA)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1900-1940, 1910-2200, 2030-2120, 2100-2140"},
+    {16806500, "1730-1830   16806,5 kHz - USCG San Francisco (USA)", 100, 170, false, "1730-1830", "USCG San Francisco (USA)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0230-0300, 0500-0530, 0900-0925, 1000-1140, 1200-1310, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1900-1940, 2315-2345"},
+    {4209500, "1800-1820   4209,5 kHz - Hai Phong Radio Meteo (Vietnam)", 100, 170, false, "1800-1820", "Hai Phong Radio Meteo (Vietnam)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1845, 1840-1850 ..."},
+    {16808000, "1800-1830   16808 kHz - Tianjin Radio Meteo (China)", 100, 170, false, "1800-1830", "Tianjin Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-0030, 0000-2400, 0600-0630, 0900-0930, 1200-1230, 1400-1430, 2100-2130"},
+    {4209500, "1800-1845   4209,5 kHz - Istanbul Radio Meteo (Turkiye)", 100, 170, false, "1800-1845", "Istanbul Radio Meteo (Turkiye)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1840-1850 ..."},
+    {4209500, "1840-1850   4209,5 kHz - Shanghai Radio Meteo (China)", 100, 170, false, "1840-1850", "Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845 ..."},
+    {6448000, "1845-1930   6448 kHz - Marinha do Brasil (Rio)", 100, 0, false, "1845-1930", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
+    {8580000, "1845-1930   8580 kHz - Marinha do Brasil (Rio) - principal", 100, 0, false, "1845-1930", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
+    {12709000, "1845-1930   12709 kHz - Marinha do Brasil (Rio)", 100, 0, false, "1845-1930", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
+    {16974000, "1845-1930   16974 kHz - Marinha do Brasil (Rio)", 100, 0, false, "1845-1930", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
+    {4209500, "1900-1910   4209,5 kHz - Guangzhou Radio (China) +1", 100, 170, false, "1900-1910", "Guangzhou Radio (China)\nOlympia Radio METEO (Greece)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845 ..."},
+    {4210000, "1900-1940   4210 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "1900-1940", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0300-0410, 1000-1140, 1400-1440, 1515-1610, 2100-2140"},
+    {8416500, "1900-1940   8416,5 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "1900-1940", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1910-2200, 2030-2120, 2100-2140"},
+    {12579000, "1900-1940   12579 kHz - Servicio de Hidrografia Naval (Argentina) +1", 100, 170, false, "1900-1940", "Servicio de Hidrografia Naval (Argentina)\nUSCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 2030-2120, 2100-2140, 2250-2300 ..."},
+    {16806500, "1900-1940   16806,5 kHz - Servicio de Hidrografia Naval (Argentina) +1", 100, 170, false, "1900-1940", "Servicio de Hidrografia Naval (Argentina)\nUSCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0230-0300, 0500-0530, 0900-0925, 1000-1140, 1200-1310, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1730-1830, 2315-2345"},
+    {22376000, "1900-1940   22376 kHz - USCG Apra Harbor (Guam)", 100, 170, false, "1900-1940", "USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0130-0220, 0230-0300, 0500-0530, 0900-0925, 1500-1530, 2030-2120, 2315-2345"},
+    {8416500, "1910-2200   8416,5 kHz - Moskva Radio (Russia)", 100, 170, false, "1910-2200", "Moskva Radio (Russia)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 2030-2120, 2100-2140"},
+    {4209500, "1940-1950   4209,5 kHz - Hai Phong Radio Meteo (Vietnam)", 100, 170, false, "1940-1950", "Hai Phong Radio Meteo (Vietnam)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845 ..."},
+    {4560000, "2000-2010   4560 kHz - Istanbul Radio Meteo (Turkiye)", 100, 170, false, "2000-2010", "Istanbul Radio Meteo (Turkiye)\n\nOutros horários nesta frequência: 0000-2400"},
+    {8431000, "2000-2015   8431 kHz - Istanbul Radio Meteo (Turkiye)", 100, 170, false, "2000-2015", "Istanbul Radio Meteo (Turkiye)\n\nOutros horários nesta frequência: 0000-2400, 0120-0130, 0320-0330, 0720-0730, 0800-0815, 0920-0930, 1320-1330, 1520-1530, 2220-2230"},
+    {12654000, "2000-2015   12654 kHz - Istanbul Radio Meteo (Turkiye)", 100, 170, false, "2000-2015", "Istanbul Radio Meteo (Turkiye)\n\nOutros horários nesta frequência: 0000-2400, 0800-0815"},
+    {4209500, "2000-2030   4209,5 kHz - Guangzhou Radio (China)", 100, 170, false, "2000-2030", "Guangzhou Radio (China)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845 ..."},
+    {4212500, "2000-2030   4212,5 kHz - Tianjin Radio Meteo (China)", 100, 170, false, "2000-2030", "Tianjin Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 1200-1230, 1600-1630"},
+    {8417500, "2000-2030   8417,5 kHz - Tianjin Radio Meteo (China)", 100, 170, false, "2000-2030", "Tianjin Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0500-0530, 0700-0730, 1200-1230, 1600-1630, 2300-2330"},
+    {12581500, "2000-2030   12581,5 kHz - Tianjin Radio Meteo (China)", 100, 170, false, "2000-2030", "Tianjin Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0500-0530, 0700-0730, 1200-1230, 1600-1630, 2300-2330"},
+    {4209500, "2020-2040   4209,5 kHz - Nha Trang Radio (Vietnam)", 100, 170, false, "2020-2040", "Nha Trang Radio (Vietnam)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845 ..."},
+    {8416500, "2030-2120   8416,5 kHz - USCG Honolulu (Hawaii)", 100, 170, false, "2030-2120", "USCG Honolulu (Hawaii)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2100-2140"},
+    {12579000, "2030-2120   12579 kHz - USCG Honolulu (Hawaii)", 100, 170, false, "2030-2120", "USCG Honolulu (Hawaii)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2100-2140, 2250-2300 ..."},
+    {22376000, "2030-2120   22376 kHz - USCG Honolulu (Hawaii)", 100, 170, false, "2030-2120", "USCG Honolulu (Hawaii)\n\nOutros horários nesta frequência: 0130-0220, 0230-0300, 0500-0530, 0900-0925, 1500-1530, 1900-1940, 2315-2345"},
+    {12799500, "2100-2105   12799,5 kHz - Vladivostok Radio Meteo (Russia)", 100, 170, false, "2100-2105", "Vladivostok Radio Meteo (Russia)\n\nOutros horários nesta frequência: 0015-0030, 0430-0445, 0700-0705, 0900-0905"},
+    {4209500, "2100-2130   4209,5 kHz - Guangzhou Radio (China)", 100, 170, false, "2100-2130", "Guangzhou Radio (China)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845 ..."},
+    {16808000, "2100-2130   16808 kHz - Tianjin Radio Meteo (China)", 100, 170, false, "2100-2130", "Tianjin Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-0030, 0000-2400, 0600-0630, 0900-0930, 1200-1230, 1400-1430, 1800-1830"},
+    {4210000, "2100-2140   4210 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "2100-2140", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0300-0410, 1000-1140, 1400-1440, 1515-1610, 1900-1940"},
+    {8416500, "2100-2140   8416,5 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "2100-2140", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120"},
+    {12579000, "2100-2140   12579 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "2100-2140", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2250-2300 ..."},
+    {8424000, "2130-2145   8424 kHz - Olympia Radio (Greece)", 100, 170, false, "2130-2145", "Olympia Radio (Greece)\n\nOutros horários nesta frequência: 0000-2400, 0630-0645, 0700-0710, 0930-0945, 1000-1010, 1100-1110, 1300-1315, 1600-1610"},
+    {6448000, "2130-2215   6448 kHz - Marinha do Brasil (Rio)", 100, 0, false, "2130-2215", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
+    {8580000, "2130-2215   8580 kHz - Marinha do Brasil (Rio) - principal", 100, 0, false, "2130-2215", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
+    {12709000, "2130-2215   12709 kHz - Marinha do Brasil (Rio)", 100, 0, false, "2130-2215", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
+    {16974000, "2130-2215   16974 kHz - Marinha do Brasil (Rio)", 100, 0, false, "2130-2215", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
+    {4209500, "2200-2220   4209,5 kHz - Hai Phong Radio Meteo (Vietnam)", 100, 170, false, "2200-2220", "Hai Phong Radio Meteo (Vietnam)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845 ..."},
+    {4209500, "2200-2245   4209,5 kHz - Istanbul Radio Meteo (Turkiye)", 100, 170, false, "2200-2245", "Istanbul Radio Meteo (Turkiye)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845 ..."},
+    {8431000, "2220-2230   8431 kHz - Guangzhou Radio Meteo (China)", 100, 170, false, "2220-2230", "Guangzhou Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0120-0130, 0320-0330, 0720-0730, 0800-0815, 0920-0930, 1320-1330, 1520-1530, 2000-2015"},
+    {4209500, "2240-2250   4209,5 kHz - Shanghai Radio Meteo (China)", 100, 170, false, "2240-2250", "Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845 ..."},
+    {12579000, "2250-2300   12579 kHz - Shanghai Radio Meteo (China)", 100, 170, false, "2250-2300", "Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140 ..."},
+    {6460000, "2300-2310   6460 kHz - Vladivostok Radio Meteo (Russia)", 100, 170, false, "2300-2310", "Vladivostok Radio Meteo (Russia)"},
+    {17155000, "2300-2310   17155 kHz - Vladivostok Radio Meteo (Russia)", 100, 170, false, "2300-2310", "Vladivostok Radio Meteo (Russia)"},
+    {4209500, "2300-2330   4209,5 kHz - Guangzhou Radio (China)", 100, 170, false, "2300-2330", "Guangzhou Radio (China)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845 ..."},
+    {8417500, "2300-2330   8417,5 kHz - Tianjin Radio Meteo (China)", 100, 170, false, "2300-2330", "Tianjin Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0500-0530, 0700-0730, 1200-1230, 1600-1630, 2000-2030"},
+    {12581500, "2300-2330   12581,5 kHz - Tianjin Radio Meteo (China)", 100, 170, false, "2300-2330", "Tianjin Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0500-0530, 0700-0730, 1200-1230, 1600-1630, 2000-2030"},
+    {12579000, "2315-2345   12579 kHz - USCG Apra Harbor (Guam)", 100, 170, false, "2315-2345", "USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140 ..."},
+    {16806500, "2315-2345   16806,5 kHz - USCG Apra Harbor (Guam)", 100, 170, false, "2315-2345", "USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0230-0300, 0500-0530, 0900-0925, 1000-1140, 1200-1310, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1730-1830, 1900-1940"},
+    {22376000, "2315-2345   22376 kHz - USCG Apra Harbor (Guam)", 100, 170, false, "2315-2345", "USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0130-0220, 0230-0300, 0500-0530, 0900-0925, 1500-1530, 1900-1940, 2030-2120"},
+    {12579000, "2350-2400   12579 kHz - Shanghai Radio Meteo (China)", 100, 170, false, "2350-2400", "Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140 ..."},
+    {4266000, "sem horário   4266 kHz - Marinha do Brasil (Rio) - só a pedido", 100, 0, false, "", "Sem horário conhecido (sai só a pedido do navegante)"},
+    {8415000, "sem horário   8415 kHz - Marinha argentina / costeiras", 100, 0, false, "", "Sem horário conhecido"},
+    {12578000, "sem horário   12578 kHz - Marinha argentina (Buenos Aires)", 100, 200, false, "", "Sem horário conhecido"},
 };
 const CanalDec kCanaisDsc[] = {
-    {8414500, "8414,5 kHz - DSC HF (a mais movimentada)", 100, 0, false},
-    {2187500, "2187,5 kHz - DSC costeiro", 100, 0, false},
-    {4207500, "4207,5 kHz - DSC HF", 100, 0, false},
-    {6312000, "6312 kHz - DSC HF", 100, 0, false},
-    {12577000, "12577 kHz - DSC HF", 100, 0, false},
-    {16804500, "16804,5 kHz - DSC HF", 100, 0, false},
+    {8414500, "0000-2400   8414,5 kHz - DSC HF (a mais movimentada) (165 estações)", 100, 0, false, "0000-2400", "Manaus Radio (Brasil)\nRecife Radio MRCC (Brasil)\nRio de Janeiro Radio MRCC (Brasil)\nAruba Ports Authoritority (Aruba)\nCape Town Radio MRCC (South Africa)\nCOMMSTA Kodiak (Alaska)\nBuenos Aires Radio MRCC (Argentina)\nComodoro Rivadavia Radio (Argentina)\nMar del Plata Radio (Argentina)\nMRSC Ushuaia Radio (Argentina)\nJeddah Radio (Saudi Arabia)\nCharleville/Wiluna Radio (Australia)\nBaku Radio (Azerbaijan)\nDelgada Radio (Azores)\n... e mais 151 estações"},
+    {2187500, "0000-2400   2187,5 kHz - DSC costeiro (238 estações)", 100, 0, false, "0000-2400", "Punta Delgada Radio (Chile)\nCape Town Radio MRCC (South Africa)\nAlger Radio (Algeria)\nAnnaba Radio (Algeria)\nCROSS Oran Radio (Algeria)\nBuenos Aires Radio MRCC (Argentina)\nComodoro Rivadavia Radio (Argentina)\nMar del Plata Radio (Argentina)\nMRSC Ushuaia Radio (Argentina)\nJeddah Radio (Saudi Arabia)\nCharleville/Wiluna Radio (Australia)\nBaku Radio (Azerbaijan)\nDelgada Radio (Azores)\nAntwerpen Radio (Belgium)\n... e mais 224 estações"},
+    {4207500, "0000-2400   4207,5 kHz - DSC HF (126 estações)", 100, 0, false, "0000-2400", "Manaus Radio (Brasil)\nRecife Radio MRCC (Brasil)\nRio de Janeiro Radio MRCC (Brasil)\nCape Town Radio MRCC (South Africa)\nAnnaba Radio (Algeria)\nGhazaouet Radio (Algeria)\nCOMMSTA Kodiak (Alaska)\nBuenos Aires Radio MRCC (Argentina)\nComodoro Rivadavia Radio (Argentina)\nMar del Plata Radio (Argentina)\nCharleville/Wiluna Radio (Australia)\nBaku Radio (Azerbaijan)\nDelgada Radio (Azores)\nOostende Radio (Belgium)\n... e mais 112 estações"},
+    {6312000, "0000-2400   6312 kHz - DSC HF (110 estações)", 100, 0, false, "0000-2400", "Manaus Radio (Brasil)\nRecife Radio MRCC (Brasil)\nRio de Janeiro Radio MRCC (Brasil)\nCape Town Radio MRCC (South Africa)\nCOMMSTA Kodiak (Alaska)\nBuenos Aires Radio MRCC (Argentina)\nComodoro Rivadavia Radio (Argentina)\nMar del Plata Radio (Argentina)\nCharleville/Wiluna Radio (Australia)\nBaku Radio (Azerbaijan)\nDelgada Radio (Azores)\nOostende Radio (Belgium)\nVarna Radio MRCC (Bulgaria)\nIqaluit Coast Guard Radio (Canada)\n... e mais 96 estações"},
+    {12577000, "0000-2400   12577 kHz - DSC HF (129 estações)", 100, 0, false, "0000-2400", "Manaus Radio (Brasil)\nRecife Radio MRCC (Brasil)\nRio de Janeiro Radio MRCC (Brasil)\nCape Town Radio MRCC (South Africa)\nCOMMSTA Kodiak (Alaska)\nBuenos Aires Radio MRCC (Argentina)\nComodoro Rivadavia Radio (Argentina)\nMar del Plata Radio (Argentina)\nJeddah Radio (Saudi Arabia)\nCharleville/Wiluna Radio (Australia)\nBaku Radio (Azerbaijan)\nDelgada Radio (Azores)\nAntwerpen Radio (Belgium)\nVarna Radio MRCC (Bulgaria)\n... e mais 115 estações"},
+    {16804500, "0000-2400   16804,5 kHz - DSC HF (144 estações)", 100, 0, false, "0000-2400", "Manaus Radio (Brasil)\nRecife Radio MRCC (Brasil)\nRio de Janeiro Radio MRCC (Brasil)\nPunta Delgada Radio (Chile)\nCape Town Radio MRCC (South Africa)\nCOMMSTA Kodiak (Alaska)\nBuenos Aires Radio MRCC (Argentina)\nComodoro Rivadavia Radio (Argentina)\nMar del Plata Radio (Argentina)\nMRSC Ushuaia Radio (Argentina)\nJeddah Radio (Saudi Arabia)\nCharleville/Wiluna Radio (Australia)\nBaku Radio (Azerbaijan)\nDelgada Radio (Azores)\n... e mais 130 estações"},
+    {2177000, "0000-2400   2177 kHz - Las Palmas Radio MRCC (Canary Islands) (9 estações)", 100, 0, false, "0000-2400", "Las Palmas Radio MRCC (Canary Islands)\nLyngby Radio MRCC (Denmark)\nCoruna Radio (Spain)\nValencia Radio (Spain)\nReykjavik Radio (Iceland)\nFloroe Radio MRCC (Norway)\nPublic Correspondence (Norway)\nRogaland Radio MRCC (Norway)\nPolish Rescue Radio (Poland)"},
+    {2182000, "0000-2400   2182 kHz - Hokkaido Coast Guard Radio (Japan)", 100, 0, false, "0000-2400", "Hokkaido Coast Guard Radio (Japan)"},
+    {8392500, "0000-2400   8392,5 kHz - Novorossiysk Radio (Russia)", 100, 0, false, "0000-2400", "Novorossiysk Radio (Russia)"},
+    {8414000, "0000-2400   8414 kHz - Dalian Radio (China)", 100, 0, false, "0000-2400", "Dalian Radio (China)"},
+    {1656000, "0840-0845   1656 kHz - Valencia Radio (Spain)", 100, 0, false, "0840-0845", "Valencia Radio (Spain)\n\nOutros horários nesta frequência: 0903-0908, 1503-1508, 2003-2008, 2303-2308"},
+    {1656000, "0903-0908   1656 kHz - Valencia Radio (Spain)", 100, 0, false, "0903-0908", "Valencia Radio (Spain)\n\nOutros horários nesta frequência: 0840-0845, 1503-1508, 2003-2008, 2303-2308"},
+    {20120000, "1000-0200   20120 kHz - Argentine Military (Argentina)", 100, 0, false, "1000-0200", "Argentine Military (Argentina)"},
+    {1704000, "1003-1018   1704 kHz - Valencia Radio (Spain)", 100, 0, false, "1003-1018", "Valencia Radio (Spain)\n\nOutros horários nesta frequência: 1533-1548, 2003-2005, 2033-2048, 2333-2348"},
+    {1656000, "1503-1508   1656 kHz - Valencia Radio (Spain)", 100, 0, false, "1503-1508", "Valencia Radio (Spain)\n\nOutros horários nesta frequência: 0840-0845, 0903-0908, 2003-2008, 2303-2308"},
+    {1704000, "1533-1548   1704 kHz - Valencia Radio (Spain)", 100, 0, false, "1533-1548", "Valencia Radio (Spain)\n\nOutros horários nesta frequência: 1003-1018, 2003-2005, 2033-2048, 2333-2348"},
+    {1704000, "2003-2005   1704 kHz - Valencia Radio (Spain)", 100, 0, false, "2003-2005", "Valencia Radio (Spain)\n\nOutros horários nesta frequência: 1003-1018, 1533-1548, 2033-2048, 2333-2348"},
+    {1656000, "2003-2008   1656 kHz - Valencia Radio (Spain)", 100, 0, false, "2003-2008", "Valencia Radio (Spain)\n\nOutros horários nesta frequência: 0840-0845, 0903-0908, 1503-1508, 2303-2308"},
+    {1704000, "2033-2048   1704 kHz - Valencia Radio (Spain)", 100, 0, false, "2033-2048", "Valencia Radio (Spain)\n\nOutros horários nesta frequência: 1003-1018, 1533-1548, 2003-2005, 2333-2348"},
+    {1656000, "2303-2308   1656 kHz - Valencia Radio (Spain)", 100, 0, false, "2303-2308", "Valencia Radio (Spain)\n\nOutros horários nesta frequência: 0840-0845, 0903-0908, 1503-1508, 2003-2008"},
+    {1704000, "2333-2348   1704 kHz - Valencia Radio (Spain)", 100, 0, false, "2333-2348", "Valencia Radio (Spain)\n\nOutros horários nesta frequência: 1003-1018, 1533-1548, 2003-2005, 2033-2048"},
 };
+// WEFAX: a frequencia ja e a do mostrador em USB (centro - 1,9 kHz).
+// baud = LPM, shift = IOC. Uma linha por transmissao, em ordem de horario UTC.
+const CanalDec kCanaisWefax[] = {
+    {4316000, "0000-0320   4316 kHz - USCG New Orleans (USA)", 120, 576, false, "0000-0320", "USCG New Orleans (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0600-0920, 1200-1520, 1800-2120"},
+    {8502000, "0000-0320   8502 kHz - USCG New Orleans (USA)", 120, 576, false, "0000-0320", "USCG New Orleans (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0600-0920, 1200-1520, 1800-2120"},
+    {12788000, "0000-0320   12788 kHz - USCG New Orleans (USA)", 120, 576, false, "0000-0320", "USCG New Orleans (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0600-0920, 1200-1520, 1800-2120"},
+    {4197850, "0000-1045   4197,85 kHz - Guangzhou Radio Meteo (China)", 120, 576, false, "0000-1045", "Guangzhou Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1225-1715, 2015-2050"},
+    {8410600, "0000-1045   8410,6 kHz - Guangzhou Radio Meteo (China)", 120, 576, false, "0000-1045", "Guangzhou Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1225-1715, 2015-2050"},
+    {12627350, "0000-1045   12627,35 kHz - Guangzhou Radio Meteo (China)", 120, 576, false, "0000-1045", "Guangzhou Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1225-1715, 2015-2050"},
+    {16824350, "0000-1045   16824,35 kHz - Guangzhou Radio Meteo (China)", 120, 576, false, "0000-1045", "Guangzhou Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1225-1715, 2015-2050"},
+    {4168100, "0000-1415   4168,1 kHz - Shanghai Radio Meteo (China)", 120, 576, false, "0000-1415", "Shanghai Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 2000-2055"},
+    {8300100, "0000-1415   8300,1 kHz - Shanghai Radio Meteo (China)", 120, 576, false, "0000-1415", "Shanghai Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 2000-2055"},
+    {8789100, "0000-1415   8789,1 kHz - Shanghai Radio Meteo (China)", 120, 576, false, "0000-1415", "Shanghai Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 2000-2055"},
+    {12380100, "0000-1415   12380,1 kHz - Shanghai Radio Meteo (China)", 120, 576, false, "0000-1415", "Shanghai Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 2000-2055"},
+    {16557100, "0000-1415   16557,1 kHz - Shanghai Radio Meteo (China)", 120, 576, false, "0000-1415", "Shanghai Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 2000-2055"},
+    {19785100, "0000-1415   19785,1 kHz - Shanghai Radio Meteo (China)", 120, 576, false, "0000-1415", "Shanghai Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 2000-2055"},
+    {20492100, "0000-1415   20492,1 kHz - Shanghai Radio Meteo (China)", 120, 576, false, "0000-1415", "Shanghai Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {3583100, "0000-2400   3583,1 kHz - Seoul Meteo (Korea-South)", 120, 576, false, "0000-2400", "Seoul Meteo (Korea-South)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {3620600, "0000-2400   3620,6 kHz - Tokyo Meteo (Japan)", 120, 576, false, "0000-2400", "Tokyo Meteo (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {4314100, "0000-2400   4314,1 kHz - KYODO News Tokyo (Japan)", 60, 576, false, "0000-2400", "KYODO News Tokyo (Japan)\nWEFAX 60 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {4608100, "0000-2400   4608,1 kHz - Northwood Meteo JOMOC (United Kingdom)", 120, 576, false, "0000-2400", "Northwood Meteo JOMOC (United Kingdom)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {5098100, "0000-2400   5098,1 kHz - Australia Weather East (Australia)", 120, 576, false, "0000-2400", "Australia Weather East (Australia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {7431600, "0000-2400   7431,6 kHz - Seoul Meteo (Korea-South)", 120, 576, false, "0000-2400", "Seoul Meteo (Korea-South)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {7533100, "0000-2400   7533,1 kHz - Australia Weather West (Australia)", 120, 576, false, "0000-2400", "Australia Weather West (Australia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {7793100, "0000-2400   7793,1 kHz - Tokyo Meteo (Japan)", 120, 576, false, "0000-2400", "Tokyo Meteo (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {8038100, "0000-2400   8038,1 kHz - Northwood Meteo JOMOC (United Kingdom)", 120, 576, false, "0000-2400", "Northwood Meteo JOMOC (United Kingdom)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {8465600, "0000-2400   8465,6 kHz - KYODO News Tokyo (Japan)", 60, 576, false, "0000-2400", "KYODO News Tokyo (Japan)\nWEFAX 60 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {8672200, "0000-2400   8672,2 kHz - Northwood Meteo JOMOC (United Kingdom)", 120, 576, false, "0000-2400", "Northwood Meteo JOMOC (United Kingdom)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {9152100, "0000-2400   9152,1 kHz - Seoul Meteo (Korea-South)", 120, 576, false, "0000-2400", "Seoul Meteo (Korea-South)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {9163100, "0000-2400   9163,1 kHz - Seoul Meteo (Korea-South)", 120, 576, false, "0000-2400", "Seoul Meteo (Korea-South)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {10553100, "0000-2400   10553,1 kHz - Australia Weather West (Australia)", 120, 576, false, "0000-2400", "Australia Weather West (Australia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {11028100, "0000-2400   11028,1 kHz - Australia Weather East (Australia)", 120, 576, false, "0000-2400", "Australia Weather East (Australia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {12743600, "0000-2400   12743,6 kHz - KYODO News Tokyo (Japan)", 60, 576, false, "0000-2400", "KYODO News Tokyo (Japan)\nWEFAX 60 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {13568100, "0000-2400   13568,1 kHz - Seoul Meteo (Korea-South)", 120, 576, false, "0000-2400", "Seoul Meteo (Korea-South)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {13918100, "0000-2400   13918,1 kHz - Australia Weather East (Australia)", 120, 576, false, "0000-2400", "Australia Weather East (Australia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {13986600, "0000-2400   13986,6 kHz - Tokyo Meteo (Japan)", 120, 576, false, "0000-2400", "Tokyo Meteo (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {15613100, "0000-2400   15613,1 kHz - Australia Weather West (Australia)", 120, 576, false, "0000-2400", "Australia Weather West (Australia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {16133100, "0000-2400   16133,1 kHz - Honolulu Meteo (Hawaii)", 120, 576, false, "0000-2400", "Honolulu Meteo (Hawaii)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {16969100, "0000-2400   16969,1 kHz - KYODO News Tokyo (Japan)", 60, 576, false, "0000-2400", "KYODO News Tokyo (Japan)\nWEFAX 60 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {17067700, "0000-2400   17067,7 kHz - KYODO News Tokyo (Japan)", 60, 576, false, "0000-2400", "KYODO News Tokyo (Japan)\nWEFAX 60 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {22540100, "0000-2400   22540,1 kHz - KYODO News Tokyo (Japan)", 60, 576, false, "0000-2400", "KYODO News Tokyo (Japan)\nWEFAX 60 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {8656100, "0015-0045   8656,1 kHz - Kagoshima Prefec.Fishery Radio (Japan)", 120, 576, false, "0015-0045", "Kagoshima Prefec.Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0330-0400, 0430-0500, 0600-0630, 0700-0730, 0830-0840, 0930-0945, 1100-1115, 1800-1815, 2200-2315"},
+    {13072100, "0015-0050   13072,1 kHz - Misaki Fishery Radio (Japan)", 120, 576, false, "0015-0050", "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0600-0645, 0730-0800, 0830-0840, 0930-0945, 1700-1715, 2200-2215, 2300-2315"},
+    {16907500, "0030-0045   16907,5 kHz - Misaki Fishery Radio (Japan)", 120, 576, false, "0030-0045", "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0130-0200, 0300-0330, 0400-0430, 0600-0630, 0700-0730, 0810-0845, 1030-1050"},
+    {7395000, "0050-0620   7395 kHz - Bangkok Meteorological (Thailand)", 120, 576, false, "0050-0620", "Bangkok Meteorological (Thailand)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0700-0840, 1000-1042, 1300-1322, 1700-1742, 2300-2342"},
+    {7708100, "0100-0300   7708,1 kHz - VFR Resolute (Canada)", 120, 576, false, "0100-0300", "VFR Resolute (Canada)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0600-0800, 1000-1200"},
+    {16907500, "0130-0200   16907,5 kHz - Misaki Fishery Radio (Japan)", 120, 576, false, "0130-0200", "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0030-0045, 0300-0330, 0400-0430, 0600-0630, 0700-0730, 0810-0845, 1030-1050"},
+    {4344100, "0140-0420   4344,1 kHz - USCG San Francisco (USA)", 120, 576, false, "0140-0420", "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0655-1030, 1120-1237, 1400-1630"},
+    {8680100, "0140-0420   8680,1 kHz - USCG San Francisco (USA)", 120, 576, false, "0140-0420", "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0655-1030, 1120-1237, 1400-1630, 1840-2356"},
+    {12784100, "0140-0420   12784,1 kHz - USCG San Francisco (USA)", 120, 576, false, "0140-0420", "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0655-1030, 1120-1237, 1400-1630, 1840-2356"},
+    {17149300, "0140-0420   17149,3 kHz - USCG San Francisco (USA)", 120, 576, false, "0140-0420", "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0655-1030, 1120-1237, 1400-1630, 1840-2356"},
+    {8442100, "0200-0300   8442,1 kHz - Murmansk Meteo Radio (Russia)", 120, 576, false, "0200-0300", "Murmansk Meteo Radio (Russia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0700-0715, 1000-1100, 1330-1350, 2000-2020"},
+    {4233100, "0230-0455   4233,1 kHz - USCG Boston (USA)", 120, 576, false, "0230-0455", "USCG Boston (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0745-1039"},
+    {6338600, "0230-0455   6338,6 kHz - USCG Boston (USA)", 120, 576, false, "0230-0455", "USCG Boston (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0745-1039, 1400-1610, 1720-2315"},
+    {9108100, "0230-0455   9108,1 kHz - USCG Boston (USA)", 120, 576, false, "0230-0455", "USCG Boston (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0745-1039, 1400-1610, 1720-2315"},
+    {16907500, "0300-0330   16907,5 kHz - Misaki Fishery Radio (Japan)", 120, 576, false, "0300-0330", "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0030-0045, 0130-0200, 0400-0430, 0600-0630, 0700-0730, 0810-0845, 1030-1050"},
+    {8656100, "0330-0400   8656,1 kHz - Kagoshima Prefec.Fishery Radio (Japan)", 120, 576, false, "0330-0400", "Kagoshima Prefec.Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0015-0045, 0430-0500, 0600-0630, 0700-0730, 0830-0840, 0930-0945, 1100-1115, 1800-1815, 2200-2315"},
+    {2052100, "0340-0608   2052,1 kHz - USCG Kodiak (Alaska)", 120, 576, false, "0340-0608", "USCG Kodiak (Alaska)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0950-1213, 1540-1818, 2150-0028"},
+    {4296100, "0340-0608   4296,1 kHz - USCG Kodiak (Alaska)", 120, 576, false, "0340-0608", "USCG Kodiak (Alaska)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0950-1213, 1540-1818, 2150-0028"},
+    {8457100, "0340-0608   8457,1 kHz - USCG Kodiak (Alaska)", 120, 576, false, "0340-0608", "USCG Kodiak (Alaska)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0950-1213, 1540-1818, 2150-0028"},
+    {12410600, "0340-0608   12410,6 kHz - USCG Kodiak (Alaska)", 120, 576, false, "0340-0608", "USCG Kodiak (Alaska)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0950-1213, 1540-1818, 2150-0028"},
+    {4320100, "0350-0415   4320,1 kHz - Magallanes Radio (Chile)", 120, 576, false, "0350-0415", "Magallanes Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1550-1630, 1730-1755, 2005-2040, 2240-2340"},
+    {8694100, "0350-0415   8694,1 kHz - Magallanes Radio (Chile)", 120, 576, false, "0350-0415", "Magallanes Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1550-1630, 1730-1755, 2005-2040, 2240-2340"},
+    {16907500, "0400-0430   16907,5 kHz - Misaki Fishery Radio (Japan)", 120, 576, false, "0400-0430", "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0030-0045, 0130-0200, 0300-0330, 0600-0630, 0700-0730, 0810-0845, 1030-1050"},
+    {22559600, "0400-0430   22559,6 kHz - Misaki Fishery Radio (Japan)", 120, 576, false, "0400-0430", "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0500-0530, 0600-0630, 0700-0730, 0800-0830"},
+    {8656100, "0430-0500   8656,1 kHz - Kagoshima Prefec.Fishery Radio (Japan)", 120, 576, false, "0430-0500", "Kagoshima Prefec.Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0015-0045, 0330-0400, 0600-0630, 0700-0730, 0830-0840, 0930-0945, 1100-1115, 1800-1815, 2200-2315"},
+    {3853100, "0430-2400   3853,1 kHz - Deutscher Wetterdienst (Germany)", 120, 576, false, "0430-2400", "Deutscher Wetterdienst (Germany)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {7878100, "0430-2400   7878,1 kHz - Deutscher Wetterdienst (Germany)", 120, 576, false, "0430-2400", "Deutscher Wetterdienst (Germany)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {13880600, "0430-2400   13880,6 kHz - Deutscher Wetterdienst (Germany)", 120, 576, false, "0430-2400", "Deutscher Wetterdienst (Germany)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {15986400, "0430-2400   15986,4 kHz - Deutscher Wetterdienst (Germany)", 120, 576, false, "0430-2400", "Deutscher Wetterdienst (Germany)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {22559600, "0500-0530   22559,6 kHz - Misaki Fishery Radio (Japan)", 120, 576, false, "0500-0530", "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0400-0430, 0600-0630, 0700-0730, 0800-0830"},
+    {9980600, "0519-1556   9980,6 kHz - Honolulu Meteo (Hawaii)", 120, 576, false, "0519-1556", "Honolulu Meteo (Hawaii)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {11088100, "0519-1556   11088,1 kHz - Honolulu Meteo (Hawaii)", 120, 576, false, "0519-1556", "Honolulu Meteo (Hawaii)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1719-0356"},
+    {8656100, "0600-0630   8656,1 kHz - Kagoshima Prefec.Fishery Radio (Japan)", 120, 576, false, "0600-0630", "Kagoshima Prefec.Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0015-0045, 0330-0400, 0430-0500, 0700-0730, 0830-0840, 0930-0945, 1100-1115, 1800-1815, 2200-2315"},
+    {16907500, "0600-0630   16907,5 kHz - Misaki Fishery Radio (Japan)", 120, 576, false, "0600-0630", "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0030-0045, 0130-0200, 0300-0330, 0400-0430, 0700-0730, 0810-0845, 1030-1050"},
+    {22559600, "0600-0630   22559,6 kHz - Misaki Fishery Radio (Japan)", 120, 576, false, "0600-0630", "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0400-0430, 0500-0530, 0700-0730, 0800-0830"},
+    {13072100, "0600-0645   13072,1 kHz - Misaki Fishery Radio (Japan)", 120, 576, false, "0600-0645", "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0015-0050, 0730-0800, 0830-0840, 0930-0945, 1700-1715, 2200-2215, 2300-2315"},
+    {7708100, "0600-0800   7708,1 kHz - VFR Resolute (Canada)", 120, 576, false, "0600-0800", "VFR Resolute (Canada)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0100-0300, 1000-1200"},
+    {4316000, "0600-0920   4316 kHz - USCG New Orleans (USA)", 120, 576, false, "0600-0920", "USCG New Orleans (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-0320, 1200-1520, 1800-2120"},
+    {8502000, "0600-0920   8502 kHz - USCG New Orleans (USA)", 120, 576, false, "0600-0920", "USCG New Orleans (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-0320, 1200-1520, 1800-2120"},
+    {12788000, "0600-0920   12788 kHz - USCG New Orleans (USA)", 120, 576, false, "0600-0920", "USCG New Orleans (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-0320, 1200-1520, 1800-2120"},
+    {11084600, "0600-2100   11084,6 kHz - Northwood Meteo JOMOC (United Kingdom)", 120, 576, false, "0600-2100", "Northwood Meteo JOMOC (United Kingdom)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {4344100, "0655-1030   4344,1 kHz - USCG San Francisco (USA)", 120, 576, false, "0655-1030", "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0140-0420, 1120-1237, 1400-1630"},
+    {8680100, "0655-1030   8680,1 kHz - USCG San Francisco (USA)", 120, 576, false, "0655-1030", "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0140-0420, 1120-1237, 1400-1630, 1840-2356"},
+    {12784100, "0655-1030   12784,1 kHz - USCG San Francisco (USA)", 120, 576, false, "0655-1030", "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0140-0420, 1120-1237, 1400-1630, 1840-2356"},
+    {17149300, "0655-1030   17149,3 kHz - USCG San Francisco (USA)", 120, 576, false, "0655-1030", "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0140-0420, 1120-1237, 1400-1630, 1840-2356"},
+    {8442100, "0700-0715   8442,1 kHz - Murmansk Meteo Radio (Russia)", 120, 576, false, "0700-0715", "Murmansk Meteo Radio (Russia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0200-0300, 1000-1100, 1330-1350, 2000-2020"},
+    {8656100, "0700-0730   8656,1 kHz - Kagoshima Prefec.Fishery Radio (Japan)", 120, 576, false, "0700-0730", "Kagoshima Prefec.Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0015-0045, 0330-0400, 0430-0500, 0600-0630, 0830-0840, 0930-0945, 1100-1115, 1800-1815, 2200-2315"},
+    {16907500, "0700-0730   16907,5 kHz - Misaki Fishery Radio (Japan)", 120, 576, false, "0700-0730", "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0030-0045, 0130-0200, 0300-0330, 0400-0430, 0600-0630, 0810-0845, 1030-1050"},
+    {22559600, "0700-0730   22559,6 kHz - Misaki Fishery Radio (Japan)", 120, 576, false, "0700-0730", "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0400-0430, 0500-0530, 0600-0630, 0800-0830"},
+    {17231000, "0700-0745   17231 kHz - Misaki Fishery Radio (Japan)", 120, 576, false, "0700-0745", "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {7395000, "0700-0840   7395 kHz - Bangkok Meteorological (Thailand)", 120, 576, false, "0700-0840", "Bangkok Meteorological (Thailand)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0050-0620, 1000-1042, 1300-1322, 1700-1742, 2300-2342"},
+    {13072100, "0730-0800   13072,1 kHz - Misaki Fishery Radio (Japan)", 120, 576, false, "0730-0800", "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0015-0050, 0600-0645, 0830-0840, 0930-0945, 1700-1715, 2200-2215, 2300-2315"},
+    {4233100, "0745-1039   4233,1 kHz - USCG Boston (USA)", 120, 576, false, "0745-1039", "USCG Boston (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0230-0455"},
+    {6338600, "0745-1039   6338,6 kHz - USCG Boston (USA)", 120, 576, false, "0745-1039", "USCG Boston (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0230-0455, 1400-1610, 1720-2315"},
+    {9108100, "0745-1039   9108,1 kHz - USCG Boston (USA)", 120, 576, false, "0745-1039", "USCG Boston (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0230-0455, 1400-1610, 1720-2315"},
+    {12748100, "0745-1039   12748,1 kHz - USCG Boston (USA)", 120, 576, false, "0745-1039", "USCG Boston (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1400-1610, 1720-2315"},
+    {22559600, "0800-0830   22559,6 kHz - Misaki Fishery Radio (Japan)", 120, 576, false, "0800-0830", "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0400-0430, 0500-0530, 0600-0630, 0700-0730"},
+    {16907500, "0810-0845   16907,5 kHz - Misaki Fishery Radio (Japan)", 120, 576, false, "0810-0845", "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0030-0045, 0130-0200, 0300-0330, 0400-0430, 0600-0630, 0700-0730, 1030-1050"},
+    {22557600, "0810-0845   22557,6 kHz - Misaki Fishery Radio (Japan)", 120, 576, false, "0810-0845", "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {8105000, "0815-1055   8105 kHz - Hellenic National Meteo Sce. (Greece)", 120, 576, false, "0815-1055", "Hellenic National Meteo Sce. (Greece)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {8656100, "0830-0840   8656,1 kHz - Kagoshima Prefec.Fishery Radio (Japan)", 120, 576, false, "0830-0840", "Kagoshima Prefec.Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0015-0045, 0330-0400, 0430-0500, 0600-0630, 0700-0730, 0930-0945, 1100-1115, 1800-1815, 2200-2315"},
+    {13072100, "0830-0840   13072,1 kHz - Misaki Fishery Radio (Japan)", 120, 576, false, "0830-0840", "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0015-0050, 0600-0645, 0730-0800, 0930-0945, 1700-1715, 2200-2215, 2300-2315"},
+    {4481000, "0835-1055   4481 kHz - Hellenic National Meteo Sce. (Greece)", 120, 576, false, "0835-1055", "Hellenic National Meteo Sce. (Greece)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {2626100, "0900-1900   2626,1 kHz - Australia Weather East (Australia)", 120, 576, false, "0900-1900", "Australia Weather East (Australia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {8656100, "0930-0945   8656,1 kHz - Kagoshima Prefec.Fishery Radio (Japan)", 120, 576, false, "0930-0945", "Kagoshima Prefec.Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0015-0045, 0330-0400, 0430-0500, 0600-0630, 0700-0730, 0830-0840, 1100-1115, 1800-1815, 2200-2315"},
+    {13072100, "0930-0945   13072,1 kHz - Misaki Fishery Radio (Japan)", 120, 576, false, "0930-0945", "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0015-0050, 0600-0645, 0730-0800, 0830-0840, 1700-1715, 2200-2215, 2300-2315"},
+    {6412600, "0930-1030   6412,6 kHz - Fukushima Prefec.Fishery Radio (Japan)", 120, 576, false, "0930-1030", "Fukushima Prefec.Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {2052100, "0950-1213   2052,1 kHz - USCG Kodiak (Alaska)", 120, 576, false, "0950-1213", "USCG Kodiak (Alaska)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0340-0608, 1540-1818, 2150-0028"},
+    {4296100, "0950-1213   4296,1 kHz - USCG Kodiak (Alaska)", 120, 576, false, "0950-1213", "USCG Kodiak (Alaska)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0340-0608, 1540-1818, 2150-0028"},
+    {8457100, "0950-1213   8457,1 kHz - USCG Kodiak (Alaska)", 120, 576, false, "0950-1213", "USCG Kodiak (Alaska)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0340-0608, 1540-1818, 2150-0028"},
+    {12410600, "0950-1213   12410,6 kHz - USCG Kodiak (Alaska)", 120, 576, false, "0950-1213", "USCG Kodiak (Alaska)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0340-0608, 1540-1818, 2150-0028"},
+    {4205500, "1000-1020   4205,5 kHz - Canadian Forces (Canada)", 120, 576, false, "1000-1020", "Canadian Forces (Canada)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {4272100, "1000-1020   4272,1 kHz - Kagoshima Prefec.Fishery Radio (Japan)", 120, 576, false, "1000-1020", "Kagoshima Prefec.Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {7395000, "1000-1042   7395 kHz - Bangkok Meteorological (Thailand)", 120, 576, false, "1000-1042", "Bangkok Meteorological (Thailand)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0050-0620, 0700-0840, 1300-1322, 1700-1742, 2300-2342"},
+    {6326000, "1000-1100   6326 kHz - Murmansk Meteo Radio (Russia)", 120, 576, false, "1000-1100", "Murmansk Meteo Radio (Russia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1330-1345, 1430-1500, 2000-2020"},
+    {8442100, "1000-1100   8442,1 kHz - Murmansk Meteo Radio (Russia)", 120, 576, false, "1000-1100", "Murmansk Meteo Radio (Russia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0200-0300, 0700-0715, 1330-1350, 2000-2020"},
+    {7708100, "1000-1200   7708,1 kHz - VFR Resolute (Canada)", 120, 576, false, "1000-1200", "VFR Resolute (Canada)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0100-0300, 0600-0800"},
+    {16907500, "1030-1050   16907,5 kHz - Misaki Fishery Radio (Japan)", 120, 576, false, "1030-1050", "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0030-0045, 0130-0200, 0300-0330, 0400-0430, 0600-0630, 0700-0730, 0810-0845"},
+    {16905500, "1030-1100   16905,5 kHz - Misaki Fishery Radio (Japan)", 120, 576, false, "1030-1100", "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {4226100, "1058-1145   4226,1 kHz - Valparaiso Radio (Chile)", 120, 576, false, "1058-1145", "Valparaiso Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1628-1715, 1913-2000, 2158-2345"},
+    {8675100, "1058-1145   8675,1 kHz - Valparaiso Meteo Radio (Chile)", 120, 576, false, "1058-1145", "Valparaiso Meteo Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1628-1715, 1913-2000, 2158-2345"},
+    {17144500, "1058-1145   17144,5 kHz - Valparaiso Meteo Radio (Chile)", 120, 576, false, "1058-1145", "Valparaiso Meteo Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1200-1520, 1628-1705, 1800-2120, 2158-2345"},
+    {8656100, "1100-1115   8656,1 kHz - Kagoshima Prefec.Fishery Radio (Japan)", 120, 576, false, "1100-1115", "Kagoshima Prefec.Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0015-0045, 0330-0400, 0430-0500, 0600-0630, 0700-0730, 0830-0840, 0930-0945, 1800-1815, 2200-2315"},
+    {5753100, "1100-2100   5753,1 kHz - Australia Weather West (Australia)", 120, 576, false, "1100-2100", "Australia Weather West (Australia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {4344100, "1120-1237   4344,1 kHz - USCG San Francisco (USA)", 120, 576, false, "1120-1237", "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0140-0420, 0655-1030, 1400-1630"},
+    {8680100, "1120-1237   8680,1 kHz - USCG San Francisco (USA)", 120, 576, false, "1120-1237", "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0140-0420, 0655-1030, 1400-1630, 1840-2356"},
+    {12784100, "1120-1237   12784,1 kHz - USCG San Francisco (USA)", 120, 576, false, "1120-1237", "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0140-0420, 0655-1030, 1400-1630, 1840-2356"},
+    {17149300, "1120-1237   17149,3 kHz - USCG San Francisco (USA)", 120, 576, false, "1120-1237", "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0140-0420, 0655-1030, 1400-1630, 1840-2356"},
+    {4316000, "1200-1520   4316 kHz - USCG New Orleans (USA)", 120, 576, false, "1200-1520", "USCG New Orleans (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-0320, 0600-0920, 1800-2120"},
+    {8502000, "1200-1520   8502 kHz - USCG New Orleans (USA)", 120, 576, false, "1200-1520", "USCG New Orleans (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-0320, 0600-0920, 1800-2120"},
+    {12788000, "1200-1520   12788 kHz - USCG New Orleans (USA)", 120, 576, false, "1200-1520", "USCG New Orleans (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-0320, 0600-0920, 1800-2120"},
+    {17144500, "1200-1520   17144,5 kHz - USCG New Orleans (USA)", 120, 576, false, "1200-1520", "USCG New Orleans (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1058-1145, 1628-1705, 1800-2120, 2158-2345"},
+    {4197850, "1225-1715   4197,85 kHz - Guangzhou Radio Meteo (China)", 120, 576, false, "1225-1715", "Guangzhou Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-1045, 2015-2050"},
+    {8410600, "1225-1715   8410,6 kHz - Guangzhou Radio Meteo (China)", 120, 576, false, "1225-1715", "Guangzhou Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-1045, 2015-2050"},
+    {12627350, "1225-1715   12627,35 kHz - Guangzhou Radio Meteo (China)", 120, 576, false, "1225-1715", "Guangzhou Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-1045, 2015-2050"},
+    {16824350, "1225-1715   16824,35 kHz - Guangzhou Radio Meteo (China)", 120, 576, false, "1225-1715", "Guangzhou Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-1045, 2015-2050"},
+    {7395000, "1300-1322   7395 kHz - Bangkok Meteorological (Thailand)", 120, 576, false, "1300-1322", "Bangkok Meteorological (Thailand)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0050-0620, 0700-0840, 1000-1042, 1700-1742, 2300-2342"},
+    {6326000, "1330-1345   6326 kHz - Murmansk Meteo Radio (Russia)", 120, 576, false, "1330-1345", "Murmansk Meteo Radio (Russia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1000-1100, 1430-1500, 2000-2020"},
+    {8442100, "1330-1350   8442,1 kHz - Murmansk Meteo Radio (Russia)", 120, 576, false, "1330-1350", "Murmansk Meteo Radio (Russia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0200-0300, 0700-0715, 1000-1100, 2000-2020"},
+    {6338600, "1400-1610   6338,6 kHz - USCG Boston (USA)", 120, 576, false, "1400-1610", "USCG Boston (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0230-0455, 0745-1039, 1720-2315"},
+    {9108100, "1400-1610   9108,1 kHz - USCG Boston (USA)", 120, 576, false, "1400-1610", "USCG Boston (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0230-0455, 0745-1039, 1720-2315"},
+    {12748100, "1400-1610   12748,1 kHz - USCG Boston (USA)", 120, 576, false, "1400-1610", "USCG Boston (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0745-1039, 1720-2315"},
+    {4344100, "1400-1630   4344,1 kHz - USCG San Francisco (USA)", 120, 576, false, "1400-1630", "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0140-0420, 0655-1030, 1120-1237"},
+    {8680100, "1400-1630   8680,1 kHz - USCG San Francisco (USA)", 120, 576, false, "1400-1630", "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0140-0420, 0655-1030, 1120-1237, 1840-2356"},
+    {12784100, "1400-1630   12784,1 kHz - USCG San Francisco (USA)", 120, 576, false, "1400-1630", "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0140-0420, 0655-1030, 1120-1237, 1840-2356"},
+    {17149300, "1400-1630   17149,3 kHz - USCG San Francisco (USA)", 120, 576, false, "1400-1630", "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0140-0420, 0655-1030, 1120-1237, 1840-2356"},
+    {6326000, "1430-1500   6326 kHz - Murmansk Meteo Radio (Russia)", 120, 576, false, "1430-1500", "Murmansk Meteo Radio (Russia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1000-1100, 1330-1345, 2000-2020"},
+    {2616600, "1500-0800   2616,6 kHz - Northwood Meteo JOMOC (United Kingdom)", 120, 576, false, "1500-0800", "Northwood Meteo JOMOC (United Kingdom)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {2052100, "1540-1818   2052,1 kHz - USCG Kodiak (Alaska)", 120, 576, false, "1540-1818", "USCG Kodiak (Alaska)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0340-0608, 0950-1213, 2150-0028"},
+    {4296100, "1540-1818   4296,1 kHz - USCG Kodiak (Alaska)", 120, 576, false, "1540-1818", "USCG Kodiak (Alaska)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0340-0608, 0950-1213, 2150-0028"},
+    {8457100, "1540-1818   8457,1 kHz - USCG Kodiak (Alaska)", 120, 576, false, "1540-1818", "USCG Kodiak (Alaska)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0340-0608, 0950-1213, 2150-0028"},
+    {12410600, "1540-1818   12410,6 kHz - USCG Kodiak (Alaska)", 120, 576, false, "1540-1818", "USCG Kodiak (Alaska)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0340-0608, 0950-1213, 2150-0028"},
+    {4320100, "1550-1630   4320,1 kHz - Magallanes Radio (Chile)", 120, 576, false, "1550-1630", "Magallanes Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0350-0415, 1730-1755, 2005-2040, 2240-2340"},
+    {8694100, "1550-1630   8694,1 kHz - Magallanes Radio (Chile)", 120, 576, false, "1550-1630", "Magallanes Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0350-0415, 1730-1755, 2005-2040, 2240-2340"},
+    {17144500, "1628-1705   17144,5 kHz - Valparaiso Meteo Radio (Chile)", 120, 576, false, "1628-1705", "Valparaiso Meteo Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1058-1145, 1200-1520, 1800-2120, 2158-2345"},
+    {4226100, "1628-1715   4226,1 kHz - Valparaiso Radio (Chile)", 120, 576, false, "1628-1715", "Valparaiso Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1058-1145, 1913-2000, 2158-2345"},
+    {8675100, "1628-1715   8675,1 kHz - Valparaiso Meteo Radio (Chile)", 120, 576, false, "1628-1715", "Valparaiso Meteo Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1058-1145, 1913-2000, 2158-2345"},
+    {13072100, "1700-1715   13072,1 kHz - Misaki Fishery Radio (Japan)", 120, 576, false, "1700-1715", "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0015-0050, 0600-0645, 0730-0800, 0830-0840, 0930-0945, 2200-2215, 2300-2315"},
+    {7395000, "1700-1742   7395 kHz - Bangkok Meteorological (Thailand)", 120, 576, false, "1700-1742", "Bangkok Meteorological (Thailand)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0050-0620, 0700-0840, 1000-1042, 1300-1322, 2300-2342"},
+    {11088100, "1719-0356   11088,1 kHz - Honolulu Meteo (Hawaii)", 120, 576, false, "1719-0356", "Honolulu Meteo (Hawaii)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0519-1556"},
+    {6338600, "1720-2315   6338,6 kHz - USCG Boston (USA)", 120, 576, false, "1720-2315", "USCG Boston (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0230-0455, 0745-1039, 1400-1610"},
+    {9108100, "1720-2315   9108,1 kHz - USCG Boston (USA)", 120, 576, false, "1720-2315", "USCG Boston (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0230-0455, 0745-1039, 1400-1610"},
+    {12748100, "1720-2315   12748,1 kHz - USCG Boston (USA)", 120, 576, false, "1720-2315", "USCG Boston (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0745-1039, 1400-1610"},
+    {4320100, "1730-1755   4320,1 kHz - Magallanes Radio (Chile)", 120, 576, false, "1730-1755", "Magallanes Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0350-0415, 1550-1630, 2005-2040, 2240-2340"},
+    {8694100, "1730-1755   8694,1 kHz - Magallanes Radio (Chile)", 120, 576, false, "1730-1755", "Magallanes Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0350-0415, 1550-1630, 2005-2040, 2240-2340"},
+    {8656100, "1800-1815   8656,1 kHz - Kagoshima Prefec.Fishery Radio (Japan)", 120, 576, false, "1800-1815", "Kagoshima Prefec.Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0015-0045, 0330-0400, 0430-0500, 0600-0630, 0700-0730, 0830-0840, 0930-0945, 1100-1115, 2200-2315"},
+    {4316000, "1800-2120   4316 kHz - USCG New Orleans (USA)", 120, 576, false, "1800-2120", "USCG New Orleans (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-0320, 0600-0920, 1200-1520"},
+    {8502000, "1800-2120   8502 kHz - USCG New Orleans (USA)", 120, 576, false, "1800-2120", "USCG New Orleans (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-0320, 0600-0920, 1200-1520"},
+    {12788000, "1800-2120   12788 kHz - USCG New Orleans (USA)", 120, 576, false, "1800-2120", "USCG New Orleans (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-0320, 0600-0920, 1200-1520"},
+    {17144500, "1800-2120   17144,5 kHz - USCG New Orleans (USA)", 120, 576, false, "1800-2120", "USCG New Orleans (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1058-1145, 1200-1520, 1628-1705, 2158-2345"},
+    {8680100, "1840-2356   8680,1 kHz - USCG San Francisco (USA)", 120, 576, false, "1840-2356", "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0140-0420, 0655-1030, 1120-1237, 1400-1630"},
+    {12784100, "1840-2356   12784,1 kHz - USCG San Francisco (USA)", 120, 576, false, "1840-2356", "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0140-0420, 0655-1030, 1120-1237, 1400-1630"},
+    {17149300, "1840-2356   17149,3 kHz - USCG San Francisco (USA)", 120, 576, false, "1840-2356", "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0140-0420, 0655-1030, 1120-1237, 1400-1630"},
+    {22525100, "1840-2356   22525,1 kHz - USCG San Francisco (USA)", 120, 576, false, "1840-2356", "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {20467100, "1900-0900   20467,1 kHz - Australia Weather East (Australia)", 120, 576, false, "1900-0900", "Australia Weather East (Australia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {4226100, "1913-2000   4226,1 kHz - Valparaiso Radio (Chile)", 120, 576, false, "1913-2000", "Valparaiso Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1058-1145, 1628-1715, 2158-2345"},
+    {8675100, "1913-2000   8675,1 kHz - Valparaiso Meteo Radio (Chile)", 120, 576, false, "1913-2000", "Valparaiso Meteo Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1058-1145, 1628-1715, 2158-2345"},
+    {6326000, "2000-2020   6326 kHz - Murmansk Meteo Radio (Russia)", 120, 576, false, "2000-2020", "Murmansk Meteo Radio (Russia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1000-1100, 1330-1345, 1430-1500"},
+    {8442100, "2000-2020   8442,1 kHz - Murmansk Meteo Radio (Russia)", 120, 576, false, "2000-2020", "Murmansk Meteo Radio (Russia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0200-0300, 0700-0715, 1000-1100, 1330-1350"},
+    {4168100, "2000-2055   4168,1 kHz - Shanghai Radio Meteo (China)", 120, 576, false, "2000-2055", "Shanghai Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-1415"},
+    {8300100, "2000-2055   8300,1 kHz - Shanghai Radio Meteo (China)", 120, 576, false, "2000-2055", "Shanghai Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-1415"},
+    {8789100, "2000-2055   8789,1 kHz - Shanghai Radio Meteo (China)", 120, 576, false, "2000-2055", "Shanghai Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-1415"},
+    {12380100, "2000-2055   12380,1 kHz - Shanghai Radio Meteo (China)", 120, 576, false, "2000-2055", "Shanghai Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-1415"},
+    {16557100, "2000-2055   16557,1 kHz - Shanghai Radio Meteo (China)", 120, 576, false, "2000-2055", "Shanghai Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-1415"},
+    {19785100, "2000-2055   19785,1 kHz - Shanghai Radio Meteo (China)", 120, 576, false, "2000-2055", "Shanghai Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-1415"},
+    {4320100, "2005-2040   4320,1 kHz - Magallanes Radio (Chile)", 120, 576, false, "2005-2040", "Magallanes Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0350-0415, 1550-1630, 1730-1755, 2240-2340"},
+    {8694100, "2005-2040   8694,1 kHz - Magallanes Radio (Chile)", 120, 576, false, "2005-2040", "Magallanes Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0350-0415, 1550-1630, 1730-1755, 2240-2340"},
+    {4197850, "2015-2050   4197,85 kHz - Guangzhou Radio Meteo (China)", 120, 576, false, "2015-2050", "Guangzhou Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-1045, 1225-1715"},
+    {8410600, "2015-2050   8410,6 kHz - Guangzhou Radio Meteo (China)", 120, 576, false, "2015-2050", "Guangzhou Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-1045, 1225-1715"},
+    {12627350, "2015-2050   12627,35 kHz - Guangzhou Radio Meteo (China)", 120, 576, false, "2015-2050", "Guangzhou Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-1045, 1225-1715"},
+    {16824350, "2015-2050   16824,35 kHz - Guangzhou Radio Meteo (China)", 120, 576, false, "2015-2050", "Guangzhou Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-1045, 1225-1715"},
+    {18058100, "2100-1100   18058,1 kHz - Australia Weather West (Australia)", 120, 576, false, "2100-1100", "Australia Weather West (Australia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)"},
+    {2052100, "2150-0028   2052,1 kHz - USCG Kodiak (Alaska)", 120, 576, false, "2150-0028", "USCG Kodiak (Alaska)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0340-0608, 0950-1213, 1540-1818"},
+    {4296100, "2150-0028   4296,1 kHz - USCG Kodiak (Alaska)", 120, 576, false, "2150-0028", "USCG Kodiak (Alaska)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0340-0608, 0950-1213, 1540-1818"},
+    {8457100, "2150-0028   8457,1 kHz - USCG Kodiak (Alaska)", 120, 576, false, "2150-0028", "USCG Kodiak (Alaska)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0340-0608, 0950-1213, 1540-1818"},
+    {12410600, "2150-0028   12410,6 kHz - USCG Kodiak (Alaska)", 120, 576, false, "2150-0028", "USCG Kodiak (Alaska)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0340-0608, 0950-1213, 1540-1818"},
+    {4226100, "2158-2345   4226,1 kHz - Valparaiso Radio (Chile)", 120, 576, false, "2158-2345", "Valparaiso Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1058-1145, 1628-1715, 1913-2000"},
+    {8675100, "2158-2345   8675,1 kHz - Valparaiso Meteo Radio (Chile)", 120, 576, false, "2158-2345", "Valparaiso Meteo Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1058-1145, 1628-1715, 1913-2000"},
+    {17144500, "2158-2345   17144,5 kHz - Valparaiso Meteo Radio (Chile)", 120, 576, false, "2158-2345", "Valparaiso Meteo Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1058-1145, 1200-1520, 1628-1705, 1800-2120"},
+    {13072100, "2200-2215   13072,1 kHz - Misaki Fishery Radio (Japan)", 120, 576, false, "2200-2215", "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0015-0050, 0600-0645, 0730-0800, 0830-0840, 0930-0945, 1700-1715, 2300-2315"},
+    {8656100, "2200-2315   8656,1 kHz - Kagoshima Prefec.Fishery Radio (Japan)", 120, 576, false, "2200-2315", "Kagoshima Prefec.Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0015-0045, 0330-0400, 0430-0500, 0600-0630, 0700-0730, 0830-0840, 0930-0945, 1100-1115, 1800-1815"},
+    {4320100, "2240-2340   4320,1 kHz - Magallanes Radio (Chile)", 120, 576, false, "2240-2340", "Magallanes Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0350-0415, 1550-1630, 1730-1755, 2005-2040"},
+    {8694100, "2240-2340   8694,1 kHz - Magallanes Radio (Chile)", 120, 576, false, "2240-2340", "Magallanes Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0350-0415, 1550-1630, 1730-1755, 2005-2040"},
+    {13072100, "2300-2315   13072,1 kHz - Misaki Fishery Radio (Japan)", 120, 576, false, "2300-2315", "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0015-0050, 0600-0645, 0730-0800, 0830-0840, 0930-0945, 1700-1715, 2200-2215"},
+    {7395000, "2300-2342   7395 kHz - Bangkok Meteorological (Thailand)", 120, 576, false, "2300-2342", "Bangkok Meteorological (Thailand)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0050-0620, 0700-0840, 1000-1042, 1300-1322, 1700-1742"},
+};
+
 const CanalDec kCanaisAle[] = {
     {14109000, "14109 kHz - Radioamador HFN - 20 m (o mais ativo)", 0, 0, false},
     {7102000, "7102 kHz - Radioamador HFN - 40 m", 0, 0, false},
@@ -2342,14 +2923,46 @@ const CanalDec kCanaisAle[] = {
 const float kBauds[] = {45.45f, 50, 75, 100};
 const float kShifts[] = {170, 200, 425, 450, 850};
 
+// "hhmm-hhmm hhmm-hhmm": alguma janela contem a hora UTC de agora?
+bool canalNoAr(const char* hor)
+{
+    if (!hor || !*hor) return false;
+    SYSTEMTIME st; GetSystemTime(&st);
+    const int agora = st.wHour * 60 + st.wMinute;
+    int a, b, n = 0;
+    for (const char* p = hor; *p; p += n) {
+        if (std::sscanf(p, " %4d-%4d%n", &a, &b, &n) != 2 || n <= 0) break;
+        const int ma = a / 100 * 60 + a % 100, mb = b / 100 * 60 + b % 100;
+        if (ma <= mb ? (agora >= ma && agora < mb) : (agora >= ma || agora < mb)) return true;
+    }
+    return false;
+}
+
 template <size_t N>
 bool comboCanal(const char* id, const CanalDec (&c)[N], int& sel)
 {
     bool mudou = false;
     const char* prev = sel >= 0 && sel < (int)N ? c[sel].nome : "- escolha para sintonizar -";
     if (ImGui::BeginCombo(id, prev, ImGuiComboFlags_HeightLarge)) {
-        for (int i = 0; i < (int)N; ++i)
+        // ao abrir, a lista (em ordem de horario UTC) rola ate o escolhido ou,
+        // sem escolha, ate as transmissoes que comecam agora (meia hora atras em diante)
+        bool rolar = ImGui::IsWindowAppearing();
+        SYSTEMTIME st; GetSystemTime(&st);
+        const int agora = st.wHour * 60 + st.wMinute;
+        for (int i = 0; i < (int)N; ++i) {
+            if (c[i].hz == 0) { ImGui::SeparatorText(c[i].nome); continue; }   // titulo de grupo
+            const bool noAr = canalNoAr(c[i].hor);
+            int hi = -1, ini = -1;
+            if (c[i].hor && std::sscanf(c[i].hor, "%4d", &hi) == 1) ini = hi / 100 * 60 + hi % 100;
+            if (rolar && (sel >= 0 ? i == sel : ini >= agora - 30)) { ImGui::SetScrollHereY(0.1f); rolar = false; }
+            if (noAr) ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 1.f, 0.5f, 1));
+            ImGui::PushID(i);
             if (ImGui::Selectable(c[i].nome, sel == i)) { sel = i; mudou = true; }
+            ImGui::PopID();
+            if (noAr) ImGui::PopStyleColor();
+            if (c[i].dica && *c[i].dica && ImGui::IsItemHovered())
+                ImGui::SetTooltip("%s%s(horarios em UTC)", c[i].dica, noAr ? "\n\nNO AR AGORA pela grade " : "\n\n");
+        }
         ImGui::EndCombo();
     }
     return mudou;
@@ -2576,6 +3189,16 @@ void Ui::escolherDecoder(int t, bool sintonizarModo)
         // tela. O audio decodificado toca no lugar do audio do radio.
         if (m != "AM") mudarModo("AM");
         r_.setBanda(10000);
+    } else if (t == Decoders::SSTV) {
+        // SSTV de radioamador: USB (20/15/10 m), LSB (40/80 m) ou FM (ISS, VHF)
+        if (m != "USB" && m != "LSB" && m != "NFM" && m != "FM") mudarModo("USB");
+        if ((r_.modo() == "USB" || r_.modo() == "LSB") && r_.banda() < 3000) r_.setBanda(3000);   // o branco e 2300 Hz
+        sstvAumentar_ = true;
+    } else if (t == Decoders::WEFAX) {
+        // fax: USB, 1500-2300 Hz; a janela cresce para caber a imagem
+        if (m != "USB") mudarModo("USB");
+        if (r_.banda() < 3000) r_.setBanda(3000);
+        sstvAumentar_ = true;
     } else if (t == Decoders::DMR) {
         // o dsd-fme quer o FM cru de um canal de 12,5 kHz
         if (m != "NFM" && m != "FM") mudarModo("NFM");
@@ -2675,6 +3298,465 @@ void Ui::devolverModo()
     decMudouFreq_ = decMudouTaxa_ = false;
 }
 
+// ---------------------------------------------------------------------------
+//  SSTV: imagem que esta chegando (textura), espectro do audio com as marcas
+//  de 1200/1500/1900/2300 Hz, historico das recebidas e PNG salvo sozinho na
+//  pasta SSTV ao lado do RXSDR.exe.
+// ---------------------------------------------------------------------------
+struct FreqSstv { const char* nome; uint64_t hz; const char* modo; };
+static const FreqSstv kFreqSstv[] = {
+    {"14.230 MHz  USB  (20 m - a mais movimentada)", 14230000, "USB"},
+    {"14.233 MHz  USB  (20 m)", 14233000, "USB"},
+    {"21.340 MHz  USB  (15 m)", 21340000, "USB"},
+    {"28.680 MHz  USB  (10 m)", 28680000, "USB"},
+    {"7.171 MHz  LSB  (40 m - Américas)", 7171000, "LSB"},
+    {"7.165 MHz  LSB  (40 m - Europa)", 7165000, "LSB"},
+    {"3.845 MHz  LSB  (80 m - Américas)", 3845000, "LSB"},
+    {"3.730 MHz  LSB  (80 m - Europa)", 3730000, "LSB"},
+    {"145.800 MHz  NFM  (ISS - eventos ARISS)", 145800000, "NFM"},
+};
+
+// textura ARGB do tamanho da imagem (D3DPOOL_MANAGED sobrevive ao reset do D3D)
+static bool copiarArgb(IDirect3DTexture9* t, const uint32_t* px, int w, int h)
+{
+    D3DLOCKED_RECT lr;
+    if (!t || t->LockRect(0, &lr, nullptr, 0) != D3D_OK) return false;
+    for (int y = 0; y < h; ++y)
+        std::memcpy((uint8_t*)lr.pBits + size_t(y) * lr.Pitch, px + size_t(y) * w, size_t(w) * 4);
+    t->UnlockRect(0);
+    return true;
+}
+
+static IDirect3DTexture9* texturaArgb(IDirect3DDevice9* dev, const uint32_t* px, int w, int h)
+{
+    IDirect3DTexture9* t = nullptr;
+    if (w <= 0 || h <= 0 || dev->CreateTexture(w, h, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_MANAGED, &t, nullptr) != D3D_OK)
+        return nullptr;
+    if (px) copiarArgb(t, px, w, h);
+    return t;
+}
+
+// Chamado a cada quadro com a janela aberta: imagem nova -> textura;
+// imagens terminadas (ja salvas pelo Decoders) -> historico.
+void Ui::atualizarSstv()
+{
+    auto& d = r_.decoders();
+    auto& sv = d.sstv();
+    d.sstvVfoHz = r_.vfo();
+    d.sstvSalvar = sstvSalvar_;
+    Decoders::ImagemSstv im;
+    while (d.pegarImagemSstv(im)) {
+        SstvFeita f;
+        f.w = im.w; f.h = im.h; f.rotulo = im.rotulo; f.arquivo = im.arquivo;
+        f.tex = texturaArgb(dev_, im.argb.data(), im.w, im.h);
+        sstvHist_.insert(sstvHist_.begin(), std::move(f));
+        while (sstvHist_.size() > 12) {
+            if (sstvHist_.back().tex) sstvHist_.back().tex->Release();
+            sstvHist_.pop_back();
+        }
+    }
+    int w = 0, h = 0;
+    if (decTipo_ != Decoders::SSTV) return;
+    if (!sv.imagem(sstvBuf_, w, h, sstvVer_)) return;
+    sstvW_ = w; sstvH_ = h;
+    if (w <= 0 || h <= 0) return;
+    if (!sstvTex_ || sstvTexW_ != w || sstvTexH_ != h) {
+        if (sstvTex_) sstvTex_->Release();
+        sstvTex_ = texturaArgb(dev_, nullptr, w, h);
+        sstvTexW_ = w; sstvTexH_ = h;
+    }
+    copiarArgb(sstvTex_, sstvBuf_.data(), w, h);
+}
+
+void Ui::painelSstv()
+{
+    auto& sv = r_.decoders().sstv();
+    const SstvCore::Status stt = sv.status();
+
+    // --- linha 1: frequencia, VIS automatico, inclinacao, salvar ---
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("Frequência"); ImGui::SameLine();
+    ImGui::SetNextItemWidth(310 * s_);
+    const int nF = (int)(sizeof kFreqSstv / sizeof kFreqSstv[0]);
+    if (ImGui::BeginCombo("##sstvfreq", sstvFreqSel_ >= 0 && sstvFreqSel_ < nF ? kFreqSstv[sstvFreqSel_].nome
+                                                                             : "- escolha para sintonizar -",
+                          ImGuiComboFlags_HeightLarge)) {
+        for (int i = 0; i < nF; ++i)
+            if (ImGui::Selectable(kFreqSstv[i].nome, sstvFreqSel_ == i)) {
+                sstvFreqSel_ = i;
+                const FreqSstv& f = kFreqSstv[i];
+                mudarModo(f.modo);
+                r_.setBanda(std::string(f.modo) == "NFM" ? 20000 : 3000);   // ISS: Doppler de ate 3,5 kHz
+                sintonizar(f.hz, false);
+                decMudouFreq_ = true;
+            }
+        ImGui::EndCombo();
+    }
+    ImGui::SameLine();
+    bool vis = sv.aceitarVis.load();
+    if (ImGui::Checkbox("VIS automático", &vis)) sv.aceitarVis = vis;
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Reconhece o modo pelo cabeçalho VIS e começa a imagem sozinho");
+    ImGui::SameLine();
+    bool incl = sv.autoInclinacao.load();
+    if (ImGui::Checkbox("Corrigir inclinação", &incl)) sv.autoInclinacao = incl;
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Mede o relógio da placa de som de quem transmite pelos pulsos de 1200 Hz\n"
+                          "e endireita a imagem (sem isso ela sai torta)");
+    ImGui::SameLine();
+    ImGui::Checkbox("Salvar PNG", &sstvSalvar_);
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Cada imagem recebida vai para a pasta SSTV ao lado do RXSDR.exe");
+
+    // --- linha 2: comecar sem VIS, terminar, limpar, pasta ---
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("Modo"); ImGui::SameLine();
+    ImGui::SetNextItemWidth(130 * s_);
+    sstvModoManual_ = std::clamp(sstvModoManual_, 0, SstvCore::nModos() - 1);
+    if (ImGui::BeginCombo("##sstvmodo", SstvCore::nomeModo(sstvModoManual_), ImGuiComboFlags_HeightLarge)) {
+        for (int m = 0; m < SstvCore::nModos(); ++m) {
+            char t[96];
+            std::snprintf(t, sizeof t, "%-10s %dx%d  %.0f s", SstvCore::nomeModo(m), SstvCore::larguraModo(m),
+                          SstvCore::alturaModo(m), SstvCore::duracaoModo(m));
+            if (ImGui::Selectable(t, m == sstvModoManual_)) sstvModoManual_ = m;
+        }
+        ImGui::EndCombo();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Começar agora")) { if (!decRodando_) escolherDecoder(Decoders::SSTV, false); sv.comecarAgora(sstvModoManual_); }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Pegou a transmissão no meio (sem o VIS)? Escolha o modo e clique:\n"
+                          "a imagem começa já, alinhada pelos próximos pulsos de sincronismo.");
+    ImGui::SameLine();
+    if (ImGui::Button("Terminar")) sv.parar();
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Encerra a imagem atual como está (e salva, se tiver pelo menos 1/4)");
+    ImGui::SameLine();
+    if (ImGui::Button("Limpar imagem")) sv.limpar();
+    ImGui::SameLine();
+    if (ImGui::Button("Abrir pasta SSTV")) {
+        const std::string pasta = pastaDoExe() + "\\SSTV";
+        CreateDirectoryA(pasta.c_str(), nullptr);
+        ShellExecuteA(nullptr, "open", pasta.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+    }
+
+    // --- area: imagem a esquerda, espectro + historico a direita ---
+    const float altArea = std::max(160 * s_, ImGui::GetContentRegionAvail().y - 120 * s_);
+    const float wDir = 250 * s_;
+    if (ImGui::BeginChild("##sstvimg", ImVec2(ImGui::GetContentRegionAvail().x - wDir - 8 * s_, altArea),
+                          ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar)) {
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        const ImVec2 p0 = ImGui::GetCursorScreenPos();
+        const ImVec2 av = ImGui::GetContentRegionAvail();
+        const float altBarra = 16 * s_;
+        const float aw = av.x, ah = av.y - altBarra - 4 * s_;
+        const int iw = sstvW_ > 0 ? sstvW_ : 320, ih = sstvH_ > 0 ? sstvH_ : 256;
+        const float esc = std::max(0.1f, std::min(aw / iw, ah / ih));
+        const ImVec2 tam(iw * esc, ih * esc);
+        const ImVec2 a(p0.x + (aw - tam.x) * 0.5f, p0.y), b(a.x + tam.x, a.y + tam.y);
+        dl->AddRectFilled(a, b, IM_COL32(0x08, 0x08, 0x08, 255));
+        if (sstvTex_ && sstvW_ > 0) dl->AddImage(TEXID(sstvTex_), a, b);
+        else {
+            const char* msg = decRodando_ ? "esperando uma imagem..." : "decodificador parado";
+            const ImVec2 ts = ImGui::CalcTextSize(msg);
+            dl->AddText(ImVec2((a.x + b.x - ts.x) * 0.5f, (a.y + b.y - ts.y) * 0.5f), C_DIM, msg);
+        }
+        dl->AddRect(a, b, C_BORDER_L);
+        // linha que esta chegando (como no MMSSTV)
+        if (stt.estado == SstvCore::RECEBENDO && stt.linhas > 0 && stt.linha < stt.linhas) {
+            const float y = a.y + tam.y * stt.linha / stt.linhas;
+            dl->AddLine(ImVec2(a.x, y), ImVec2(b.x, y), IM_COL32(0xff, 0x40, 0x40, 160), 1.5f * s_);
+        }
+        // barra de progresso
+        const float frac = stt.linhas > 0 ? float(stt.linha) / stt.linhas : 0.f;
+        const ImVec2 pa(a.x, b.y + 4 * s_), pb(b.x, b.y + 4 * s_ + altBarra);
+        dl->AddRectFilled(pa, pb, C_METER);
+        dl->AddRectFilled(pa, ImVec2(pa.x + (pb.x - pa.x) * frac, pb.y),
+                          stt.estado == SstvCore::RECEBENDO ? IM_COL32(0x00, 0xb0, 0x50, 255) : IM_COL32(0x30, 0x60, 0x40, 255));
+        char pr[160];
+        if (stt.modo >= 0)
+            std::snprintf(pr, sizeof pr, "%s  %dx%d  -  linha %d de %d%s", SstvCore::nomeModo(stt.modo), iw, ih,
+                          stt.linha, stt.linhas, stt.estado == SstvCore::RECEBENDO ? "" : "  (pronta)");
+        else std::snprintf(pr, sizeof pr, "sem imagem");
+        dl->AddText(ImVec2(pa.x + 6 * s_, pa.y + (altBarra - ImGui::GetTextLineHeight()) * 0.5f), C_TEXT, pr);
+    }
+    ImGui::EndChild();
+    ImGui::SameLine();
+    if (ImGui::BeginChild("##sstvdir", ImVec2(wDir, altArea), ImGuiChildFlags_None)) {
+        // espectro do audio, 900 a 2500 Hz, com as marcas do SSTV
+        std::vector<float> db;
+        double hzBin = 1;
+        sv.espectro(db, hzBin);
+        if (sstvEsp_.size() != db.size()) sstvEsp_ = db;
+        for (size_t i = 0; i < db.size(); ++i) sstvEsp_[i] += (db[i] - sstvEsp_[i]) * 0.35f;
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        const ImVec2 p0 = ImGui::GetCursorScreenPos();
+        const float W = ImGui::GetContentRegionAvail().x, H = 90 * s_;
+        const ImVec2 q(p0.x + W, p0.y + H);
+        dl->AddRectFilled(p0, q, IM_COL32(0x02, 0x06, 0x03, 255));
+        const double f0 = 900, f1 = 2500;
+        auto xDe = [&](double f) { return p0.x + float((f - f0) / (f1 - f0)) * W; };
+        const double dv = stt.estado == SstvCore::RECEBENDO ? stt.desvioHz : 0.0;
+        struct Marca { double f; ImU32 c; const char* t; };
+        const Marca marcas[] = {{1200, IM_COL32(0xff, 0x50, 0x50, 200), "1200"}, {1500, IM_COL32(0x90, 0x90, 0x90, 200), "1500"},
+                                {1900, IM_COL32(0xff, 0xd0, 0x30, 200), "1900"}, {2300, IM_COL32(0xf0, 0xf0, 0xf0, 200), "2300"}};
+        ImGui::PushFont(f_.pequena);
+        for (const Marca& m : marcas) {
+            const float x = xDe(m.f + dv);
+            dl->AddLine(ImVec2(x, p0.y), ImVec2(x, q.y), m.c, 1.f);
+            dl->AddText(ImVec2(x + 2 * s_, p0.y + 1), m.c, m.t);
+        }
+        ImGui::PopFont();
+        if (!sstvEsp_.empty()) {
+            float mx = -1e9f, mn = 1e9f;
+            for (size_t i = 0; i < sstvEsp_.size(); ++i) {
+                const double f = i * hzBin;
+                if (f < 300 || f > 3000) continue;
+                mx = std::max(mx, sstvEsp_[i]); mn = std::min(mn, sstvEsp_[i]);
+            }
+            const float topo = mx + 3, piso = std::max(mn, mx - 45);
+            ImVec2 ant(0, 0);
+            bool tem = false;
+            for (size_t i = 0; i < sstvEsp_.size(); ++i) {
+                const double f = i * hzBin;
+                if (f < f0 || f > f1) continue;
+                const float v = std::clamp((sstvEsp_[i] - piso) / std::max(1.f, topo - piso), 0.f, 1.f);
+                const ImVec2 pt(xDe(f), q.y - 2 - v * (H - 14 * s_));
+                if (tem) dl->AddLine(ant, pt, IM_COL32(0xff, 0xc8, 0x20, 255), 1.3f * s_);
+                ant = pt; tem = true;
+            }
+        }
+        dl->AddRect(p0, q, C_BORDER_L);
+        ImGui::Dummy(ImVec2(W, H));
+        // situacao
+        const char* est = stt.estado == SstvCore::RECEBENDO ? "RECEBENDO" : stt.estado == SstvCore::PRONTA ? "PRONTA" : "ESPERANDO VIS";
+        ImGui::TextColored(stt.estado == SstvCore::RECEBENDO ? ImVec4(0.2f, 1.f, 0.4f, 1) : ImVec4(1.f, 0.67f, 0.f, 1), "%s", est);
+        if (stt.modo >= 0) {
+            ImGui::SameLine();
+            ImGui::Text("%s%s", SstvCore::nomeModo(stt.modo), stt.porVis ? " (VIS)" : " (manual)");
+            ImGui::Text("Sintonia: %+.0f Hz   Inclinação: %+.0f ppm", stt.desvioHz, stt.inclinacaoPpm);
+            ImGui::Text("Sincronismos: %d   faltaram: %d", stt.sincronismos, stt.faltas);
+        } else {
+            ImGui::TextDisabled("Sintonize e espere o cabeçalho VIS");
+        }
+        ImGui::Separator();
+        ImGui::Text("Recebidas (%d)", (int)sstvHist_.size());
+        const float tw = (W - 8 * s_) / 2;
+        for (size_t i = 0; i < sstvHist_.size(); ++i) {
+            const SstvFeita& f = sstvHist_[i];
+            if (i % 2) ImGui::SameLine();
+            ImGui::PushID((int)i);
+            const ImVec2 ts(tw, tw * f.h / std::max(1, f.w));
+            if (f.tex) {
+                if (ImGui::ImageButton("##mini", TEXID(f.tex), ts, ImVec2(0, 0), ImVec2(1, 1)) && !f.arquivo.empty())
+                    ShellExecuteA(nullptr, "open", f.arquivo.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+            } else ImGui::Dummy(ts);
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("%s%s", f.rotulo.c_str(), f.arquivo.empty() ? "\n(não salva)" : "\nclique para abrir o PNG");
+            ImGui::PopID();
+        }
+    }
+    ImGui::EndChild();
+    ImGui::TextDisabled("USB em 20/15/10 m, LSB em 40/80 m. A imagem começa sozinha no VIS; a linha vermelha mostra onde ela está.");
+}
+
+// ---------------------------------------------------------------------------
+//  WEFAX: fax meteorologico. A imagem (meia resolucao) vai para uma textura
+//  que cresce em blocos de 256 linhas; o PNG inteiro e salvo pelo Decoders.
+// ---------------------------------------------------------------------------
+void Ui::atualizarWefax()
+{
+    auto& d = r_.decoders();
+    d.wefaxSalvar = wfxSalvar_;
+    Decoders::ImagemWefax im;
+    while (d.pegarImagemWefax(im)) {
+        // miniatura de 240 de largura para o historico
+        SstvFeita f;
+        f.w = 240; f.h = std::max(1, im.h * 240 / std::max(1, im.w));
+        std::vector<uint32_t> mini(size_t(f.w) * size_t(f.h));
+        for (int y = 0; y < f.h; ++y)
+            for (int x = 0; x < f.w; ++x) {
+                const uint32_t v = im.cinza[size_t(y * im.h / f.h) * size_t(im.w) + size_t(x * im.w / f.w)];
+                mini[size_t(y) * size_t(f.w) + size_t(x)] = 0xFF000000u | (v << 16) | (v << 8) | v;
+            }
+        f.tex = texturaArgb(dev_, mini.data(), f.w, f.h);
+        f.rotulo = im.rotulo; f.arquivo = im.arquivo;
+        wfxHist_.insert(wfxHist_.begin(), std::move(f));
+        while (wfxHist_.size() > 10) {
+            if (wfxHist_.back().tex) wfxHist_.back().tex->Release();
+            wfxHist_.pop_back();
+        }
+    }
+    if (decTipo_ != Decoders::WEFAX) return;
+    int w = 0, h = 0;
+    if (!d.wefax().imagemMeia(wfxBuf_, w, h, wfxVer_)) return;
+    // placas antigas: textura de no maximo MaxTextureHeight linhas (pula linhas se precisar)
+    D3DCAPS9 caps{};
+    int maxH = 2048;
+    if (dev_->GetDeviceCaps(&caps) == D3D_OK && caps.MaxTextureHeight > 0) maxH = (int)std::min<DWORD>(caps.MaxTextureHeight, 8192);
+    if (h > maxH) {
+        const int passo = (h + maxH - 1) / maxH, nh = h / passo;
+        for (int y = 0; y < nh; ++y)
+            std::memmove(&wfxBuf_[size_t(y) * size_t(w)], &wfxBuf_[size_t(y * passo) * size_t(w)], size_t(w) * 4);
+        h = nh;
+    }
+    wfxW_ = w; wfxH_ = h;
+    if (w <= 0 || h <= 0) return;
+    const int hTex = std::min(maxH, (h + 255) / 256 * 256);
+    if (!wfxTex_ || wfxTexW_ != w || wfxTexH_ != hTex) {
+        if (wfxTex_) wfxTex_->Release();
+        wfxTex_ = texturaArgb(dev_, nullptr, w, hTex);
+        wfxTexW_ = w; wfxTexH_ = hTex;
+    }
+    if (!wfxTex_) return;
+    D3DLOCKED_RECT lr;
+    RECT rc{0, 0, w, h};
+    if (wfxTex_->LockRect(0, &lr, &rc, 0) == D3D_OK) {
+        for (int y = 0; y < h; ++y)
+            std::memcpy((uint8_t*)lr.pBits + size_t(y) * lr.Pitch, &wfxBuf_[size_t(y) * size_t(w)], size_t(w) * 4);
+        wfxTex_->UnlockRect(0);
+    }
+}
+
+void Ui::painelWefax()
+{
+    auto& wf = r_.decoders().wefax();
+    const WefaxCore::Status stt = wf.status();
+
+    // --- linha 1: canal (em ordem de horario), LPM, IOC ---
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("Canal"); ImGui::SameLine();
+    ImGui::SetNextItemWidth(400 * s_);
+    if (comboCanal("##wfxcanal", kCanaisWefax, decCanalWefax_)) {
+        const CanalDec& c = kCanaisWefax[decCanalWefax_];
+        wfxLpm_ = (int)c.baud; wfxIoc_ = (int)c.shift;
+        wf.configurar(wfxLpm_, wfxIoc_);
+        if (r_.modo() != "USB") mudarModo("USB");
+        if (r_.banda() < 3000) r_.setBanda(3000);
+        sintonizar(c.hz, false);                 // WEFAX: a lista ja da a frequencia do mostrador (USB)
+        decMudouFreq_ = true;
+        escolherDecoder(Decoders::WEFAX, false); // volta a esperar o tom de inicio
+    }
+    ImGui::SameLine();
+    ImGui::TextUnformatted("LPM"); ImGui::SameLine();
+    ImGui::SetNextItemWidth(70 * s_);
+    static const int kLpm[] = {60, 90, 100, 120, 180, 240};
+    char tl[16]; std::snprintf(tl, sizeof tl, "%d", wfxLpm_);
+    if (ImGui::BeginCombo("##wfxlpm", tl)) {
+        for (int v : kLpm) { char t[16]; std::snprintf(t, sizeof t, "%d", v);
+            if (ImGui::Selectable(t, v == wfxLpm_)) { wfxLpm_ = v; wf.configurar(wfxLpm_, wfxIoc_); } }
+        ImGui::EndCombo();
+    }
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Linhas por minuto (vale para o \"Começar agora\"; com o tom de início a fase mede sozinha)");
+    ImGui::SameLine();
+    ImGui::TextUnformatted("IOC"); ImGui::SameLine();
+    ImGui::SetNextItemWidth(70 * s_);
+    char ti[16]; std::snprintf(ti, sizeof ti, "%d", wfxIoc_);
+    if (ImGui::BeginCombo("##wfxioc", ti)) {
+        for (int v : {576, 288}) { char t[16]; std::snprintf(t, sizeof t, "%d", v);
+            if (ImGui::Selectable(t, v == wfxIoc_)) { wfxIoc_ = v; wf.configurar(wfxLpm_, wfxIoc_); } }
+        ImGui::EndCombo();
+    }
+
+    // --- linha 2: opcoes ---
+    bool aut = wf.automatico.load();
+    if (ImGui::Checkbox("Automático", &aut)) wf.automatico = aut;
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("O tom de início (300 Hz) começa a imagem e o de fim (450 Hz) termina e salva");
+    ImGui::SameLine();
+    bool inv = wf.inverter.load();
+    if (ImGui::Checkbox("Inverter (negativo)", &inv)) wf.inverter = inv;
+    ImGui::SameLine();
+    bool ai = wf.autoInclinacao.load();
+    if (ImGui::Checkbox("Endireitar sozinho", &ai)) wf.autoInclinacao = ai;
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Ao terminar, mede a inclinação pelas linhas verticais do mapa e endireita (só se a melhora for clara)");
+    ImGui::SameLine();
+    ImGui::Checkbox("Salvar PNG", &wfxSalvar_);
+    ImGui::SameLine();
+    ImGui::TextDisabled("verde na lista = no ar agora (UTC)");
+
+    // --- linha 3: acoes ---
+    if (ImGui::Button("Começar agora")) { if (!decRodando_) escolherDecoder(Decoders::WEFAX, false); wf.configurar(wfxLpm_, wfxIoc_); wf.comecarAgora(); }
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Pegou o fax no meio? Começa já com o LPM/IOC escolhidos; depois use \"Alinhar margem\"");
+    ImGui::SameLine();
+    if (ImGui::Button("Terminar")) wf.parar();
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Encerra a imagem atual e salva");
+    ImGui::SameLine();
+    if (ImGui::Button("Limpar")) wf.limpar();
+    ImGui::SameLine();
+    if (ImGui::Button("Endireitar")) wf.endireitar();
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Mede a inclinação pelas linhas verticais do mapa");
+    ImGui::SameLine();
+    ImGui::TextUnformatted("Inclinação"); ImGui::SameLine();
+    if (ImGui::ArrowButton("##incmenos", ImGuiDir_Left)) wf.definirInclinacao(stt.inclinacao - 0.02);
+    ImGui::SameLine();
+    ImGui::Text("%+.2f", stt.inclinacao);
+    ImGui::SameLine();
+    if (ImGui::ArrowButton("##incmais", ImGuiDir_Right)) wf.definirInclinacao(stt.inclinacao + 0.02);
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Pixels por linha (o relógio de quem transmite fora do nominal)");
+    ImGui::SameLine();
+    if (ImGui::Button("Zerar")) wf.definirInclinacao(0);
+    ImGui::SameLine();
+    if (wfxAlinhar_) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.6f, 0.35f, 0.05f, 1));
+    if (ImGui::Button(wfxAlinhar_ ? "Clique na margem..." : "Alinhar margem")) wfxAlinhar_ = !wfxAlinhar_;
+    if (wfxAlinhar_) ImGui::PopStyleColor();
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Clique depois na imagem, onde deveria ser a margem esquerda do mapa");
+    ImGui::SameLine();
+    if (ImGui::Button("Abrir pasta WEFAX")) {
+        const std::string pasta = pastaDoExe() + "\\WEFAX";
+        CreateDirectoryA(pasta.c_str(), nullptr);
+        ShellExecuteA(nullptr, "open", pasta.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+    }
+
+    // --- imagem (rola; desce sozinha enquanto chega, se voce estiver no fim) ---
+    const float altHist = wfxHist_.empty() ? 0.f : 78 * s_;
+    const float altImg = std::max(160 * s_, ImGui::GetContentRegionAvail().y - 110 * s_ - altHist);
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, IM_COL32(0x08, 0x08, 0x08, 255));
+    if (ImGui::BeginChild("##wfximg", ImVec2(0, altImg), ImGuiChildFlags_Borders, ImGuiWindowFlags_AlwaysVerticalScrollbar)) {
+        const float aw = ImGui::GetContentRegionAvail().x;
+        if (wfxTex_ && wfxW_ > 0 && wfxH_ > 0) {
+            const float esc = aw / wfxW_;
+            const ImVec2 p0 = ImGui::GetCursorScreenPos();
+            const bool noFim = ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - 4 * s_;
+            ImGui::Image(TEXID(wfxTex_), ImVec2(aw, wfxH_ * esc), ImVec2(0, 0), ImVec2(1.f, float(wfxH_) / wfxTexH_));
+            if (wfxAlinhar_) {
+                ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+                if (ImGui::IsItemHovered()) {
+                    const float mx = ImGui::GetIO().MousePos.x;
+                    ImGui::GetWindowDrawList()->AddLine(ImVec2(mx, p0.y), ImVec2(mx, p0.y + wfxH_ * esc), IM_COL32(255, 160, 0, 200), 2 * s_);
+                    if (ImGui::IsItemClicked()) {
+                        wf.alinharEm((int)std::lround((mx - p0.x) / esc * 2.0));   // a textura e meia resolucao
+                        wfxAlinhar_ = false;
+                    }
+                }
+            }
+            if (stt.estado == WefaxCore::RECEBENDO && noFim) ImGui::SetScrollHereY(1.0f);
+        } else {
+            const char* msg = stt.estado == WefaxCore::INICIO ? "tom de início ouvido - esperando a fase..."
+                            : stt.estado == WefaxCore::FASE   ? "fase: medindo a margem e as linhas por minuto..."
+                            : decRodando_ ? "esperando o tom de início (ou clique Começar agora)" : "decodificador parado";
+            ImGui::SetCursorPos(ImVec2(10 * s_, 10 * s_));
+            ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1), "%s", msg);
+        }
+    }
+    ImGui::EndChild();
+    ImGui::PopStyleColor();
+
+    // --- historico (clique abre o PNG) ---
+    if (!wfxHist_.empty()) {
+        if (ImGui::BeginChild("##wfxhist", ImVec2(0, altHist), ImGuiChildFlags_None, ImGuiWindowFlags_HorizontalScrollbar)) {
+            for (size_t i = 0; i < wfxHist_.size(); ++i) {
+                const SstvFeita& f = wfxHist_[i];
+                if (i) ImGui::SameLine();
+                ImGui::PushID((int)i + 1000);
+                const float th = 56 * s_, tw = th * f.w / std::max(1, f.h);
+                if (f.tex && ImGui::ImageButton("##wfxmini", TEXID(f.tex), ImVec2(tw, th)) && !f.arquivo.empty())
+                    ShellExecuteA(nullptr, "open", f.arquivo.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+                if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip("%s%s", f.rotulo.c_str(), f.arquivo.empty() ? "\n(não salva)" : "\nclique para abrir o PNG");
+                ImGui::PopID();
+            }
+        }
+        ImGui::EndChild();
+    }
+}
+
 void Ui::janelaDecoders()
 {
     auto& d = r_.decoders();
@@ -2683,8 +3765,22 @@ void Ui::janelaDecoders()
     bool aberta = true;
     if (!ImGui::Begin("Decodificadores", &aberta, ImGuiWindowFlags_NoCollapse)) {
         ImGui::End();
-        if (!aberta) { decAberta_ = false; escolherDecoder(Decoders::NENHUM, false); }
+        if (!aberta) { decAberta_ = false; escolherDecoder(Decoders::NENHUM, false); atualizarSstv(); atualizarWefax(); }
         return;
+    }
+    atualizarSstv();
+    atualizarWefax();
+    // SSTV: a janela cresce para caber a imagem (so na hora de escolher)
+    if (sstvAumentar_) {
+        sstvAumentar_ = false;
+        const ImVec2 tela = ImGui::GetIO().DisplaySize;
+        const ImVec2 sz = ImGui::GetWindowSize();
+        const ImVec2 alvo(std::min(tela.x * 0.96f, std::max(sz.x, 980 * s_)), std::min(tela.y * 0.92f, std::max(sz.y, 700 * s_)));
+        ImGui::SetWindowSize(alvo);
+        ImVec2 pos = ImGui::GetWindowPos();
+        pos.x = std::clamp(pos.x, 0.f, std::max(0.f, tela.x - alvo.x));
+        pos.y = std::clamp(pos.y, 0.f, std::max(0.f, tela.y - alvo.y));
+        ImGui::SetWindowPos(pos);
     }
 
     // --- escolha do decodificador ---
@@ -2695,7 +3791,8 @@ void Ui::janelaDecoders()
     if (ImGui::BeginCombo("##dectipo", Decoders::nome((Decoders::Tipo)decTipo_), ImGuiComboFlags_HeightLarge)) {
         static const int kOrdem[] = {Decoders::NENHUM, Decoders::CW, Decoders::RTTY, Decoders::SITORB, Decoders::DSC,
                                      Decoders::ALE, Decoders::DMR, Decoders::TETRA, Decoders::HFDL, Decoders::AIS,
-                                     Decoders::APRS, Decoders::ACARS, Decoders::VDL2, Decoders::DRM, Decoders::ANALISE};
+                                     Decoders::APRS, Decoders::ACARS, Decoders::VDL2, Decoders::DRM, Decoders::SSTV, Decoders::WEFAX,
+                                     Decoders::ANALISE};
         static_assert(sizeof kOrdem / sizeof kOrdem[0] == Decoders::N_TIPOS, "faltou um decodificador no menu");
         for (int i : kOrdem)
             if (ImGui::Selectable(Decoders::nome((Decoders::Tipo)i), decTipo_ == i)) escolherDecoder(i, true);
@@ -2724,7 +3821,7 @@ void Ui::janelaDecoders()
         std::string pasta = pastaDoExe() + "\\Decodificados";
         CreateDirectoryA(pasta.c_str(), nullptr);
         SYSTEMTIME st; GetLocalTime(&st);
-        static const char* kTag[] = {"", "CW", "RTTY", "SITORB", "DSC", "ALE", "DMR", "TETRA", "HFDL", "AIS", "APRS", "ACARS", "VDL2", "ANALISE", "DRM"};
+        static const char* kTag[] = {"", "CW", "RTTY", "SITORB", "DSC", "ALE", "DMR", "TETRA", "HFDL", "AIS", "APRS", "ACARS", "VDL2", "ANALISE", "DRM", "SSTV", "WEFAX"};
         char nome[96];
         std::snprintf(nome, sizeof nome, "\\RXSDR_%s_%04d%02d%02d_%02d%02d%02d.txt",
                       decTipo_ > 0 && decTipo_ < Decoders::N_TIPOS ? kTag[decTipo_] : "DEC",
@@ -2749,7 +3846,9 @@ void Ui::janelaDecoders()
             if (decTipo_ == Decoders::SITORB) decAj_.sitorShift = c.shift > 0 ? c.shift : 170.f;
             if (r_.modo() != "USB") mudarModo("USB");
             if (decTipo_ == Decoders::ALE) r_.setBanda(3000);
-            sintonizar(c.meio ? c.hz - 1500 : c.hz, false);
+            // SITOR-B/DSC: publicado = centro do FSK -> VFO 1700 Hz abaixo (tons em ~1700 Hz)
+            const bool centroFsk = decTipo_ == Decoders::SITORB || decTipo_ == Decoders::DSC;
+            sintonizar(c.meio ? c.hz - 1500 : centroFsk ? c.hz - 1700 : c.hz, false);
             escolherDecoder(decTipo_, false);
         }
     };
@@ -2783,12 +3882,16 @@ void Ui::janelaDecoders()
         linhaCanal(kCanaisSitor, decCanalSitor_, false);
         ImGui::SameLine();
         if (ImGui::Checkbox("Inverter", &decAj_.sitorInverter)) escolherDecoder(decTipo_, false);
+        ImGui::SameLine();
+        ImGui::TextDisabled("verde = no ar agora (grade UTC)");
         break;
     }
     case Decoders::DSC: {
         linhaCanal(kCanaisDsc, decCanalDsc_, false);
         ImGui::SameLine();
         if (ImGui::Checkbox("Inverter", &decAj_.dscInverter)) escolherDecoder(decTipo_, false);
+        ImGui::SameLine();
+        ImGui::TextDisabled("verde = no ar agora (grade UTC)");
         break;
     }
     case Decoders::ALE:
@@ -3191,6 +4294,12 @@ void Ui::janelaDecoders()
         }
         break;
     }
+    case Decoders::SSTV:
+        painelSstv();
+        break;
+    case Decoders::WEFAX:
+        painelWefax();
+        break;
     case Decoders::ANALISE: {
         const float p = d.progressoAnalise();
         ImGui::ProgressBar(p, ImVec2(260 * s_, 0), p >= 1 ? "pronta" : nullptr);

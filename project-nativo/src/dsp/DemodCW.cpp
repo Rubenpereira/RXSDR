@@ -87,9 +87,15 @@ void DemodCW::process(const std::complex<float>* iq, size_t n, uint32_t sampleRa
         // 4) AGC com ataque rapido e retorno lento, igual ao do SSB: CW tem
         //    silencio entre os elementos, e um AGC simetrico levantaria o
         //    ruido nesses vaos ate ficar tao alto quanto o sinal.
+        //    O retorno era 0,0008 por amostra - uns 25 ms a 51 kHz, menos que
+        //    o vao de um ponto a 30 PPM (40 ms): o chiado subia em todo vao e
+        //    o decodificador de CW via os elementos grudados. Agora o retorno
+        //    leva 0,4 s e o ataque 2 ms, calculados pela taxa de verdade.
         const float mag = std::fabs(a);
-        if (mag > agc_) agc_ += (mag - agc_) * 0.05f;
-        else            agc_ += (mag - agc_) * 0.0008f;
+        const float kAtaque  = 1.0f - std::exp(-1.0f / (0.002f * fsAudio));
+        const float kRetorno = 1.0f - std::exp(-1.0f / (0.400f * fsAudio));
+        if (mag > agc_) agc_ += (mag - agc_) * kAtaque;
+        else            agc_ += (mag - agc_) * kRetorno;
         if (agc_ < 1e-4f) agc_ = 1e-4f;
 
         const float saida = std::clamp(a / (agc_ * 3.0f), -1.0f, 1.0f);

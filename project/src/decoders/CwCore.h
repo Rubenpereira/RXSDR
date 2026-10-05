@@ -92,6 +92,14 @@ private:
     std::vector<float> tomBuf_;
     bool   tomPronto_ = false;
     double tomMedido_ = 0.0;
+
+    // Acompanhamento do tom depois da primeira medida (mexeu na sintonia, o
+    // tom mudou): os ultimos 3 s ficam guardados e sao medidos a cada 1,5 s.
+    std::vector<float> anelTom_;
+    size_t anelPos_ = 0, desdeMedida_ = 0;
+    double tomCandidato_ = 0.0;
+    void   acompanharTom(const float* s, size_t n);
+    void   trocarTom(double tom);
 };
 
 } // namespace masdr

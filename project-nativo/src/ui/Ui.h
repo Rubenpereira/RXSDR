@@ -32,6 +32,7 @@ struct Fontes {
     ImFont* digitos = nullptr;
     ImFont* digitosPeq = nullptr;
     ImFont* mono = nullptr;            // texto dos decodificadores
+    ImFont* freqMouse = nullptr;       // frequencia ao lado do mouse (espectro/cachoeira)
 };
 
 class Ui {
@@ -231,6 +232,30 @@ private:
     int  decSelPend_ = 0, decSelFeito_ = 0;
     int  decCol_ = 0, decLinhas_ = 0;
     int decCanalRtty_ = -1, decCanalSitor_ = -1, decCanalDsc_ = -1, decCanalAle_ = -1;
+
+    // SSTV
+    void painelSstv();
+    void atualizarSstv();             // textura da imagem atual; terminadas -> PNG + historico
+    IDirect3DTexture9* sstvTex_ = nullptr;
+    int sstvTexW_ = 0, sstvTexH_ = 0, sstvW_ = 0, sstvH_ = 0;
+    uint64_t sstvVer_ = 0;
+    std::vector<uint32_t> sstvBuf_;
+    struct SstvFeita { IDirect3DTexture9* tex = nullptr; int w = 0, h = 0; std::string arquivo, rotulo; };
+    std::vector<SstvFeita> sstvHist_;
+    int sstvModoManual_ = 2, sstvFreqSel_ = -1;
+    bool sstvSalvar_ = true, sstvAumentar_ = false;
+    std::vector<float> sstvEsp_;
+
+    // WEFAX
+    void painelWefax();
+    void atualizarWefax();            // textura da imagem (meia resolucao) + historico
+    IDirect3DTexture9* wfxTex_ = nullptr;
+    int wfxTexW_ = 0, wfxTexH_ = 0, wfxW_ = 0, wfxH_ = 0;
+    uint64_t wfxVer_ = 0;
+    std::vector<uint32_t> wfxBuf_;
+    std::vector<SstvFeita> wfxHist_;
+    int decCanalWefax_ = -1, wfxLpm_ = 120, wfxIoc_ = 576;
+    bool wfxAlinhar_ = false, wfxSalvar_ = true;
 
     // IF DISPLAY
     bool ifOn_ = false;
