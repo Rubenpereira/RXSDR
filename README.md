@@ -25,6 +25,10 @@ Feito por **PU1XTB — Ruben**, radioamador e radioescuta, em Araruama/RJ.
 - **SITOR-B / NAVTEX** e **DSC** (chamada seletiva, ITU-R M.493) — escritos
   do zero em C++, sem depender de programa externo. Medem o tom central
   sozinhos e usam decisão suave, que rende cerca de 3 dB em sinal fraco
+- **PACTOR-I** (meteoromarinha e avisos da Marinha do Brasil) — acha sozinho o
+  tom, a velocidade e a polaridade, e só mostra pacote conferido pelo CRC
+- **SSTV** e **WEFAX** (fax meteorológico) — a imagem aparece enquanto chega e
+  é salva em PNG na Área de Trabalho
 - **Analisador de sinal desconhecido** — mede tons, deslocamento e velocidade
   de um sinal digital que você não reconhece, e diz com que modos ele é
   compatível

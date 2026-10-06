@@ -51,6 +51,7 @@ set(SOURCES
     src/decoders/AnaliseCore.cpp
     src/decoders/SstvCore.cpp
     src/decoders/WefaxCore.cpp
+    src/decoders/PactorCore.cpp
     src/ui/Ui.cpp
     src/dsp/Demodulator.cpp
     src/dsp/DemodAM.cpp

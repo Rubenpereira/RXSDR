@@ -231,7 +231,7 @@ private:
     bool decRodando_ = false, decSelTudo_ = false;
     int  decSelPend_ = 0, decSelFeito_ = 0;
     int  decCol_ = 0, decLinhas_ = 0;
-    int decCanalRtty_ = -1, decCanalSitor_ = -1, decCanalDsc_ = -1, decCanalAle_ = -1;
+    int decCanalRtty_ = -1, decCanalSitor_ = -1, decCanalDsc_ = -1, decCanalAle_ = -1, decCanalPactor_ = -1;
 
     // SSTV
     void painelSstv();

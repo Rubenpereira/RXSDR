@@ -36,10 +36,11 @@ class SitorBCore;
 class DscCore;
 class AleCore;
 class AnaliseCore;
+class PactorCore;
 
 class Decoders {
 public:
-    enum Tipo { NENHUM = 0, CW, RTTY, SITORB, DSC, ALE, DMR, TETRA, HFDL, AIS, APRS, ACARS, VDL2, ANALISE, DRM, SSTV, WEFAX, N_TIPOS };
+    enum Tipo { NENHUM = 0, CW, RTTY, SITORB, DSC, ALE, DMR, TETRA, HFDL, AIS, APRS, ACARS, VDL2, ANALISE, DRM, SSTV, WEFAX, PACTOR, N_TIPOS };
 
     struct Ajustes {
         float rttyBaud = 45.45f, rttyShift = 170.f;
@@ -179,6 +180,9 @@ private:
     std::unique_ptr<DscCore> dsc_;
     std::unique_ptr<AleCore> ale_;
     std::unique_ptr<AnaliseCore> analise_;
+    std::unique_ptr<PactorCore> pactor_;
+    double pactorUltimo_ = -1e9;     // ultimo texto (para o cabecalho com a hora)
+    double pactorRelogio_ = 0;      // segundos de audio ja passados
     bool analiseFeita_ = false;
 
     // texto de saida

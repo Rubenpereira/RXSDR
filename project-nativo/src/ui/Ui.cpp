@@ -993,7 +993,14 @@ void Ui::linhaModos(float y, float h)
 
     // Range / Brilho / Speed da cachoeira
     char b[16];
-    const float sw = 160 * s_;        // faders mais compridos (sobrava espaco na linha)
+    // Faders compridos (160) quando sobra espaco; numa tela mais estreita eles
+    // encolhem (ate 130, abaixo disso o trilho some) para tudo caber na linha, inclusive o relogio UTC no
+    // fim - sem isso o relogio saia cortado na borda direita.
+    ImGui::PushFont(f_.freqMouse ? f_.freqMouse : f_.negrito);
+    const float wRelogio = ImGui::CalcTextSize("00:00 UTC").x + 16 * s_;
+    ImGui::PopFont();
+    const float resto = (10 + 118 + 3 + 22 + 10 + 56 + 6 + 64 + 6 + 96 + 10 + 8) * s_ + wRelogio;
+    const float sw = std::clamp((W - x - resto) / 3.f - 6 * s_, 130 * s_, 160 * s_);
     auto grupo = [&](const char* id, const char* rot, float* v, float mn, float mx, const char* fmt, float passo) {
         dl->AddRect(ImVec2(x, by), ImVec2(x + sw, by + bh), C_BORDER_L, bh * 0.5f);
         std::snprintf(b, sizeof b, fmt, *v);
@@ -1075,6 +1082,25 @@ void Ui::linhaModos(float y, float h)
     }
     x += 64 * s_ + 6 * s_;
     if (botaoAzul("IF DISPLAY", x, 96 * s_, ifOn_)) ifOn_ = !ifOn_;
+    x += 96 * s_ + 10 * s_;
+
+    // Relogio digital em UTC ("15:36 UTC"): as grades das estacoes (SITOR-B,
+    // DSC, PACTOR, WEFAX, DRM) sao todas em UTC.
+    {
+        SYSTEMTIME st; GetSystemTime(&st);
+        char hora[16];
+        std::snprintf(hora, sizeof hora, "%02d:%02d UTC", st.wHour, st.wMinute);
+        ImGui::PushFont(f_.freqMouse ? f_.freqMouse : f_.negrito);
+        const ImVec2 ts = ImGui::CalcTextSize(hora);
+        const float rw = ts.x + 16 * s_;
+        dl->AddRectFilled(ImVec2(x, by), ImVec2(x + rw, by + bh), IM_COL32(0x02, 0x06, 0x03, 255), 4 * s_);
+        dl->AddRect(ImVec2(x, by), ImVec2(x + rw, by + bh), IM_COL32(0x24, 0x61, 0x32, 255), 4 * s_);
+        dl->AddText(ImVec2(x + 8 * s_, by + (bh - ts.y) * 0.5f), IM_COL32(0x40, 0xff, 0x70, 255), hora);
+        ImGui::PopFont();
+        ImGui::SetCursorScreenPos(ImVec2(x, by));
+        ImGui::Dummy(ImVec2(rw, bh));
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Hora UTC (a das grades de horários das estações)");
+    }
 }
 
 // ===========================================================================
@@ -2430,9 +2456,9 @@ const CanalDec kCanaisSitor[] = {
     {16806500, "0015-0130   16806,5 kHz - USCG San Francisco (USA)", 100, 170, false, "0015-0130", "USCG San Francisco (USA)\n\nOutros horários nesta frequência: 0030-0110, 0230-0300, 0500-0530, 0900-0925, 1000-1140, 1200-1310, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1730-1830, 1900-1940, 2315-2345"},
     {4209500, "0020-0030   4209,5 kHz - Nha Trang Radio (Vietnam)", 100, 170, false, "0020-0030", "Nha Trang Radio (Vietnam)\n\nOutros horários nesta frequência: 0000-2400, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
     {490000, "0020-2030   490 kHz - NAVTEX Portpatric (United Kingdom)", 100, 170, false, "0020-2030", "NAVTEX Portpatric (United Kingdom)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0010-2020, 0040-2050, 0100-2110, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0310-2320, 0320-2330, 0340-2350"},
-    {4210000, "0030-0110   4210 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "0030-0110", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0300-0410, 1000-1140, 1400-1440, 1515-1610, 1900-1940, 2100-2140"},
-    {8416500, "0030-0110   8416,5 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "0030-0110", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140"},
-    {12579000, "0030-0110   12579 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "0030-0110", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140, 2250-2300 ..."},
+    {4210000, "0030-0110   4210 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 200, false, "0030-0110", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0300-0410, 1000-1140, 1400-1440, 1515-1610, 1900-1940, 2100-2140"},
+    {8416500, "0030-0110   8416,5 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 200, false, "0030-0110", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140"},
+    {12580700, "0030-0110   12580,7 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 200, false, "0030-0110", "Servicio de Hidrografia Naval (Argentina)\nA lista publica 12579 kHz, mas o sinal sai em 12580,7 kHz (medido no RXSDR: tons em 12580,6 e 12580,8 kHz, shift 200 Hz)\n\nOutros horários nesta frequência: 1000-1140, 1400-1440, 1515-1610, 1900-1940, 2100-2140"},
     {16806500, "0030-0110   16806,5 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "0030-0110", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0230-0300, 0500-0530, 0900-0925, 1000-1140, 1200-1310, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1730-1830, 1900-1940, 2315-2345"},
     {518000, "0030-2040   518 kHz - NAVTEX La Coruna (Spain) +1", 100, 170, false, "0030-2040", "NAVTEX La Coruna (Spain)\nNAVTEX Faroe Islands (Faroe Islands)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0230-2240, 0240-2250, 0250-2300, 0300-2310, 0310-2320, 0330-2340, 0340-2350, 0350-2400"},
     {490000, "0040-2050   490 kHz - NAVTEX Cross Corsen (France) +1", 100, 170, false, "0040-2050", "NAVTEX Cross Corsen (France)\nNAVTEX Reykjavik (Iceland)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0010-2020, 0020-2030, 0100-2110, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0310-2320, 0320-2330, 0340-2350"},
@@ -2466,10 +2492,6 @@ const CanalDec kCanaisSitor[] = {
     {12579000, "0230-0300   12579 kHz - USCG Apra Harbor (Guam)", 100, 170, false, "0230-0300", "USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140, 2250-2300 ..."},
     {16806500, "0230-0300   16806,5 kHz - USCG Apra Harbor (Guam)", 100, 170, false, "0230-0300", "USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0500-0530, 0900-0925, 1000-1140, 1200-1310, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1730-1830, 1900-1940, 2315-2345"},
     {22376000, "0230-0300   22376 kHz - USCG Apra Harbor (Guam)", 100, 170, false, "0230-0300", "USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0130-0220, 0500-0530, 0900-0925, 1500-1530, 1900-1940, 2030-2120, 2315-2345"},
-    {6448000, "0230-0330   6448 kHz - Marinha do Brasil (Rio)", 100, 0, false, "0230-0330", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
-    {8580000, "0230-0330   8580 kHz - Marinha do Brasil (Rio) - principal", 100, 0, false, "0230-0330", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
-    {12709000, "0230-0330   12709 kHz - Marinha do Brasil (Rio)", 100, 0, false, "0230-0330", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
-    {16974000, "0230-0330   16974 kHz - Marinha do Brasil (Rio)", 100, 0, false, "0230-0330", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
     {518000, "0230-2240   518 kHz - NAVTEX Netherlands (Netherlands) +1", 100, 170, false, "0230-2240", "NAVTEX Netherlands (Netherlands)\nNAVTEX Madeira (Madeira)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0030-2040, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0240-2250, 0250-2300, 0300-2310, 0310-2320, 0330-2340, 0340-2350, 0350-2400"},
     {4209500, "0240-0250   4209,5 kHz - Shanghai Radio Meteo (China)", 100, 170, false, "0240-0250", "Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
     {518000, "0240-2250   518 kHz - NAVTEX Malin Head (Ireland)", 100, 170, false, "0240-2250", "NAVTEX Malin Head (Ireland)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0030-2040, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0230-2240, 0250-2300, 0300-2310, 0310-2320, 0330-2340, 0340-2350, 0350-2400"},
@@ -2478,8 +2500,8 @@ const CanalDec kCanaisSitor[] = {
     {16898500, "0250-0300   16898,5 kHz - Shanghai Radio Meteo (China)", 100, 170, false, "0250-0300", "Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0850-0900, 1350-1420"},
     {518000, "0250-2300   518 kHz - NAVTEX Reykjavik (Iceland) +1", 100, 170, false, "0250-2300", "NAVTEX Reykjavik (Iceland)\nNAVTEX Lisbon (Portugal)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0030-2040, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0230-2240, 0240-2250, 0300-2310, 0310-2320, 0330-2340, 0340-2350, 0350-2400"},
     {4209500, "0300-0310   4209,5 kHz - Olympia Radio METEO (Greece)", 100, 170, false, "0300-0310", "Olympia Radio METEO (Greece)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
-    {4210000, "0300-0410   4210 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "0300-0410", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 1000-1140, 1400-1440, 1515-1610, 1900-1940, 2100-2140"},
-    {8416500, "0300-0410   8416,5 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "0300-0410", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140"},
+    {4210000, "0300-0410   4210 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 200, false, "0300-0410", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 1000-1140, 1400-1440, 1515-1610, 1900-1940, 2100-2140"},
+    {8416500, "0300-0410   8416,5 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 200, false, "0300-0410", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140"},
     {518000, "0300-2310   518 kHz - NAVTEX Pinneberg (Germany)", 100, 170, false, "0300-2310", "NAVTEX Pinneberg (Germany)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0030-2040, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0230-2240, 0240-2250, 0250-2300, 0310-2320, 0330-2340, 0340-2350, 0350-2400"},
     {490000, "0310-2320   490 kHz - NAVTEX Tarifa (Spain) +1", 100, 170, false, "0310-2320", "NAVTEX Tarifa (Spain)\nNAVTEX Niton (United Kingdom)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0010-2020, 0020-2030, 0040-2050, 0100-2110, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0320-2330, 0340-2350"},
     {518000, "0310-2320   518 kHz - NAVTEX Oostende (Belgium)", 100, 170, false, "0310-2320", "NAVTEX Oostende (Belgium)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0030-2040, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0230-2240, 0240-2250, 0250-2300, 0300-2310, 0330-2340, 0340-2350, 0350-2400"},
@@ -2492,10 +2514,6 @@ const CanalDec kCanaisSitor[] = {
     {490000, "0340-2350   490 kHz - NAVTEX La Coruna (Spain)", 100, 170, false, "0340-2350", "NAVTEX La Coruna (Spain)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0010-2020, 0020-2030, 0040-2050, 0100-2110, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0310-2320, 0320-2330"},
     {518000, "0340-2350   518 kHz - NAVTEX Valentia (Ireland)", 100, 170, false, "0340-2350", "NAVTEX Valentia (Ireland)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0030-2040, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0230-2240, 0240-2250, 0250-2300, 0300-2310, 0310-2320, 0330-2340, 0350-2400"},
     {518000, "0350-2400   518 kHz - NAVTEX Reykjavik (Iceland)", 100, 170, false, "0350-2400", "NAVTEX Reykjavik (Iceland)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0030-2040, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0230-2240, 0240-2250, 0250-2300, 0300-2310, 0310-2320, 0330-2340, 0340-2350"},
-    {6448000, "0400-0445   6448 kHz - Marinha do Brasil (Rio)", 100, 0, false, "0400-0445", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
-    {8580000, "0400-0445   8580 kHz - Marinha do Brasil (Rio) - principal", 100, 0, false, "0400-0445", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
-    {12709000, "0400-0445   12709 kHz - Marinha do Brasil (Rio)", 100, 0, false, "0400-0445", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
-    {16974000, "0400-0445   16974 kHz - Marinha do Brasil (Rio)", 100, 0, false, "0400-0445", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
     {16768200, "0400-1800   16768,2 kHz - Istanbul Radio (Turkiye)", 100, 170, false, "0400-1800", "Istanbul Radio (Turkiye)"},
     {16886000, "0400-1800   16886 kHz - Istanbul Radio (Turkiye)", 100, 170, false, "0400-1800", "Istanbul Radio (Turkiye)"},
     {4209500, "0420-0430   4209,5 kHz - Nha Trang Radio (Vietnam)", 100, 170, false, "0420-0430", "Nha Trang Radio (Vietnam)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
@@ -2510,10 +2528,6 @@ const CanalDec kCanaisSitor[] = {
     {4209500, "0600-0620   4209,5 kHz - Hai Phong Radio Meteo (Vietnam)", 100, 170, false, "0600-0620", "Hai Phong Radio Meteo (Vietnam)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
     {16808000, "0600-0630   16808 kHz - Tianjin Radio Meteo (China)", 100, 170, false, "0600-0630", "Tianjin Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-0030, 0000-2400, 0900-0930, 1200-1230, 1400-1430, 1800-1830, 2100-2130"},
     {4209500, "0600-0645   4209,5 kHz - Istanbul Radio Meteo (Turkiye)", 100, 170, false, "0600-0645", "Istanbul Radio Meteo (Turkiye)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
-    {6448000, "0600-0730   6448 kHz - Marinha do Brasil (Rio)", 100, 0, false, "0600-0730", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
-    {8580000, "0600-0730   8580 kHz - Marinha do Brasil (Rio) - principal", 100, 0, false, "0600-0730", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
-    {12709000, "0600-0730   12709 kHz - Marinha do Brasil (Rio)", 100, 0, false, "0600-0730", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
-    {16974000, "0600-0730   16974 kHz - Marinha do Brasil (Rio)", 100, 0, false, "0600-0730", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
     {26163000, "0600-1800   26163 kHz - Olympia Radio (Greece)", 100, 170, false, "0600-1800", "Olympia Radio (Greece)"},
     {8424000, "0630-0645   8424 kHz - Olympia Radio (Greece)", 100, 170, false, "0630-0645", "Olympia Radio (Greece)\n\nOutros horários nesta frequência: 0000-2400, 0700-0710, 0930-0945, 1000-1010, 1100-1110, 1300-1315, 1600-1610, 2130-2145"},
     {4209500, "0640-0650   4209,5 kHz - Shanghai Radio Meteo (China)", 100, 170, false, "0640-0650", "Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
@@ -2557,10 +2571,10 @@ const CanalDec kCanaisSitor[] = {
     {4228000, "1000-1035   4228 kHz - Kaliningrad Radio Meteo (Russia)", 100, 170, false, "1000-1035", "Kaliningrad Radio Meteo (Russia)\n\nOutros horários nesta frequência: 1600-1745"},
     {8454000, "1000-1035   8454 kHz - Kaliningrad Radio Meteo (Russia)", 100, 170, false, "1000-1035", "Kaliningrad Radio Meteo (Russia)\n\nOutros horários nesta frequência: 1200-1230, 1600-1745"},
     {4209500, "1000-1045   4209,5 kHz - Istanbul Radio Meteo (Turkiye)", 100, 170, false, "1000-1045", "Istanbul Radio Meteo (Turkiye)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
-    {4210000, "1000-1140   4210 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "1000-1140", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0300-0410, 1400-1440, 1515-1610, 1900-1940, 2100-2140"},
-    {12579000, "1000-1140   12579 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "1000-1140", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140, 2250-2300 ..."},
+    {4210000, "1000-1140   4210 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 200, false, "1000-1140", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0300-0410, 1400-1440, 1515-1610, 1900-1940, 2100-2140"},
+    {12580700, "1000-1140   12580,7 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 200, false, "1000-1140", "Servicio de Hidrografia Naval (Argentina)\nA lista publica 12579 kHz, mas o sinal sai em 12580,7 kHz (medido no RXSDR: tons em 12580,6 e 12580,8 kHz, shift 200 Hz)\n\nOutros horários nesta frequência: 0030-0110, 1400-1440, 1515-1610, 1900-1940, 2100-2140"},
     {16806500, "1000-1140   16806,5 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "1000-1140", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0230-0300, 0500-0530, 0900-0925, 1200-1310, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1730-1830, 1900-1940, 2315-2345"},
-    {8416500, "1000-1300   8416,5 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "1000-1300", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140"},
+    {8416500, "1000-1300   8416,5 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 200, false, "1000-1300", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140"},
     {4209500, "1040-1050   4209,5 kHz - Shanghai Radio Meteo (China)", 100, 170, false, "1040-1050", "Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
     {6322500, "1100-1110   6322,5 kHz - Murmansk Radio (Russia)", 100, 170, false, "1100-1110", "Murmansk Radio (Russia)\n\nOutros horários nesta frequência: 0700-0710, 1000-1010, 1300-1315, 1600-1610"},
     {8424000, "1100-1110   8424 kHz - Murmansk Radio (Russia)", 100, 170, false, "1100-1110", "Murmansk Radio (Russia)\n\nOutros horários nesta frequência: 0000-2400, 0630-0645, 0700-0710, 0930-0945, 1000-1010, 1300-1315, 1600-1610, 2130-2145"},
@@ -2588,19 +2602,19 @@ const CanalDec kCanaisSitor[] = {
     {16898500, "1350-1420   16898,5 kHz - Shanghai Radio Meteo (China)", 100, 170, false, "1350-1420", "Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0250-0300, 0850-0900"},
     {4209500, "1400-1420   4209,5 kHz - Hai Phong Radio Meteo (Vietnam)", 100, 170, false, "1400-1420", "Hai Phong Radio Meteo (Vietnam)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
     {16808000, "1400-1430   16808 kHz - Tianjin Radio Meteo (China)", 100, 170, false, "1400-1430", "Tianjin Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-0030, 0000-2400, 0600-0630, 0900-0930, 1200-1230, 1800-1830, 2100-2130"},
-    {4210000, "1400-1440   4210 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "1400-1440", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0300-0410, 1000-1140, 1515-1610, 1900-1940, 2100-2140"},
-    {12579000, "1400-1440   12579 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "1400-1440", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140, 2250-2300 ..."},
+    {4210000, "1400-1440   4210 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 200, false, "1400-1440", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0300-0410, 1000-1140, 1515-1610, 1900-1940, 2100-2140"},
+    {12580700, "1400-1440   12580,7 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 200, false, "1400-1440", "Servicio de Hidrografia Naval (Argentina)\nA lista publica 12579 kHz, mas o sinal sai em 12580,7 kHz (medido no RXSDR: tons em 12580,6 e 12580,8 kHz, shift 200 Hz)\n\nOutros horários nesta frequência: 0030-0110, 1000-1140, 1515-1610, 1900-1940, 2100-2140"},
     {16806500, "1400-1440   16806,5 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "1400-1440", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0230-0300, 0500-0530, 0900-0925, 1000-1140, 1200-1310, 1500-1530, 1515-1610, 1630-1720, 1730-1830, 1900-1940, 2315-2345"},
     {4209500, "1400-1445   4209,5 kHz - Istanbul Radio Meteo (Turkiye)", 100, 170, false, "1400-1445", "Istanbul Radio Meteo (Turkiye)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
     {8416500, "1400-1500   8416,5 kHz - Vladivostok Radio Meteo (Russia)", 100, 170, false, "1400-1500", "Vladivostok Radio Meteo (Russia)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140"},
-    {8416500, "1400-1610   8416,5 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "1400-1610", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140"},
+    {8416500, "1400-1610   8416,5 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 200, false, "1400-1610", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140"},
     {4209500, "1440-1450   4209,5 kHz - Shanghai Radio Meteo (China)", 100, 170, false, "1440-1450", "Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
     {4209500, "1500-1510   4209,5 kHz - Guangzhou Radio (China) +1", 100, 170, false, "1500-1510", "Guangzhou Radio (China)\nOlympia Radio METEO (Greece)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ..."},
     {12579000, "1500-1530   12579 kHz - USCG Apra Harbor (Guam)", 100, 170, false, "1500-1530", "USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140, 2250-2300 ..."},
     {16806500, "1500-1530   16806,5 kHz - USCG Apra Harbor (Guam)", 100, 170, false, "1500-1530", "USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0230-0300, 0500-0530, 0900-0925, 1000-1140, 1200-1310, 1400-1440, 1515-1610, 1630-1720, 1730-1830, 1900-1940, 2315-2345"},
     {22376000, "1500-1530   22376 kHz - USCG Apra Harbor (Guam)", 100, 170, false, "1500-1530", "USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0130-0220, 0230-0300, 0500-0530, 0900-0925, 1900-1940, 2030-2120, 2315-2345"},
-    {4210000, "1515-1610   4210 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "1515-1610", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0300-0410, 1000-1140, 1400-1440, 1900-1940, 2100-2140"},
-    {12579000, "1515-1610   12579 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "1515-1610", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140, 2250-2300 ..."},
+    {4210000, "1515-1610   4210 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 200, false, "1515-1610", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0300-0410, 1000-1140, 1400-1440, 1900-1940, 2100-2140"},
+    {12580700, "1515-1610   12580,7 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 200, false, "1515-1610", "Servicio de Hidrografia Naval (Argentina)\nA lista publica 12579 kHz, mas o sinal sai em 12580,7 kHz (medido no RXSDR: tons em 12580,6 e 12580,8 kHz, shift 200 Hz)\n\nOutros horários nesta frequência: 0030-0110, 1000-1140, 1400-1440, 1900-1940, 2100-2140"},
     {16806500, "1515-1610   16806,5 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "1515-1610", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0230-0300, 0500-0530, 0900-0925, 1000-1140, 1200-1310, 1400-1440, 1500-1530, 1630-1720, 1730-1830, 1900-1940, 2315-2345"},
     {8431000, "1520-1530   8431 kHz - Guangzhou Radio Meteo (China)", 100, 170, false, "1520-1530", "Guangzhou Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0120-0130, 0320-0330, 0720-0730, 0800-0815, 0920-0930, 1320-1330, 2000-2015, 2220-2230"},
     {8416500, "1530-1600   8416,5 kHz - Iqaluit Coast Guard Radio (Canada)", 100, 170, false, "1530-1600", "Iqaluit Coast Guard Radio (Canada)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140"},
@@ -2625,14 +2639,11 @@ const CanalDec kCanaisSitor[] = {
     {16808000, "1800-1830   16808 kHz - Tianjin Radio Meteo (China)", 100, 170, false, "1800-1830", "Tianjin Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-0030, 0000-2400, 0600-0630, 0900-0930, 1200-1230, 1400-1430, 2100-2130"},
     {4209500, "1800-1845   4209,5 kHz - Istanbul Radio Meteo (Turkiye)", 100, 170, false, "1800-1845", "Istanbul Radio Meteo (Turkiye)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1840-1850 ..."},
     {4209500, "1840-1850   4209,5 kHz - Shanghai Radio Meteo (China)", 100, 170, false, "1840-1850", "Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845 ..."},
-    {6448000, "1845-1930   6448 kHz - Marinha do Brasil (Rio)", 100, 0, false, "1845-1930", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
-    {8580000, "1845-1930   8580 kHz - Marinha do Brasil (Rio) - principal", 100, 0, false, "1845-1930", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
-    {12709000, "1845-1930   12709 kHz - Marinha do Brasil (Rio)", 100, 0, false, "1845-1930", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
-    {16974000, "1845-1930   16974 kHz - Marinha do Brasil (Rio)", 100, 0, false, "1845-1930", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
     {4209500, "1900-1910   4209,5 kHz - Guangzhou Radio (China) +1", 100, 170, false, "1900-1910", "Guangzhou Radio (China)\nOlympia Radio METEO (Greece)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845 ..."},
-    {4210000, "1900-1940   4210 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "1900-1940", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0300-0410, 1000-1140, 1400-1440, 1515-1610, 2100-2140"},
-    {8416500, "1900-1940   8416,5 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "1900-1940", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1910-2200, 2030-2120, 2100-2140"},
-    {12579000, "1900-1940   12579 kHz - Servicio de Hidrografia Naval (Argentina) +1", 100, 170, false, "1900-1940", "Servicio de Hidrografia Naval (Argentina)\nUSCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 2030-2120, 2100-2140, 2250-2300 ..."},
+    {4210000, "1900-1940   4210 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 200, false, "1900-1940", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0300-0410, 1000-1140, 1400-1440, 1515-1610, 2100-2140"},
+    {8416500, "1900-1940   8416,5 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 200, false, "1900-1940", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1910-2200, 2030-2120, 2100-2140"},
+    {12580700, "1900-1940   12580,7 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 200, false, "1900-1940", "Servicio de Hidrografia Naval (Argentina)\nA lista publica 12579 kHz, mas o sinal sai em 12580,7 kHz (medido no RXSDR: tons em 12580,6 e 12580,8 kHz, shift 200 Hz)\n\nOutros horários nesta frequência: 0030-0110, 1000-1140, 1400-1440, 1515-1610, 2100-2140"},
+    {12579000, "1900-1940   12579 kHz - USCG Apra Harbor (Guam)", 100, 170, false, "1900-1940", "USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0230-0300, 0500-0530, 0900-0925, 1500-1530, 2315-2345"},
     {16806500, "1900-1940   16806,5 kHz - Servicio de Hidrografia Naval (Argentina) +1", 100, 170, false, "1900-1940", "Servicio de Hidrografia Naval (Argentina)\nUSCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0230-0300, 0500-0530, 0900-0925, 1000-1140, 1200-1310, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1730-1830, 2315-2345"},
     {22376000, "1900-1940   22376 kHz - USCG Apra Harbor (Guam)", 100, 170, false, "1900-1940", "USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0130-0220, 0230-0300, 0500-0530, 0900-0925, 1500-1530, 2030-2120, 2315-2345"},
     {8416500, "1910-2200   8416,5 kHz - Moskva Radio (Russia)", 100, 170, false, "1910-2200", "Moskva Radio (Russia)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 2030-2120, 2100-2140"},
@@ -2651,14 +2662,10 @@ const CanalDec kCanaisSitor[] = {
     {12799500, "2100-2105   12799,5 kHz - Vladivostok Radio Meteo (Russia)", 100, 170, false, "2100-2105", "Vladivostok Radio Meteo (Russia)\n\nOutros horários nesta frequência: 0015-0030, 0430-0445, 0700-0705, 0900-0905"},
     {4209500, "2100-2130   4209,5 kHz - Guangzhou Radio (China)", 100, 170, false, "2100-2130", "Guangzhou Radio (China)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845 ..."},
     {16808000, "2100-2130   16808 kHz - Tianjin Radio Meteo (China)", 100, 170, false, "2100-2130", "Tianjin Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-0030, 0000-2400, 0600-0630, 0900-0930, 1200-1230, 1400-1430, 1800-1830"},
-    {4210000, "2100-2140   4210 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "2100-2140", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0300-0410, 1000-1140, 1400-1440, 1515-1610, 1900-1940"},
-    {8416500, "2100-2140   8416,5 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "2100-2140", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120"},
-    {12579000, "2100-2140   12579 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 170, false, "2100-2140", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2250-2300 ..."},
+    {4210000, "2100-2140   4210 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 200, false, "2100-2140", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0300-0410, 1000-1140, 1400-1440, 1515-1610, 1900-1940"},
+    {8416500, "2100-2140   8416,5 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 200, false, "2100-2140", "Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120"},
+    {12580700, "2100-2140   12580,7 kHz - Servicio de Hidrografia Naval (Argentina)", 100, 200, false, "2100-2140", "Servicio de Hidrografia Naval (Argentina)\nA lista publica 12579 kHz, mas o sinal sai em 12580,7 kHz (medido no RXSDR: tons em 12580,6 e 12580,8 kHz, shift 200 Hz)\n\nOutros horários nesta frequência: 0030-0110, 1000-1140, 1400-1440, 1515-1610, 1900-1940"},
     {8424000, "2130-2145   8424 kHz - Olympia Radio (Greece)", 100, 170, false, "2130-2145", "Olympia Radio (Greece)\n\nOutros horários nesta frequência: 0000-2400, 0630-0645, 0700-0710, 0930-0945, 1000-1010, 1100-1110, 1300-1315, 1600-1610"},
-    {6448000, "2130-2215   6448 kHz - Marinha do Brasil (Rio)", 100, 0, false, "2130-2215", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
-    {8580000, "2130-2215   8580 kHz - Marinha do Brasil (Rio) - principal", 100, 0, false, "2130-2215", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
-    {12709000, "2130-2215   12709 kHz - Marinha do Brasil (Rio)", 100, 0, false, "2130-2215", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
-    {16974000, "2130-2215   16974 kHz - Marinha do Brasil (Rio)", 100, 0, false, "2130-2215", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930"},
     {4209500, "2200-2220   4209,5 kHz - Hai Phong Radio Meteo (Vietnam)", 100, 170, false, "2200-2220", "Hai Phong Radio Meteo (Vietnam)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845 ..."},
     {4209500, "2200-2245   4209,5 kHz - Istanbul Radio Meteo (Turkiye)", 100, 170, false, "2200-2245", "Istanbul Radio Meteo (Turkiye)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845 ..."},
     {8431000, "2220-2230   8431 kHz - Guangzhou Radio Meteo (China)", 100, 170, false, "2220-2230", "Guangzhou Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0120-0130, 0320-0330, 0720-0730, 0800-0815, 0920-0930, 1320-1330, 1520-1530, 2000-2015"},
@@ -2673,7 +2680,6 @@ const CanalDec kCanaisSitor[] = {
     {16806500, "2315-2345   16806,5 kHz - USCG Apra Harbor (Guam)", 100, 170, false, "2315-2345", "USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0230-0300, 0500-0530, 0900-0925, 1000-1140, 1200-1310, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1730-1830, 1900-1940"},
     {22376000, "2315-2345   22376 kHz - USCG Apra Harbor (Guam)", 100, 170, false, "2315-2345", "USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0130-0220, 0230-0300, 0500-0530, 0900-0925, 1500-1530, 1900-1940, 2030-2120"},
     {12579000, "2350-2400   12579 kHz - Shanghai Radio Meteo (China)", 100, 170, false, "2350-2400", "Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140 ..."},
-    {4266000, "sem horário   4266 kHz - Marinha do Brasil (Rio) - só a pedido", 100, 0, false, "", "Sem horário conhecido (sai só a pedido do navegante)"},
     {8415000, "sem horário   8415 kHz - Marinha argentina / costeiras", 100, 0, false, "", "Sem horário conhecido"},
     {12578000, "sem horário   12578 kHz - Marinha argentina (Buenos Aires)", 100, 200, false, "", "Sem horário conhecido"},
 };
@@ -2700,6 +2706,55 @@ const CanalDec kCanaisDsc[] = {
     {1656000, "2303-2308   1656 kHz - Valencia Radio (Spain)", 100, 0, false, "2303-2308", "Valencia Radio (Spain)\n\nOutros horários nesta frequência: 0840-0845, 0903-0908, 1503-1508, 2003-2008"},
     {1704000, "2333-2348   1704 kHz - Valencia Radio (Spain)", 100, 0, false, "2333-2348", "Valencia Radio (Spain)\n\nOutros horários nesta frequência: 1003-1018, 1533-1548, 2003-2005, 2033-2048"},
 };
+// PACTOR-I: a frequencia publicada e o centro do FSK (200 Hz de shift); o VFO vai
+// 1500 Hz abaixo. A Marinha do Brasil (Rio) transmite meteoromarinha e avisos assim.
+const CanalDec kCanaisPactor[] = {
+    {12566700, "0000-2400   12566,7 kHz - Marinha do Brasil (PWPU)", 100, 200, false, "0000-2400", "Marinha do Brasil (PWPU)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0600-2400"},
+    {6448000, "0230-0330   6448 kHz - Marinha do Brasil (Rio)", 100, 200, false, "0230-0330", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
+    {8580000, "0230-0330   8580 kHz - Marinha do Brasil (Rio) - principal", 100, 200, false, "0230-0330", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
+    {12709000, "0230-0330   12709 kHz - Marinha do Brasil (Rio)", 100, 200, false, "0230-0330", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
+    {16974000, "0230-0330   16974 kHz - Marinha do Brasil (Rio)", 100, 200, false, "0230-0330", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
+    {8582000, "0230-0350   8582 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", 100, 200, false, "0230-0350", "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0400-0515, 0600-0715, 1430-1545, 1930-2230"},
+    {6448000, "0400-0445   6448 kHz - Marinha do Brasil (Rio)", 100, 200, false, "0400-0445", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
+    {8580000, "0400-0445   8580 kHz - Marinha do Brasil (Rio) - principal", 100, 200, false, "0400-0445", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
+    {12709000, "0400-0445   12709 kHz - Marinha do Brasil (Rio)", 100, 200, false, "0400-0445", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
+    {16974000, "0400-0445   16974 kHz - Marinha do Brasil (Rio)", 100, 200, false, "0400-0445", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
+    {6422000, "0400-0515   6422 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", 100, 200, false, "0400-0515", "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 1930-2200"},
+    {6450000, "0400-0515   6450 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", 100, 200, false, "0400-0515", "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0600-0715, 1430-1545, 1930-2200"},
+    {8570000, "0400-0515   8570 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", 100, 200, false, "0400-0515", "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 1930-2200"},
+    {8582000, "0400-0515   8582 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", 100, 200, false, "0400-0515", "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0230-0350, 0600-0715, 1430-1545, 1930-2230"},
+    {6450000, "0600-0715   6450 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", 100, 200, false, "0600-0715", "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0400-0515, 1430-1545, 1930-2200"},
+    {8582000, "0600-0715   8582 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", 100, 200, false, "0600-0715", "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0230-0350, 0400-0515, 1430-1545, 1930-2230"},
+    {6448000, "0600-0730   6448 kHz - Marinha do Brasil (Rio)", 100, 200, false, "0600-0730", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
+    {8580000, "0600-0730   8580 kHz - Marinha do Brasil (Rio) - principal", 100, 200, false, "0600-0730", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
+    {12709000, "0600-0730   12709 kHz - Marinha do Brasil (Rio)", 100, 200, false, "0600-0730", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
+    {16974000, "0600-0730   16974 kHz - Marinha do Brasil (Rio)", 100, 200, false, "0600-0730", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
+    {19502200, "0600-1800   19502,2 kHz - Ministério do Exterior - Cartum (Sudão)", 100, 200, false, "0600-1800", "Ministério do Exterior - Cartum (Sudão)\nPACTOR-I 100 baud, shift 200 Hz"},
+    {20204200, "0600-1800   20204,2 kHz - Ministério do Exterior - Cartum (Sudão)", 100, 200, false, "0600-1800", "Ministério do Exterior - Cartum (Sudão)\nPACTOR-I 100 baud, shift 200 Hz"},
+    {12566700, "0600-2400   12566,7 kHz - Marinha do Brasil - Rio Grande (PWR44)", 100, 200, false, "0600-2400", "Marinha do Brasil - Rio Grande (PWR44)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0000-2400"},
+    {16984000, "0800-0830   16984 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", 100, 200, false, "0800-0830", "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 1600-1800, 1930-2155"},
+    {6450000, "1430-1545   6450 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", 100, 200, false, "1430-1545", "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0400-0515, 0600-0715, 1930-2200"},
+    {8582000, "1430-1545   8582 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", 100, 200, false, "1430-1545", "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0230-0350, 0400-0515, 0600-0715, 1930-2230"},
+    {12731000, "1430-1545   12731 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", 100, 200, false, "1430-1545", "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 1930-2155"},
+    {16984000, "1600-1800   16984 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", 100, 200, false, "1600-1800", "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0800-0830, 1930-2155"},
+    {6448000, "1845-1930   6448 kHz - Marinha do Brasil (Rio)", 100, 200, false, "1845-1930", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
+    {8580000, "1845-1930   8580 kHz - Marinha do Brasil (Rio) - principal", 100, 200, false, "1845-1930", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
+    {12709000, "1845-1930   12709 kHz - Marinha do Brasil (Rio)", 100, 200, false, "1845-1930", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
+    {16974000, "1845-1930   16974 kHz - Marinha do Brasil (Rio)", 100, 200, false, "1845-1930", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
+    {12701000, "1930-2155   12701 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", 100, 200, false, "1930-2155", "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)"},
+    {12731000, "1930-2155   12731 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", 100, 200, false, "1930-2155", "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 1430-1545"},
+    {16984000, "1930-2155   16984 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", 100, 200, false, "1930-2155", "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0800-0830, 1600-1800"},
+    {6422000, "1930-2200   6422 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", 100, 200, false, "1930-2200", "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0400-0515"},
+    {6450000, "1930-2200   6450 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", 100, 200, false, "1930-2200", "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0400-0515, 0600-0715, 1430-1545"},
+    {8570000, "1930-2200   8570 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", 100, 200, false, "1930-2200", "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0400-0515"},
+    {8582000, "1930-2230   8582 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", 100, 200, false, "1930-2230", "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0230-0350, 0400-0515, 0600-0715, 1430-1545"},
+    {6448000, "2130-2215   6448 kHz - Marinha do Brasil (Rio)", 100, 200, false, "2130-2215", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
+    {8580000, "2130-2215   8580 kHz - Marinha do Brasil (Rio) - principal", 100, 200, false, "2130-2215", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
+    {12709000, "2130-2215   12709 kHz - Marinha do Brasil (Rio)", 100, 200, false, "2130-2215", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
+    {16974000, "2130-2215   16974 kHz - Marinha do Brasil (Rio)", 100, 200, false, "2130-2215", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
+    {4266000, "sem horário   4266 kHz - Marinha do Brasil (Rio) - só a pedido", 100, 200, false, "", "Sai só a pedido do navegante"},
+};
+
 // WEFAX: a frequencia ja e a do mostrador em USB (centro - 1,9 kHz).
 // baud = LPM, shift = IOC. Uma linha por transmissao, em ordem de horario UTC.
 const CanalDec kCanaisWefax[] = {
@@ -2938,8 +2993,80 @@ bool canalNoAr(const char* hor)
     return false;
 }
 
+// ---------------------------------------------------------------------------
+//  Busca nas listas de canais (SITOR-B, DSC, RTTY, ALE, PACTOR-I, WEFAX e
+//  as emissoras do DRM): saber se uma frequencia ja esta
+//  na lista sem rolar centenas de linhas.
+//    * so numeros (com ponto ou virgula): compara com a frequencia do canal,
+//      do jeito que se escreve no dia a dia - "8416,5", "8416.5", "8.416.5",
+//      "8,4165" e "8416500" acham todos o canal de 8416,5 kHz. Vale ir
+//      digitando: "841" ja mostra tudo que comeca por 841x kHz.
+//    * com letras: procura no nome e na dica (estacao, pais) - "argentina".
+// ---------------------------------------------------------------------------
+static std::string soDigitos(const std::string& s)
+{
+    std::string d;
+    for (char ch : s) if (ch >= '0' && ch <= '9') d += ch;
+    return d;
+}
+static std::string minusculas(const char* s)
+{
+    std::string r = s ? s : "";
+    for (auto& ch : r) ch = (char)std::tolower((unsigned char)ch);
+    return r;
+}
+bool buscaBate(uint64_t hzCanal, const std::string& texto, const std::string& busca)
+{
+    if (busca.empty()) return true;
+    bool soNumero = true;
+    for (char ch : busca)
+        if (!((ch >= '0' && ch <= '9') || ch == '.' || ch == ',' || ch == ' ')) { soNumero = false; break; }
+    if (soNumero) {
+        std::string q = soDigitos(busca);
+        while (q.size() > 1 && q[0] == '0') q.erase(0, 1);   // "08416" = "8416"
+        if (q.empty()) return true;
+        // kHz sem a virgula (8416500 Hz -> "84165") e em Hz ("8416500")
+        char k[32];
+        const uint64_t khz = hzCanal / 1000, resto = hzCanal % 1000;
+        if (resto == 0) std::snprintf(k, sizeof k, "%llu", (unsigned long long)khz);
+        else {
+            std::snprintf(k, sizeof k, "%llu%03llu", (unsigned long long)khz, (unsigned long long)resto);
+            size_t n = std::strlen(k);
+            while (n > 0 && k[n - 1] == '0') k[--n] = 0;
+        }
+        const std::string hz = std::to_string((unsigned long long)hzCanal);
+        return std::string(k).rfind(q, 0) == 0 || hz.rfind(q, 0) == 0;
+    }
+    return minusculas(texto.c_str()).find(minusculas(busca.c_str())) != std::string::npos;
+}
+bool canalPassaBusca(const CanalDec& c, const std::string& busca)
+{
+    if (busca.empty()) return true;
+    return buscaBate(c.hz, std::string(c.nome ? c.nome : "") + "\n" + (c.dica ? c.dica : ""), busca);
+}
+
+// Campo de busca no topo de uma lista aberta (combo): limpa e recebe o cursor
+// ao abrir. Devolve o texto aparado; 'achados'/'total' escrevem o resultado.
+std::string campoBuscaLista(const char* dica)
+{
+    static char busca[64] = "";
+    if (ImGui::IsWindowAppearing()) { busca[0] = 0; ImGui::SetKeyboardFocusHere(); }
+    ImGui::SetNextItemWidth(-FLT_MIN);
+    ImGui::InputTextWithHint("##buscacanal", dica, busca, sizeof busca);
+    std::string q = busca;
+    while (!q.empty() && q.back() == ' ') q.pop_back();
+    while (!q.empty() && q.front() == ' ') q.erase(0, 1);
+    return q;
+}
+void resultadoBusca(const std::string& q, int achados)
+{
+    if (q.empty()) return;
+    if (achados) ImGui::TextColored(ImVec4(0.3f, 1.f, 0.5f, 1), "%d na lista com \"%s\"", achados, q.c_str());
+    else ImGui::TextColored(ImVec4(1.f, 0.55f, 0.3f, 1), "\"%s\" não está na lista", q.c_str());
+}
+
 template <size_t N>
-bool comboCanal(const char* id, const CanalDec (&c)[N], int& sel)
+bool comboCanal(const char* id, const CanalDec (&c)[N], int& sel, bool comBusca = true)
 {
     bool mudou = false;
     const char* prev = sel >= 0 && sel < (int)N ? c[sel].nome : "- escolha para sintonizar -";
@@ -2947,10 +3074,23 @@ bool comboCanal(const char* id, const CanalDec (&c)[N], int& sel)
         // ao abrir, a lista (em ordem de horario UTC) rola ate o escolhido ou,
         // sem escolha, ate as transmissoes que comecam agora (meia hora atras em diante)
         bool rolar = ImGui::IsWindowAppearing();
+        std::string q;
+        if (comBusca) {
+            q = campoBuscaLista("buscar: frequência (8416,5 ou 8.416.5) ou nome (argentina)");
+            if (!q.empty()) {
+                int achados = 0;
+                for (int i = 0; i < (int)N; ++i) if (c[i].hz != 0 && canalPassaBusca(c[i], q)) ++achados;
+                resultadoBusca(q, achados);
+                rolar = false;
+            }
+            ImGui::Separator();
+            ImGui::BeginChild("##listacanais", ImVec2(0, ImGui::GetTextLineHeightWithSpacing() * 20));
+        }
         SYSTEMTIME st; GetSystemTime(&st);
         const int agora = st.wHour * 60 + st.wMinute;
         for (int i = 0; i < (int)N; ++i) {
-            if (c[i].hz == 0) { ImGui::SeparatorText(c[i].nome); continue; }   // titulo de grupo
+            if (c[i].hz == 0) { if (q.empty()) ImGui::SeparatorText(c[i].nome); continue; }   // titulo de grupo
+            if (!q.empty() && !canalPassaBusca(c[i], q)) continue;
             const bool noAr = canalNoAr(c[i].hor);
             int hi = -1, ini = -1;
             if (c[i].hor && std::sscanf(c[i].hor, "%4d", &hi) == 1) ini = hi / 100 * 60 + hi % 100;
@@ -2963,6 +3103,8 @@ bool comboCanal(const char* id, const CanalDec (&c)[N], int& sel)
             if (c[i].dica && *c[i].dica && ImGui::IsItemHovered())
                 ImGui::SetTooltip("%s%s(horarios em UTC)", c[i].dica, noAr ? "\n\nNO AR AGORA pela grade " : "\n\n");
         }
+        if (comBusca) ImGui::EndChild();
+        if (comBusca && mudou) ImGui::CloseCurrentPopup();   // a lista fica numa janela-filha
         ImGui::EndCombo();
     }
     return mudou;
@@ -3789,7 +3931,7 @@ void Ui::janelaDecoders()
     ImGui::SameLine();
     ImGui::SetNextItemWidth(200 * s_);
     if (ImGui::BeginCombo("##dectipo", Decoders::nome((Decoders::Tipo)decTipo_), ImGuiComboFlags_HeightLarge)) {
-        static const int kOrdem[] = {Decoders::NENHUM, Decoders::CW, Decoders::RTTY, Decoders::SITORB, Decoders::DSC,
+        static const int kOrdem[] = {Decoders::NENHUM, Decoders::CW, Decoders::RTTY, Decoders::SITORB, Decoders::PACTOR, Decoders::DSC,
                                      Decoders::ALE, Decoders::DMR, Decoders::TETRA, Decoders::HFDL, Decoders::AIS,
                                      Decoders::APRS, Decoders::ACARS, Decoders::VDL2, Decoders::DRM, Decoders::SSTV, Decoders::WEFAX,
                                      Decoders::ANALISE};
@@ -3821,7 +3963,7 @@ void Ui::janelaDecoders()
         std::string pasta = pastaDoExe() + "\\Decodificados";
         CreateDirectoryA(pasta.c_str(), nullptr);
         SYSTEMTIME st; GetLocalTime(&st);
-        static const char* kTag[] = {"", "CW", "RTTY", "SITORB", "DSC", "ALE", "DMR", "TETRA", "HFDL", "AIS", "APRS", "ACARS", "VDL2", "ANALISE", "DRM", "SSTV", "WEFAX"};
+        static const char* kTag[] = {"", "CW", "RTTY", "SITORB", "DSC", "ALE", "DMR", "TETRA", "HFDL", "AIS", "APRS", "ACARS", "VDL2", "ANALISE", "DRM", "SSTV", "WEFAX", "PACTOR"};
         char nome[96];
         std::snprintf(nome, sizeof nome, "\\RXSDR_%s_%04d%02d%02d_%02d%02d%02d.txt",
                       decTipo_ > 0 && decTipo_ < Decoders::N_TIPOS ? kTag[decTipo_] : "DEC",
@@ -3840,15 +3982,20 @@ void Ui::janelaDecoders()
         ImGui::TextUnformatted("Canal");
         ImGui::SameLine();
         ImGui::SetNextItemWidth(wCombo);
-        if (comboCanal("##canal", lista, sel)) {
+        if (comboCanal("##canal", lista, sel)) {   // com campo de busca (todas as listas)
             const auto& c = lista[sel];
             if (aplicaFsk && c.baud > 0) { decAj_.rttyBaud = c.baud; decAj_.rttyShift = c.shift; }
             if (decTipo_ == Decoders::SITORB) decAj_.sitorShift = c.shift > 0 ? c.shift : 170.f;
             if (r_.modo() != "USB") mudarModo("USB");
             if (decTipo_ == Decoders::ALE) r_.setBanda(3000);
+            // Os tons ficam em ~1700 Hz (SITOR-B/DSC) ou ~1500 Hz (PACTOR): com
+            // a largura em 1,4 kHz eles caiam na borda do filtro e o texto saia
+            // picado (visto em 16806,5 kHz). Abaixo de 3 kHz, abre para 3 kHz.
+            else if (r_.banda() < 3000) r_.setBanda(3000);
             // SITOR-B/DSC: publicado = centro do FSK -> VFO 1700 Hz abaixo (tons em ~1700 Hz)
             const bool centroFsk = decTipo_ == Decoders::SITORB || decTipo_ == Decoders::DSC;
-            sintonizar(c.meio ? c.hz - 1500 : centroFsk ? c.hz - 1700 : c.hz, false);
+            const bool centroPactor = decTipo_ == Decoders::PACTOR;   // tons em 1400/1600 Hz
+            sintonizar(c.meio || centroPactor ? c.hz - 1500 : centroFsk ? c.hz - 1700 : c.hz, false);
             escolherDecoder(decTipo_, false);
         }
     };
@@ -3896,6 +4043,13 @@ void Ui::janelaDecoders()
     }
     case Decoders::ALE:
         linhaCanal(kCanaisAle, decCanalAle_, false);
+        break;
+    case Decoders::PACTOR:
+        linhaCanal(kCanaisPactor, decCanalPactor_, false);
+        ImGui::SameLine();
+        ImGui::TextDisabled("verde = no ar agora (grade UTC)");
+        ImGui::TextDisabled("PACTOR-I (100 ou 200 baud, shift 200 Hz) em USB. O tom, a velocidade e a polaridade sao achados sozinhos;");
+        ImGui::TextDisabled("cada pacote e conferido pelo CRC - texto so aparece quando o pacote chega inteiro.");
         break;
     case Decoders::CW: {
         ImGui::AlignTextToFramePadding();
@@ -4123,15 +4277,28 @@ void Ui::janelaDecoders()
             escolherDecoder(Decoders::DRM, false);    // recomeca a procura do sinal
         };
         if (ImGui::BeginCombo("##drmemis", atual.c_str(), ImGuiComboFlags_HeightLarge)) {
+            const std::string q = campoBuscaLista("buscar: frequência (kHz) ou emissora, país, idioma");
+            auto bate = [&](int i) { return buscaBate((uint64_t)kDrm[i].khz * 1000, rotuloDrm(kDrm[i]), q); };
+            if (!q.empty()) {
+                int achados = 0;
+                for (int i = 0; i < nDrm; ++i) if (bate(i)) ++achados;
+                resultadoBusca(q, achados);
+            }
+            ImGui::Separator();
+            ImGui::BeginChild("##listadrm", ImVec2(0, ImGui::GetTextLineHeightWithSpacing() * 20));
+            bool fechar = false;
             for (int i = 0; i < nDrm; ++i) {
+                if (!q.empty() && !bate(i)) continue;
                 const bool noAr = drmNoAr(kDrm[i]);
                 if (noAr) ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 1.f, 0.5f, 1));
                 ImGui::PushID(i);
                 const bool escolheu = ImGui::Selectable(rotuloDrm(kDrm[i]).c_str(), decDrmSel_ == i);
                 ImGui::PopID();
                 if (noAr) ImGui::PopStyleColor();
-                if (escolheu) irPara(i);
+                if (escolheu) { irPara(i); fechar = true; }
             }
+            ImGui::EndChild();
+            if (fechar) ImGui::CloseCurrentPopup();   // a lista fica numa janela-filha
             ImGui::EndCombo();
         }
         // No ar agora (pela grade): um botao por emissora; clicou, sintonizou

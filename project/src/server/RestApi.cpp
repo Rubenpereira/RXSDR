@@ -304,6 +304,33 @@ void RestApi::install(QHttpServer* server)
     });
 
 
+    // ── SSTV e WEFAX (imagens) ─────────────────────────────────────────────
+    //   GET  /api/sstv/status         estado, versao da imagem, historico
+    //   POST /api/sstv/cmd/<acao>     start, stop, comecar, terminar, limpar...
+    //   GET  /api/sstv/png/<qual>     "atual" ou o numero de uma do historico
+    // (e o mesmo para /api/wefax/...)
+    for (const QString dec : { QStringLiteral("sstv"), QStringLiteral("wefax") }) {
+        server->route(QStringLiteral("/api/%1/status").arg(dec), QHttpServerRequest::Method::Get, [this, dec]() {
+            QJsonObject o = onImgStatus ? onImgStatus(dec) : QJsonObject{{"state","unavailable"}};
+            return QHttpServerResponse("application/json", QJsonDocument(o).toJson(QJsonDocument::Compact));
+        });
+        server->route(QStringLiteral("/api/%1/cmd/<arg>").arg(dec), QHttpServerRequest::Method::Post,
+            [this, dec](const QString& acao, const QHttpServerRequest& req) {
+                const QJsonObject j = QJsonDocument::fromJson(req.body()).object();
+                QJsonObject r = onImgCmd ? onImgCmd(dec, acao, j) : QJsonObject{{"ok",false},{"error","indisponível"}};
+                if (!r.contains("ok")) r.insert("ok", true);
+                return QHttpServerResponse("application/json", QJsonDocument(r).toJson(QJsonDocument::Compact));
+            });
+        server->route(QStringLiteral("/api/%1/png/<arg>").arg(dec), QHttpServerRequest::Method::Get,
+            [this, dec](const QString& qual) {
+                const QByteArray png = onImgPng ? onImgPng(dec, qual) : QByteArray();
+                if (png.isEmpty())
+                    return QHttpServerResponse(QHttpServerResponder::StatusCode::NoContent);
+                return QHttpServerResponse("image/png", png);
+            });
+    }
+
+
     // ── DSC Decoder (ITU-R M.493) ─────────────────────────────────────────
 
     // GET /api/dsc/status

@@ -81,6 +81,13 @@ public:
     std::function<QJsonObject(const QJsonObject&)>           onPactorStart;
     std::function<QJsonObject()>                             onPactorStop;
 
+    // SSTV e WEFAX - decodificadores de IMAGEM. "dec" e "sstv" ou "wefax".
+    // status: estado + versao da imagem; cmd: start, stop, comecar, terminar...
+    // png: "atual" (a que esta chegando) ou o numero de uma do historico.
+    std::function<QJsonObject(const QString& dec)>                                   onImgStatus;
+    std::function<QJsonObject(const QString& dec, const QString& acao, const QJsonObject&)> onImgCmd;
+    std::function<QByteArray(const QString& dec, const QString& qual)>               onImgPng;
+
     // DSC Decoder (ITU-R M.493)
     std::function<QJsonObject()>                             onDscStatus;
     std::function<QJsonObject(const QJsonObject&)>           onDscStart;

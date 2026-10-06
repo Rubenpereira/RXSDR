@@ -67,6 +67,11 @@ set(SOURCES
     src/decoders/AleCore.cpp
     src/decoders/AleManager.cpp
     src/decoders/PactorManager.cpp
+    src/decoders/PactorCore.cpp
+    src/decoders/SstvCore.cpp
+    src/decoders/SstvManager.cpp
+    src/decoders/WefaxCore.cpp
+    src/decoders/WefaxManager.cpp
     src/decoders/DscManager.cpp
     src/decoders/DscCore.cpp
     src/decoders/AnaliseCore.cpp
@@ -113,6 +118,13 @@ set(HEADERS
     src/decoders/AleCore.h
     src/decoders/AleManager.h
     src/decoders/PactorManager.h
+    src/decoders/PactorCore.h
+    src/decoders/SstvCore.h
+    src/decoders/SstvManager.h
+    src/decoders/WefaxCore.h
+    src/decoders/WefaxManager.h
+    src/decoders/FilaAudio.h
+    src/decoders/ImagemPng.h
     src/decoders/DscCore.h
     src/decoders/AnaliseCore.h
     src/decoders/AnaliseManager.h

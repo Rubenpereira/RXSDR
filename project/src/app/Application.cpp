@@ -29,6 +29,8 @@
 #include "../decoders/AleManager.h"
 #include "../decoders/CwManager.h"
 #include "../decoders/PactorManager.h"
+#include "../decoders/SstvManager.h"
+#include "../decoders/WefaxManager.h"
 #include "../decoders/DscManager.h"
 #include "../decoders/AnaliseManager.h"
 #include "../decoders/SelcalManager.h"
@@ -111,6 +113,10 @@ constexpr int64_t kZonaProibidaHz = 20000;
 constexpr int64_t kTetoDiretaHz = 14300000;
 // Abaixo disto o centro nao pode descer mais, ou encosta no zero.
 constexpr int64_t kPisoCentroHz = 150000;
+
+// Quanto o centro novo fica ao lado da sintonia quando a estacao sai da tela
+// (ver o onTune). So nesse caso: a cachoeira ja ia saltar mesmo.
+constexpr int64_t kDesvioDcHz = 20000;
 
 // Os 50 e 20 kHz acima foram medidos numa janela de 2,4 MHz, onde valem 2% e
 // menos de 1% do que se ve. Numa janela estreita eles deixam de ser detalhe:
@@ -464,10 +470,25 @@ bool Application::start()
                 const bool direta = Config::instance().quadratureEm(freq);
                 device_->setQuadrature(direta);
 
-                // O LO nunca fica em cima do VFO - ver centroComDesvioDoLo.
-                device_->setCenterFreq(static_cast<quint64>(
-                    centroComDesvioDoLo(static_cast<int64_t>(freq),
-                                        static_cast<int64_t>(freq), direta, sr)));
+                // A cachoeira vai saltar de qualquer jeito (a estacao saiu da
+                // tela), entao o centro novo ja nasce um pouco ao lado: cravado
+                // na sintonia, o "apito" do DC caia exatamente na marca. Pedido
+                // do autor, igual ao RXSDR Nativo 1.0.3:
+                //   USB, CW, AM, FM e NFM : centro 20 kHz ABAIXO
+                //   LSB                   : centro 20 kHz ACIMA
+                //   WFM                   : no centro (canal de 200 kHz)
+                // Clicar dentro da tela continua NAO mexendo na cachoeira - ver
+                // centroComDesvioDoLo, desligado por isso em 28/08/2026.
+                int64_t centro = centroComDesvioDoLo(static_cast<int64_t>(freq),
+                                                     static_cast<int64_t>(freq), direta, sr);
+                const bool hfdlRodando = hfdlDeco_ && hfdlDeco_->state() == HfdlManager::State::Running;
+                if (!hfdlRodando && newMode != QLatin1String("WFM") && sr >= 200000) {
+                    const int64_t f = static_cast<int64_t>(freq);
+                    centro = (newMode == QLatin1String("LSB")) ? f + kDesvioDcHz : f - kDesvioDcHz;
+                    if (direta && centro > kTetoDiretaHz) centro = f - kDesvioDcHz;
+                    if (centro < kPisoCentroHz) centro = f + kDesvioDcHz;
+                }
+                device_->setCenterFreq(static_cast<quint64>(centro));
                 // Re-aplica o ganho: o driver RTL-SDR reseta o ganho de hardware
                 // internamente ao mudar a frequência central — sem isso o ganho
                 // manual some a cada mudança de frequência.
@@ -1070,10 +1091,21 @@ bool Application::start()
     pactorDeco_ = std::make_unique<PactorManager>(this);
 
     connect(pactorDeco_.get(), &PactorManager::logLine, this, [this](const QString& line) {
+        Logger::info(line);
         ws_->broadcastJson(QJsonObject{
             {"t",       "dec_line"},
             {"decoder", "PACTOR"},
             {"text",    line}
+        });
+    });
+    // O texto dos pacotes vai em pedacos marcados com "cont": a tela emenda na
+    // linha que ja esta la, como no CW e no RTTY.
+    connect(pactorDeco_.get(), &PactorManager::textoFluxo, this, [this](const QString& pedaco) {
+        ws_->broadcastJson(QJsonObject{
+            {"t",       "dec_line"},
+            {"decoder", "PACTOR"},
+            {"text",    pedaco},
+            {"cont",    true}
         });
     });
     connect(pactorDeco_.get(), &PactorManager::error, [](const QString& msg) {
@@ -1087,7 +1119,7 @@ bool Application::start()
 
     rest_->onPactorStart = [this](const QJsonObject& j) -> QJsonObject {
         PactorManager::Params p;
-        p.baudRate   = static_cast<float>(j.value("baudRate").toDouble(200.0));
+        p.baudRate   = static_cast<float>(j.value("baudRate").toDouble(100.0));
         p.shift      = static_cast<float>(j.value("shift").toDouble(200.0));
         p.center     = static_cast<float>(j.value("center").toDouble(1500.0));
         p.invert     = j.value("invert").toBool(false);
@@ -1104,6 +1136,46 @@ bool Application::start()
         QJsonObject r = pactorDeco_->statusJson();
         r["ok"] = true;
         return r;
+    };
+
+    // ── SSTV e WEFAX (imagens) ─────────────────────────────────────────────
+    // Os dois decodificam numa thread propria (ver FilaAudio.h). A pagina le
+    // o estado e busca o PNG da imagem quando a versao muda.
+    sstvDeco_  = std::make_unique<SstvManager>(this);
+    wefaxDeco_ = std::make_unique<WefaxManager>(this);
+    sstvDeco_->freqHz  = [this]() -> uint64_t { return freqA_.load(); };
+    wefaxDeco_->freqHz = [this]() -> uint64_t { return freqA_.load(); };
+    connect(sstvDeco_.get(), &SstvManager::logLine, this, [this](const QString& line) {
+        Logger::info(line);
+        ws_->broadcastJson(QJsonObject{{"t", "dec_line"}, {"decoder", "SSTV"}, {"text", line}});
+    });
+    connect(wefaxDeco_.get(), &WefaxManager::logLine, this, [this](const QString& line) {
+        Logger::info(line);
+        ws_->broadcastJson(QJsonObject{{"t", "dec_line"}, {"decoder", "WEFAX"}, {"text", line}});
+    });
+
+    rest_->onImgStatus = [this](const QString& dec) -> QJsonObject {
+        if (dec == QLatin1String("sstv"))  return sstvDeco_->statusJson();
+        if (dec == QLatin1String("wefax")) return wefaxDeco_->statusJson();
+        return QJsonObject{{"state", "unavailable"}};
+    };
+    rest_->onImgCmd = [this](const QString& dec, const QString& acao, const QJsonObject& j) -> QJsonObject {
+        const bool sstv = dec == QLatin1String("sstv");
+        if (acao == QLatin1String("start")) {
+            if (sstv) sstvDeco_->start(j); else wefaxDeco_->start(j);
+        } else if (acao == QLatin1String("stop")) {
+            if (sstv) sstvDeco_->stop(); else wefaxDeco_->stop();
+        } else {
+            return sstv ? sstvDeco_->comando(acao, j) : wefaxDeco_->comando(acao, j);
+        }
+        QJsonObject r = sstv ? sstvDeco_->statusJson() : wefaxDeco_->statusJson();
+        r["ok"] = true;
+        return r;
+    };
+    rest_->onImgPng = [this](const QString& dec, const QString& qual) -> QByteArray {
+        if (dec == QLatin1String("sstv"))  return sstvDeco_->png(qual);
+        if (dec == QLatin1String("wefax")) return wefaxDeco_->png(qual);
+        return QByteArray();
     };
 
     // ── DSC Decoder (ITU-R M.493) ──────────────────────────────────────────
@@ -1165,6 +1237,12 @@ bool Application::start()
             rttyDeco_->feedAudio(pcm, n, sps);
         else if (alvo == QLatin1String("ALE") && aleDeco_)
             aleDeco_->feedAudio(pcm, n, sps);
+        else if (alvo == QLatin1String("PACTOR") && pactorDeco_)
+            pactorDeco_->feedAudio(pcm, n, sps);
+        else if (alvo == QLatin1String("SSTV") && sstvDeco_)
+            sstvDeco_->feedAudio(pcm, n, sps);
+        else if (alvo == QLatin1String("WEFAX") && wefaxDeco_)
+            wefaxDeco_->feedAudio(pcm, n, sps);
         // APRS: o Direwolf precisa estar rodando (painel aberto). Serve para
         // testar o HF 300 baud com gravacao, sem esperar sinal no ar.
         else if (alvo == QLatin1String("APRS") && aprsDeco_)
@@ -1572,6 +1650,8 @@ void Application::stop()
     if (rttyDeco_) rttyDeco_->stop();
     if (aleDeco_)  aleDeco_->stop();
     if (pactorDeco_) pactorDeco_->stop();
+    if (sstvDeco_) sstvDeco_->stop();
+    if (wefaxDeco_) wefaxDeco_->stop();
     if (dscDeco_) dscDeco_->stop();
     if (analiseDeco_) analiseDeco_->stop();
     if (selcalDeco_) selcalDeco_->stop();
@@ -2235,6 +2315,12 @@ void Application::handleAudioCallback(const std::vector<int16_t>& pcm, uint32_t 
         }
         if (pactorDeco_ && pactorDeco_->state() == PactorManager::State::Running) {
             pactorDeco_->feedAudio(chunk.data(), static_cast<int>(chunk.size()), sps);
+        }
+        if (sstvDeco_ && sstvDeco_->state() == SstvManager::State::Running) {
+            sstvDeco_->feedAudio(chunk.data(), static_cast<int>(chunk.size()), sps);
+        }
+        if (wefaxDeco_ && wefaxDeco_->state() == WefaxManager::State::Running) {
+            wefaxDeco_->feedAudio(chunk.data(), static_cast<int>(chunk.size()), sps);
         }
         if (dscDeco_ && dscDeco_->state() == DscManager::State::Running) {
             dscDeco_->feedAudio(chunk.data(), static_cast<int>(chunk.size()), sps);

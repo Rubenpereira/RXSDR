@@ -1228,11 +1228,14 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
         <a onclick="openDecoderPanel('packet')"href="javascript:void(0)">APRS</a>
         <a onclick="openDecoderPanel('ais')" href="javascript:void(0)">AIS</a>
         <a onclick="openDecoderPanel('sitorb')" href="javascript:void(0)">SITOR-B / NAVTEX</a>
+        <a onclick="openDecoderPanel('pactor')" href="javascript:void(0)">PACTOR-I (Marinha / FEC)</a>
         <a onclick="openDecoderPanel('rtty')" href="javascript:void(0)">RTTY (radioteletipo)</a>
         <a onclick="openDecoderPanel('ale')" href="javascript:void(0)">ALE (MIL-STD-188-141)</a>
         <a onclick="openDecoderPanel('dsc')" href="javascript:void(0)">DSC (chamada seletiva)</a>
         <a onclick="openDecoderPanel('cw')" href="javascript:void(0)">CW / Morse</a>
         <a onclick="openDecoderPanel('hfdl')" href="javascript:void(0)">HFDL &mdash; ACARS em ondas curtas</a>
+        <a onclick="openDecoderPanel('sstv')" href="javascript:void(0)">SSTV (imagens)</a>
+        <a onclick="openDecoderPanel('wefax')" href="javascript:void(0)">WEFAX (fax meteorol&oacute;gico)</a>
         <a onclick="openDecoderPanel('analise')" href="javascript:void(0)">Analisar sinal desconhecido</a>
         <a onclick="openDecoderPanel('whisper')" href="javascript:void(0)">Transcri&ccedil;&atilde;o de fala</a>
       </div>
@@ -1278,7 +1281,7 @@ html,body{background:var(--bg-deep);color:var(--text-bright);
       </div>
     </div>
     <div style="flex:1"></div>
-    <div class="item" style="color:var(--accent-lcd)">RXSDR v1.0.68</div>
+    <div class="item" style="color:var(--accent-lcd)">RXSDR v1.0.69</div>
   </div>
 
   <!-- =============================== TOPO =============================== -->
@@ -4325,6 +4328,9 @@ const Backend = {
             if (msg.decoder === 'APRS') AprsDecoder.appendLine(msg.text);
             if (msg.decoder === 'AIS') AisDecoder.appendLine(msg.text);
             if (msg.decoder === 'SITOR-B') SitorBDecoder.appendLine(msg.text);
+            if (msg.decoder === 'PACTOR') { if (msg.cont) PactorDecoder.appendTexto(msg.text); else PactorDecoder.appendLine(msg.text); }
+            if (msg.decoder === 'SSTV') SstvDecoder.appendLine(msg.text);
+            if (msg.decoder === 'WEFAX') WefaxDecoder.appendLine(msg.text);
             if (msg.decoder === 'RTTY') { if (msg.cont) RttyDecoder.appendTexto(msg.text); else RttyDecoder.appendLine(msg.text); }
             if (msg.decoder === 'ALE') AleDecoder.appendLine(msg.text);
             if (msg.decoder === 'DSC') DscDecoder.appendLine(msg.text);
@@ -6534,14 +6540,16 @@ function drawWaterfall(lines = 1){
     const freqText = mhz.toFixed(decimals);
     
     // Medir texto
-    wfCtx.font = '8pt JetBrains Mono, Consolas, monospace';
+    // Maior e em negrito (pedido do autor, igual ao RXSDR Nativo): os 8pt
+    // de antes eram dificeis de ler em cima da cachoeira.
+    wfCtx.font = 'bold 12pt JetBrains Mono, Consolas, monospace';
     const textWidth = wfCtx.measureText(freqText).width;
-    const boxW = textWidth + 12;
-    const boxH = 18;
+    const boxW = textWidth + 14;
+    const boxH = 24;
     
     // Caixa de fundo preta translúcida (alpha = 170)
     const boxX = Math.min(W - boxW - 5, Math.max(5, wfMouseX + 10));
-    const boxY = Math.min(H - boxH - 5, Math.max(5, wfMouseY - 25));
+    const boxY = Math.min(H - boxH - 5, Math.max(5, wfMouseY - 31));
     wfCtx.fillStyle = 'rgba(0, 0, 0, 0.66)'; 
     wfCtx.fillRect(boxX, boxY, boxW, boxH);
     
@@ -8280,12 +8288,26 @@ function centralizarVfoParaZoom(){
            : Number(document.getElementById('cfgSampleRate')?.value || 1024000);
   const zoomVal = Number(document.getElementById('zoomSlider')?.value || 0);
   const visivel = sr / (1 + zoomVal);
-  if (Math.abs(vfo - centerFreqHz) <= visivel * 0.0025) return;
+  // A estacao fica perto do meio, mas nao CRAVADA no centro do dongle: ali
+  // mora o "apito" do DC. O centro vai um pouco para o lado (igual ao RXSDR
+  // Nativo), de modo que o risco do DC caia fora do que se ouve:
+  //   USB e CW : centro 20 kHz abaixo  |  LSB : 20 kHz acima
+  //   AM / FM  : meia banda + 20 kHz ao lado  |  WFM : no centro
+  // nunca mais que 15% da tela para o lado.
+  const modo = (typeof activeMode === 'function') ? activeMode() : 'USB';
+  let desvio = 0;
+  if (modo === 'USB' || modo === 'CW') desvio = -20000;
+  else if (modo === 'LSB') desvio = 20000;
+  else if (modo !== 'WFM') desvio = -((Number(currentBwHz) || 0) / 2 + 20000);
+  const teto = visivel * 0.15;
+  desvio = Math.max(-teto, Math.min(teto, desvio));
+  const alvo = Math.round(vfo + desvio);
+  if (Math.abs(alvo - centerFreqHz) <= visivel * 0.0025) return;
   const agora = performance.now();
-  if (_zoomCentroAlvo === vfo && agora - _zoomCentroEm < 1500) return;
-  _zoomCentroAlvo = vfo; _zoomCentroEm = agora;
+  if (_zoomCentroAlvo === alvo && agora - _zoomCentroEm < 1500) return;
+  _zoomCentroAlvo = alvo; _zoomCentroEm = agora;
   specMarkerHz = null;
-  Backend.setCenter(vfo).catch(()=>{});
+  Backend.setCenter(alvo).catch(()=>{});
 }
 document.getElementById('zoomSlider')?.addEventListener('input', () => {
   centralizarVfoParaZoom();
@@ -9972,6 +9994,9 @@ const DECODERS = [
   {id:'tetra', name:'TETRA',    freq:'380-470 MHz',  mod:'π/4-DQPSK 36 kbps'},    {id:'packet',name:'APRS',   freq:'VHF/HF',       mod:'AFSK/FSK AX.25'},
   {id:'ais',   name:'AIS',    freq:'161.975 / 162.025 MHz', mod:'GMSK 9600 bps'},
   {id:'sitorb',name:'SITOR-B', freq:'8415 kHz e outras',    mod:'FSK 100 bd, shift 170 Hz'},
+  {id:'pactor',name:'PACTOR-I', freq:'8582 kHz e outras',    mod:'FSK 100/200 bd, shift 200 Hz'},
+  {id:'sstv',  name:'SSTV',     freq:'14230 kHz e outras',   mod:'imagens Robot, Martin, Scottie, SC2 e PD'},
+  {id:'wefax', name:'WEFAX',    freq:'lista de estacoes',    mod:'fax meteorologico 120 LPM, IOC 576'},
   {id:'rtty',  name:'RTTY',    freq:'14080 kHz e outras',   mod:'FSK 45,45 bd, shift 170 Hz, Baudot'},
   {id:'ale',   name:'ALE',     freq:'14109 kHz e outras',   mod:'8-FSK 125 bd, MIL-STD-188-141A/B'},
   {id:'cw',    name:'CW / Morse', freq:'qualquer',           mod:'telegrafia, velocidade medida sozinha'},
@@ -9996,6 +10021,12 @@ function buildDecoderContent(d){
     return AisDecoder.buildPanelHTML();
   } else if(d.id==='sitorb'){
     return SitorBDecoder.buildPanelHTML();
+  } else if(d.id==='pactor'){
+    return PactorDecoder.buildPanelHTML();
+  } else if(d.id==='sstv'){
+    return SstvDecoder.buildPanelHTML();
+  } else if(d.id==='wefax'){
+    return WefaxDecoder.buildPanelHTML();
   } else if(d.id==='rtty'){
     return RttyDecoder.buildPanelHTML();
   } else if(d.id==='ale'){
@@ -10074,9 +10105,17 @@ function openDecoderPanel(id){
   }
   // Painies com barra de controles, terminal e nota de rodape precisam de
   // altura; com o padrao antigo o texto explicativo ficava cortado.
-  if (id === 'sitorb' || id === 'rtty' || id === 'ale' || id === 'dsc' || id === 'ais' || id === 'acars' || id === 'analise' || id === 'cw') {
+  if (id === 'sitorb' || id === 'pactor' || id === 'rtty' || id === 'ale' || id === 'dsc' || id === 'ais' || id === 'acars' || id === 'analise' || id === 'cw') {
     panel.style.width = '660px';
     panel.style.height = '500px';
+  }
+  if (id === 'sstv') {
+    panel.style.width = '780px';
+    panel.style.height = '560px';
+  }
+  if (id === 'wefax') {
+    panel.style.width = '800px';
+    panel.style.height = '640px';
   }
   if (id === 'scan') {
     // Larga o suficiente para a fila de botoes caber numa linha so, e nao um
@@ -10144,6 +10183,9 @@ function openDecoderPanel(id){
   if (id === 'acars') AcarsDecoder.init();
   if (id === 'ais')   AisDecoder.init();
   if (id === 'sitorb') SitorBDecoder.init();
+  if (id === 'pactor') PactorDecoder.init();
+  if (id === 'sstv') SstvDecoder.init();
+  if (id === 'wefax') WefaxDecoder.init();
   if (id === 'rtty') RttyDecoder.init();
   if (id === 'ale') AleDecoder.init();
   if (id === 'cw') CwDecoder.init();
@@ -10170,6 +10212,9 @@ function closeDecoderPanel(id){
   if (id === 'packet') AprsDecoder.onClose();
   if (id === 'ais') AisDecoder.onClose();
   if (id === 'sitorb') SitorBDecoder.onClose();
+  if (id === 'pactor') PactorDecoder.onClose();
+  if (id === 'sstv') SstvDecoder.onClose();
+  if (id === 'wefax') WefaxDecoder.onClose();
   if (id === 'rtty') RttyDecoder.onClose();
   if (id === 'ale') AleDecoder.onClose();
   if (id === 'cw') CwDecoder.onClose();
@@ -13053,6 +13098,51 @@ function restoreReceiverState(state) {
    SITOR-B / NAVTEX - decodificador nativo
    O nucleo esta no C++ (SitorBCore). Aqui e so a janela.
    ========================================================= */
+// ---------------------------------------------------------------------------
+//  Busca nas listas de canais (SITOR-B, DSC, RTTY, PACTOR-I e WEFAX; o ALE tem
+//  a busca dele): saber se uma frequencia ja
+//  esta na lista sem rolar centenas de linhas. So numeros (com ponto ou
+//  virgula) compara com a frequencia, do jeito que se escreve no dia a dia:
+//  "8416,5", "8416.5", "8.416.5", "8,4165" e "8416500" acham o canal de
+//  8416,5 kHz, e "841" ja mostra tudo que comeca por 841x kHz. Com letras,
+//  procura no nome e na dica (estacao, pais).
+//  As opcoes que nao batem ficam escondidas no seletor.
+// ---------------------------------------------------------------------------
+function decCanalPassaBusca(hz, texto, busca) {
+  const b = String(busca || '').trim();
+  if (!b) return true;
+  if (/^[0-9.,\s]+$/.test(b)) {
+    const q = b.replace(/[^0-9]/g, '').replace(/^0+(?=\d)/, '');
+    if (!q) return true;
+    const h = Math.round(Number(hz) || 0);
+    let k = String(Math.floor(h / 1000));
+    const resto = h % 1000;
+    if (resto) k += String(resto).padStart(3, '0').replace(/0+$/, '');
+    return k.startsWith(q) || String(h).startsWith(q);
+  }
+  return String(texto || '').toLowerCase().includes(b.toLowerCase());
+}
+function decFiltrarCanais(selId, busca, spanId) {
+  const sel = document.getElementById(selId);
+  if (!sel) return;
+  const b = String(busca || '').trim();
+  let achados = 0;
+  for (const o of sel.options) {
+    // listas pelo indice guardam a frequencia em data-hz; as outras, no value
+    const hz = o.dataset && o.dataset.hz ? Number(o.dataset.hz) : Number(o.value);
+    if (!(hz > 0)) { o.hidden = false; continue; }   // a linha "escolha"
+    const ok = decCanalPassaBusca(hz, o.textContent + ' ' + (o.title || ''), b);
+    o.hidden = !ok;
+    if (ok) achados++;
+  }
+  const sp = spanId ? document.getElementById(spanId) : null;
+  if (sp) {
+    if (!b) { sp.textContent = ''; return; }
+    sp.textContent = achados ? achados + ' canal(is) na lista - abra o seletor' : '"' + b + '" nao esta na lista';
+    sp.style.color = achados ? '#4dff80' : '#ff9050';
+  }
+}
+
 const SitorBDecoder = (() => {
   let _pollTimer = null;
   let _linhas    = [];
@@ -13062,14 +13152,11 @@ const SitorBDecoder = (() => {
   const MAX_LINHAS = 400;
   const el = id => document.getElementById(id);
 
-  // O primeiro da lista e o que a janela sintoniza ao abrir.
+  // Uma linha por transmissao, em ordem de horario UTC.
   // 8415 kHz e onde a Marinha argentina e outras estacoes costeiras saem;
   // 518 e 490 kHz sao o NAVTEX classico, que no Brasil nao tem trafego.
-  // Estacao Radio da Marinha no Rio de Janeiro (NAVAREA V) - servico RD,
-  // radiodados em USB. Horarios em UTC:
-  //   Avisos-Radio Nauticos e SAR .. 0400-0445 e 2130-2215
-  //   Meteoromarinha ............... 0230-0330, 0600-0730 e 1845-1930
-  // 4266 kHz so sai a pedido do navegante.
+  // A Estacao Radio da Marinha no Rio de Janeiro (6448, 8580, 12709, 16974 e
+  // 4266 kHz) saiu daqui: ela transmite em PACTOR-I, e esta na lista dele.
   const CANAIS = [
     { hz: 16808000, nome: '0000-0030   16808 kHz - Tianjin Radio Meteo (China)', shift: 170, hor: '0000-0030', dica: 'Tianjin Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0600-0630, 0900-0930, 1200-1230, 1400-1430, 1800-1830, 2100-2130' },
     { hz: 490000, nome: '0000-2010   490 kHz - NAVTEX Canarias (Canary Islands) +1', shift: 170, hor: '0000-2010', dica: 'NAVTEX Canarias (Canary Islands)\nNAVTEX Malin Head (Ireland)\n\nOutros horários nesta frequência: 0000-2400, 0010-2020, 0020-2030, 0040-2050, 0100-2110, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0310-2320, 0320-2330, 0340-2350' },
@@ -13169,9 +13256,9 @@ const SitorBDecoder = (() => {
     { hz: 16806500, nome: '0015-0130   16806,5 kHz - USCG San Francisco (USA)', shift: 170, hor: '0015-0130', dica: 'USCG San Francisco (USA)\n\nOutros horários nesta frequência: 0030-0110, 0230-0300, 0500-0530, 0900-0925, 1000-1140, 1200-1310, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1730-1830, 1900-1940, 2315-2345' },
     { hz: 4209500, nome: '0020-0030   4209,5 kHz - Nha Trang Radio (Vietnam)', shift: 170, hor: '0020-0030', dica: 'Nha Trang Radio (Vietnam)\n\nOutros horários nesta frequência: 0000-2400, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ...' },
     { hz: 490000, nome: '0020-2030   490 kHz - NAVTEX Portpatric (United Kingdom)', shift: 170, hor: '0020-2030', dica: 'NAVTEX Portpatric (United Kingdom)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0010-2020, 0040-2050, 0100-2110, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0310-2320, 0320-2330, 0340-2350' },
-    { hz: 4210000, nome: '0030-0110   4210 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 170, hor: '0030-0110', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0300-0410, 1000-1140, 1400-1440, 1515-1610, 1900-1940, 2100-2140' },
-    { hz: 8416500, nome: '0030-0110   8416,5 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 170, hor: '0030-0110', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140' },
-    { hz: 12579000, nome: '0030-0110   12579 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 170, hor: '0030-0110', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140, 2250-2300 ...' },
+    { hz: 4210000, nome: '0030-0110   4210 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 200, hor: '0030-0110', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0300-0410, 1000-1140, 1400-1440, 1515-1610, 1900-1940, 2100-2140' },
+    { hz: 8416500, nome: '0030-0110   8416,5 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 200, hor: '0030-0110', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140' },
+    { hz: 12580700, nome: '0030-0110   12580,7 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 200, hor: '0030-0110', dica: 'Servicio de Hidrografia Naval (Argentina)\nA lista publica 12579 kHz, mas o sinal sai em 12580,7 kHz (medido no RXSDR: tons em 12580,6 e 12580,8 kHz, shift 200 Hz)\n\nOutros horários nesta frequência: 1000-1140, 1400-1440, 1515-1610, 1900-1940, 2100-2140' },
     { hz: 16806500, nome: '0030-0110   16806,5 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 170, hor: '0030-0110', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0230-0300, 0500-0530, 0900-0925, 1000-1140, 1200-1310, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1730-1830, 1900-1940, 2315-2345' },
     { hz: 518000, nome: '0030-2040   518 kHz - NAVTEX La Coruna (Spain) +1', shift: 170, hor: '0030-2040', dica: 'NAVTEX La Coruna (Spain)\nNAVTEX Faroe Islands (Faroe Islands)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0230-2240, 0240-2250, 0250-2300, 0300-2310, 0310-2320, 0330-2340, 0340-2350, 0350-2400' },
     { hz: 490000, nome: '0040-2050   490 kHz - NAVTEX Cross Corsen (France) +1', shift: 170, hor: '0040-2050', dica: 'NAVTEX Cross Corsen (France)\nNAVTEX Reykjavik (Iceland)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0010-2020, 0020-2030, 0100-2110, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0310-2320, 0320-2330, 0340-2350' },
@@ -13205,10 +13292,6 @@ const SitorBDecoder = (() => {
     { hz: 12579000, nome: '0230-0300   12579 kHz - USCG Apra Harbor (Guam)', shift: 170, hor: '0230-0300', dica: 'USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140, 2250-2300 ...' },
     { hz: 16806500, nome: '0230-0300   16806,5 kHz - USCG Apra Harbor (Guam)', shift: 170, hor: '0230-0300', dica: 'USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0500-0530, 0900-0925, 1000-1140, 1200-1310, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1730-1830, 1900-1940, 2315-2345' },
     { hz: 22376000, nome: '0230-0300   22376 kHz - USCG Apra Harbor (Guam)', shift: 170, hor: '0230-0300', dica: 'USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0130-0220, 0500-0530, 0900-0925, 1500-1530, 1900-1940, 2030-2120, 2315-2345' },
-    { hz: 6448000, nome: '0230-0330   6448 kHz - Marinha do Brasil (Rio)', hor: '0230-0330', dica: 'Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930' },
-    { hz: 8580000, nome: '0230-0330   8580 kHz - Marinha do Brasil (Rio) - principal', hor: '0230-0330', dica: 'Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930' },
-    { hz: 12709000, nome: '0230-0330   12709 kHz - Marinha do Brasil (Rio)', hor: '0230-0330', dica: 'Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930' },
-    { hz: 16974000, nome: '0230-0330   16974 kHz - Marinha do Brasil (Rio)', hor: '0230-0330', dica: 'Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930' },
     { hz: 518000, nome: '0230-2240   518 kHz - NAVTEX Netherlands (Netherlands) +1', shift: 170, hor: '0230-2240', dica: 'NAVTEX Netherlands (Netherlands)\nNAVTEX Madeira (Madeira)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0030-2040, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0240-2250, 0250-2300, 0300-2310, 0310-2320, 0330-2340, 0340-2350, 0350-2400' },
     { hz: 4209500, nome: '0240-0250   4209,5 kHz - Shanghai Radio Meteo (China)', shift: 170, hor: '0240-0250', dica: 'Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ...' },
     { hz: 518000, nome: '0240-2250   518 kHz - NAVTEX Malin Head (Ireland)', shift: 170, hor: '0240-2250', dica: 'NAVTEX Malin Head (Ireland)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0030-2040, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0230-2240, 0250-2300, 0300-2310, 0310-2320, 0330-2340, 0340-2350, 0350-2400' },
@@ -13217,8 +13300,8 @@ const SitorBDecoder = (() => {
     { hz: 16898500, nome: '0250-0300   16898,5 kHz - Shanghai Radio Meteo (China)', shift: 170, hor: '0250-0300', dica: 'Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0850-0900, 1350-1420' },
     { hz: 518000, nome: '0250-2300   518 kHz - NAVTEX Reykjavik (Iceland) +1', shift: 170, hor: '0250-2300', dica: 'NAVTEX Reykjavik (Iceland)\nNAVTEX Lisbon (Portugal)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0030-2040, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0230-2240, 0240-2250, 0300-2310, 0310-2320, 0330-2340, 0340-2350, 0350-2400' },
     { hz: 4209500, nome: '0300-0310   4209,5 kHz - Olympia Radio METEO (Greece)', shift: 170, hor: '0300-0310', dica: 'Olympia Radio METEO (Greece)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ...' },
-    { hz: 4210000, nome: '0300-0410   4210 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 170, hor: '0300-0410', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 1000-1140, 1400-1440, 1515-1610, 1900-1940, 2100-2140' },
-    { hz: 8416500, nome: '0300-0410   8416,5 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 170, hor: '0300-0410', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140' },
+    { hz: 4210000, nome: '0300-0410   4210 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 200, hor: '0300-0410', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 1000-1140, 1400-1440, 1515-1610, 1900-1940, 2100-2140' },
+    { hz: 8416500, nome: '0300-0410   8416,5 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 200, hor: '0300-0410', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140' },
     { hz: 518000, nome: '0300-2310   518 kHz - NAVTEX Pinneberg (Germany)', shift: 170, hor: '0300-2310', dica: 'NAVTEX Pinneberg (Germany)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0030-2040, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0230-2240, 0240-2250, 0250-2300, 0310-2320, 0330-2340, 0340-2350, 0350-2400' },
     { hz: 490000, nome: '0310-2320   490 kHz - NAVTEX Tarifa (Spain) +1', shift: 170, hor: '0310-2320', dica: 'NAVTEX Tarifa (Spain)\nNAVTEX Niton (United Kingdom)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0010-2020, 0020-2030, 0040-2050, 0100-2110, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0320-2330, 0340-2350' },
     { hz: 518000, nome: '0310-2320   518 kHz - NAVTEX Oostende (Belgium)', shift: 170, hor: '0310-2320', dica: 'NAVTEX Oostende (Belgium)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0030-2040, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0230-2240, 0240-2250, 0250-2300, 0300-2310, 0330-2340, 0340-2350, 0350-2400' },
@@ -13231,10 +13314,6 @@ const SitorBDecoder = (() => {
     { hz: 490000, nome: '0340-2350   490 kHz - NAVTEX La Coruna (Spain)', shift: 170, hor: '0340-2350', dica: 'NAVTEX La Coruna (Spain)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0010-2020, 0020-2030, 0040-2050, 0100-2110, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0310-2320, 0320-2330' },
     { hz: 518000, nome: '0340-2350   518 kHz - NAVTEX Valentia (Ireland)', shift: 170, hor: '0340-2350', dica: 'NAVTEX Valentia (Ireland)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0030-2040, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0230-2240, 0240-2250, 0250-2300, 0300-2310, 0310-2320, 0330-2340, 0350-2400' },
     { hz: 518000, nome: '0350-2400   518 kHz - NAVTEX Reykjavik (Iceland)', shift: 170, hor: '0350-2400', dica: 'NAVTEX Reykjavik (Iceland)\n\nOutros horários nesta frequência: 0000-2010, 0000-2400, 0030-2040, 0040-2050, 0050-2100, 0100-2110, 0110-2120, 0120-2130, 0130-2140, 0140-2150, 0150-2200, 0200-2210, 0210-2220, 0220-2230, 0230-2240, 0240-2250, 0250-2300, 0300-2310, 0310-2320, 0330-2340, 0340-2350' },
-    { hz: 6448000, nome: '0400-0445   6448 kHz - Marinha do Brasil (Rio)', hor: '0400-0445', dica: 'Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930' },
-    { hz: 8580000, nome: '0400-0445   8580 kHz - Marinha do Brasil (Rio) - principal', hor: '0400-0445', dica: 'Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930' },
-    { hz: 12709000, nome: '0400-0445   12709 kHz - Marinha do Brasil (Rio)', hor: '0400-0445', dica: 'Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930' },
-    { hz: 16974000, nome: '0400-0445   16974 kHz - Marinha do Brasil (Rio)', hor: '0400-0445', dica: 'Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930' },
     { hz: 16768200, nome: '0400-1800   16768,2 kHz - Istanbul Radio (Turkiye)', shift: 170, hor: '0400-1800', dica: 'Istanbul Radio (Turkiye)' },
     { hz: 16886000, nome: '0400-1800   16886 kHz - Istanbul Radio (Turkiye)', shift: 170, hor: '0400-1800', dica: 'Istanbul Radio (Turkiye)' },
     { hz: 4209500, nome: '0420-0430   4209,5 kHz - Nha Trang Radio (Vietnam)', shift: 170, hor: '0420-0430', dica: 'Nha Trang Radio (Vietnam)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ...' },
@@ -13249,10 +13328,6 @@ const SitorBDecoder = (() => {
     { hz: 4209500, nome: '0600-0620   4209,5 kHz - Hai Phong Radio Meteo (Vietnam)', shift: 170, hor: '0600-0620', dica: 'Hai Phong Radio Meteo (Vietnam)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ...' },
     { hz: 16808000, nome: '0600-0630   16808 kHz - Tianjin Radio Meteo (China)', shift: 170, hor: '0600-0630', dica: 'Tianjin Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-0030, 0000-2400, 0900-0930, 1200-1230, 1400-1430, 1800-1830, 2100-2130' },
     { hz: 4209500, nome: '0600-0645   4209,5 kHz - Istanbul Radio Meteo (Turkiye)', shift: 170, hor: '0600-0645', dica: 'Istanbul Radio Meteo (Turkiye)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ...' },
-    { hz: 6448000, nome: '0600-0730   6448 kHz - Marinha do Brasil (Rio)', hor: '0600-0730', dica: 'Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930' },
-    { hz: 8580000, nome: '0600-0730   8580 kHz - Marinha do Brasil (Rio) - principal', hor: '0600-0730', dica: 'Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930' },
-    { hz: 12709000, nome: '0600-0730   12709 kHz - Marinha do Brasil (Rio)', hor: '0600-0730', dica: 'Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930' },
-    { hz: 16974000, nome: '0600-0730   16974 kHz - Marinha do Brasil (Rio)', hor: '0600-0730', dica: 'Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930' },
     { hz: 26163000, nome: '0600-1800   26163 kHz - Olympia Radio (Greece)', shift: 170, hor: '0600-1800', dica: 'Olympia Radio (Greece)' },
     { hz: 8424000, nome: '0630-0645   8424 kHz - Olympia Radio (Greece)', shift: 170, hor: '0630-0645', dica: 'Olympia Radio (Greece)\n\nOutros horários nesta frequência: 0000-2400, 0700-0710, 0930-0945, 1000-1010, 1100-1110, 1300-1315, 1600-1610, 2130-2145' },
     { hz: 4209500, nome: '0640-0650   4209,5 kHz - Shanghai Radio Meteo (China)', shift: 170, hor: '0640-0650', dica: 'Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ...' },
@@ -13296,10 +13371,10 @@ const SitorBDecoder = (() => {
     { hz: 4228000, nome: '1000-1035   4228 kHz - Kaliningrad Radio Meteo (Russia)', shift: 170, hor: '1000-1035', dica: 'Kaliningrad Radio Meteo (Russia)\n\nOutros horários nesta frequência: 1600-1745' },
     { hz: 8454000, nome: '1000-1035   8454 kHz - Kaliningrad Radio Meteo (Russia)', shift: 170, hor: '1000-1035', dica: 'Kaliningrad Radio Meteo (Russia)\n\nOutros horários nesta frequência: 1200-1230, 1600-1745' },
     { hz: 4209500, nome: '1000-1045   4209,5 kHz - Istanbul Radio Meteo (Turkiye)', shift: 170, hor: '1000-1045', dica: 'Istanbul Radio Meteo (Turkiye)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ...' },
-    { hz: 4210000, nome: '1000-1140   4210 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 170, hor: '1000-1140', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0300-0410, 1400-1440, 1515-1610, 1900-1940, 2100-2140' },
-    { hz: 12579000, nome: '1000-1140   12579 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 170, hor: '1000-1140', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140, 2250-2300 ...' },
+    { hz: 4210000, nome: '1000-1140   4210 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 200, hor: '1000-1140', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0300-0410, 1400-1440, 1515-1610, 1900-1940, 2100-2140' },
+    { hz: 12580700, nome: '1000-1140   12580,7 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 200, hor: '1000-1140', dica: 'Servicio de Hidrografia Naval (Argentina)\nA lista publica 12579 kHz, mas o sinal sai em 12580,7 kHz (medido no RXSDR: tons em 12580,6 e 12580,8 kHz, shift 200 Hz)\n\nOutros horários nesta frequência: 0030-0110, 1400-1440, 1515-1610, 1900-1940, 2100-2140' },
     { hz: 16806500, nome: '1000-1140   16806,5 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 170, hor: '1000-1140', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0230-0300, 0500-0530, 0900-0925, 1200-1310, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1730-1830, 1900-1940, 2315-2345' },
-    { hz: 8416500, nome: '1000-1300   8416,5 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 170, hor: '1000-1300', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140' },
+    { hz: 8416500, nome: '1000-1300   8416,5 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 200, hor: '1000-1300', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140' },
     { hz: 4209500, nome: '1040-1050   4209,5 kHz - Shanghai Radio Meteo (China)', shift: 170, hor: '1040-1050', dica: 'Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ...' },
     { hz: 6322500, nome: '1100-1110   6322,5 kHz - Murmansk Radio (Russia)', shift: 170, hor: '1100-1110', dica: 'Murmansk Radio (Russia)\n\nOutros horários nesta frequência: 0700-0710, 1000-1010, 1300-1315, 1600-1610' },
     { hz: 8424000, nome: '1100-1110   8424 kHz - Murmansk Radio (Russia)', shift: 170, hor: '1100-1110', dica: 'Murmansk Radio (Russia)\n\nOutros horários nesta frequência: 0000-2400, 0630-0645, 0700-0710, 0930-0945, 1000-1010, 1300-1315, 1600-1610, 2130-2145' },
@@ -13327,19 +13402,19 @@ const SitorBDecoder = (() => {
     { hz: 16898500, nome: '1350-1420   16898,5 kHz - Shanghai Radio Meteo (China)', shift: 170, hor: '1350-1420', dica: 'Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0250-0300, 0850-0900' },
     { hz: 4209500, nome: '1400-1420   4209,5 kHz - Hai Phong Radio Meteo (Vietnam)', shift: 170, hor: '1400-1420', dica: 'Hai Phong Radio Meteo (Vietnam)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ...' },
     { hz: 16808000, nome: '1400-1430   16808 kHz - Tianjin Radio Meteo (China)', shift: 170, hor: '1400-1430', dica: 'Tianjin Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-0030, 0000-2400, 0600-0630, 0900-0930, 1200-1230, 1800-1830, 2100-2130' },
-    { hz: 4210000, nome: '1400-1440   4210 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 170, hor: '1400-1440', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0300-0410, 1000-1140, 1515-1610, 1900-1940, 2100-2140' },
-    { hz: 12579000, nome: '1400-1440   12579 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 170, hor: '1400-1440', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140, 2250-2300 ...' },
+    { hz: 4210000, nome: '1400-1440   4210 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 200, hor: '1400-1440', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0300-0410, 1000-1140, 1515-1610, 1900-1940, 2100-2140' },
+    { hz: 12580700, nome: '1400-1440   12580,7 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 200, hor: '1400-1440', dica: 'Servicio de Hidrografia Naval (Argentina)\nA lista publica 12579 kHz, mas o sinal sai em 12580,7 kHz (medido no RXSDR: tons em 12580,6 e 12580,8 kHz, shift 200 Hz)\n\nOutros horários nesta frequência: 0030-0110, 1000-1140, 1515-1610, 1900-1940, 2100-2140' },
     { hz: 16806500, nome: '1400-1440   16806,5 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 170, hor: '1400-1440', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0230-0300, 0500-0530, 0900-0925, 1000-1140, 1200-1310, 1500-1530, 1515-1610, 1630-1720, 1730-1830, 1900-1940, 2315-2345' },
     { hz: 4209500, nome: '1400-1445   4209,5 kHz - Istanbul Radio Meteo (Turkiye)', shift: 170, hor: '1400-1445', dica: 'Istanbul Radio Meteo (Turkiye)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ...' },
     { hz: 8416500, nome: '1400-1500   8416,5 kHz - Vladivostok Radio Meteo (Russia)', shift: 170, hor: '1400-1500', dica: 'Vladivostok Radio Meteo (Russia)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140' },
-    { hz: 8416500, nome: '1400-1610   8416,5 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 170, hor: '1400-1610', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140' },
+    { hz: 8416500, nome: '1400-1610   8416,5 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 200, hor: '1400-1610', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140' },
     { hz: 4209500, nome: '1440-1450   4209,5 kHz - Shanghai Radio Meteo (China)', shift: 170, hor: '1440-1450', dica: 'Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ...' },
     { hz: 4209500, nome: '1500-1510   4209,5 kHz - Guangzhou Radio (China) +1', shift: 170, hor: '1500-1510', dica: 'Guangzhou Radio (China)\nOlympia Radio METEO (Greece)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1620-1630, 1700-1730, 1800-1820, 1800-1845, 1840-1850 ...' },
     { hz: 12579000, nome: '1500-1530   12579 kHz - USCG Apra Harbor (Guam)', shift: 170, hor: '1500-1530', dica: 'USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140, 2250-2300 ...' },
     { hz: 16806500, nome: '1500-1530   16806,5 kHz - USCG Apra Harbor (Guam)', shift: 170, hor: '1500-1530', dica: 'USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0230-0300, 0500-0530, 0900-0925, 1000-1140, 1200-1310, 1400-1440, 1515-1610, 1630-1720, 1730-1830, 1900-1940, 2315-2345' },
     { hz: 22376000, nome: '1500-1530   22376 kHz - USCG Apra Harbor (Guam)', shift: 170, hor: '1500-1530', dica: 'USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0130-0220, 0230-0300, 0500-0530, 0900-0925, 1900-1940, 2030-2120, 2315-2345' },
-    { hz: 4210000, nome: '1515-1610   4210 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 170, hor: '1515-1610', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0300-0410, 1000-1140, 1400-1440, 1900-1940, 2100-2140' },
-    { hz: 12579000, nome: '1515-1610   12579 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 170, hor: '1515-1610', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140, 2250-2300 ...' },
+    { hz: 4210000, nome: '1515-1610   4210 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 200, hor: '1515-1610', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0300-0410, 1000-1140, 1400-1440, 1900-1940, 2100-2140' },
+    { hz: 12580700, nome: '1515-1610   12580,7 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 200, hor: '1515-1610', dica: 'Servicio de Hidrografia Naval (Argentina)\nA lista publica 12579 kHz, mas o sinal sai em 12580,7 kHz (medido no RXSDR: tons em 12580,6 e 12580,8 kHz, shift 200 Hz)\n\nOutros horários nesta frequência: 0030-0110, 1000-1140, 1400-1440, 1900-1940, 2100-2140' },
     { hz: 16806500, nome: '1515-1610   16806,5 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 170, hor: '1515-1610', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0230-0300, 0500-0530, 0900-0925, 1000-1140, 1200-1310, 1400-1440, 1500-1530, 1630-1720, 1730-1830, 1900-1940, 2315-2345' },
     { hz: 8431000, nome: '1520-1530   8431 kHz - Guangzhou Radio Meteo (China)', shift: 170, hor: '1520-1530', dica: 'Guangzhou Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0120-0130, 0320-0330, 0720-0730, 0800-0815, 0920-0930, 1320-1330, 2000-2015, 2220-2230' },
     { hz: 8416500, nome: '1530-1600   8416,5 kHz - Iqaluit Coast Guard Radio (Canada)', shift: 170, hor: '1530-1600', dica: 'Iqaluit Coast Guard Radio (Canada)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120, 2100-2140' },
@@ -13364,14 +13439,11 @@ const SitorBDecoder = (() => {
     { hz: 16808000, nome: '1800-1830   16808 kHz - Tianjin Radio Meteo (China)', shift: 170, hor: '1800-1830', dica: 'Tianjin Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-0030, 0000-2400, 0600-0630, 0900-0930, 1200-1230, 1400-1430, 2100-2130' },
     { hz: 4209500, nome: '1800-1845   4209,5 kHz - Istanbul Radio Meteo (Turkiye)', shift: 170, hor: '1800-1845', dica: 'Istanbul Radio Meteo (Turkiye)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1840-1850 ...' },
     { hz: 4209500, nome: '1840-1850   4209,5 kHz - Shanghai Radio Meteo (China)', shift: 170, hor: '1840-1850', dica: 'Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845 ...' },
-    { hz: 6448000, nome: '1845-1930   6448 kHz - Marinha do Brasil (Rio)', hor: '1845-1930', dica: 'Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930' },
-    { hz: 8580000, nome: '1845-1930   8580 kHz - Marinha do Brasil (Rio) - principal', hor: '1845-1930', dica: 'Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930' },
-    { hz: 12709000, nome: '1845-1930   12709 kHz - Marinha do Brasil (Rio)', hor: '1845-1930', dica: 'Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930' },
-    { hz: 16974000, nome: '1845-1930   16974 kHz - Marinha do Brasil (Rio)', hor: '1845-1930', dica: 'Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930' },
     { hz: 4209500, nome: '1900-1910   4209,5 kHz - Guangzhou Radio (China) +1', shift: 170, hor: '1900-1910', dica: 'Guangzhou Radio (China)\nOlympia Radio METEO (Greece)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845 ...' },
-    { hz: 4210000, nome: '1900-1940   4210 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 170, hor: '1900-1940', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0300-0410, 1000-1140, 1400-1440, 1515-1610, 2100-2140' },
-    { hz: 8416500, nome: '1900-1940   8416,5 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 170, hor: '1900-1940', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1910-2200, 2030-2120, 2100-2140' },
-    { hz: 12579000, nome: '1900-1940   12579 kHz - Servicio de Hidrografia Naval (Argentina) +1', shift: 170, hor: '1900-1940', dica: 'Servicio de Hidrografia Naval (Argentina)\nUSCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 2030-2120, 2100-2140, 2250-2300 ...' },
+    { hz: 4210000, nome: '1900-1940   4210 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 200, hor: '1900-1940', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0300-0410, 1000-1140, 1400-1440, 1515-1610, 2100-2140' },
+    { hz: 8416500, nome: '1900-1940   8416,5 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 200, hor: '1900-1940', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1910-2200, 2030-2120, 2100-2140' },
+    { hz: 12580700, nome: '1900-1940   12580,7 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 200, hor: '1900-1940', dica: 'Servicio de Hidrografia Naval (Argentina)\nA lista publica 12579 kHz, mas o sinal sai em 12580,7 kHz (medido no RXSDR: tons em 12580,6 e 12580,8 kHz, shift 200 Hz)\n\nOutros horários nesta frequência: 0030-0110, 1000-1140, 1400-1440, 1515-1610, 2100-2140' },
+    { hz: 12579000, nome: '1900-1940   12579 kHz - USCG Apra Harbor (Guam)', shift: 170, hor: '1900-1940', dica: 'USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0230-0300, 0500-0530, 0900-0925, 1500-1530, 2315-2345' },
     { hz: 16806500, nome: '1900-1940   16806,5 kHz - Servicio de Hidrografia Naval (Argentina) +1', shift: 170, hor: '1900-1940', dica: 'Servicio de Hidrografia Naval (Argentina)\nUSCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0230-0300, 0500-0530, 0900-0925, 1000-1140, 1200-1310, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1730-1830, 2315-2345' },
     { hz: 22376000, nome: '1900-1940   22376 kHz - USCG Apra Harbor (Guam)', shift: 170, hor: '1900-1940', dica: 'USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0130-0220, 0230-0300, 0500-0530, 0900-0925, 1500-1530, 2030-2120, 2315-2345' },
     { hz: 8416500, nome: '1910-2200   8416,5 kHz - Moskva Radio (Russia)', shift: 170, hor: '1910-2200', dica: 'Moskva Radio (Russia)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 2030-2120, 2100-2140' },
@@ -13390,14 +13462,10 @@ const SitorBDecoder = (() => {
     { hz: 12799500, nome: '2100-2105   12799,5 kHz - Vladivostok Radio Meteo (Russia)', shift: 170, hor: '2100-2105', dica: 'Vladivostok Radio Meteo (Russia)\n\nOutros horários nesta frequência: 0015-0030, 0430-0445, 0700-0705, 0900-0905' },
     { hz: 4209500, nome: '2100-2130   4209,5 kHz - Guangzhou Radio (China)', shift: 170, hor: '2100-2130', dica: 'Guangzhou Radio (China)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845 ...' },
     { hz: 16808000, nome: '2100-2130   16808 kHz - Tianjin Radio Meteo (China)', shift: 170, hor: '2100-2130', dica: 'Tianjin Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-0030, 0000-2400, 0600-0630, 0900-0930, 1200-1230, 1400-1430, 1800-1830' },
-    { hz: 4210000, nome: '2100-2140   4210 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 170, hor: '2100-2140', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0300-0410, 1000-1140, 1400-1440, 1515-1610, 1900-1940' },
-    { hz: 8416500, nome: '2100-2140   8416,5 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 170, hor: '2100-2140', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120' },
-    { hz: 12579000, nome: '2100-2140   12579 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 170, hor: '2100-2140', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2250-2300 ...' },
+    { hz: 4210000, nome: '2100-2140   4210 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 200, hor: '2100-2140', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0030-0110, 0300-0410, 1000-1140, 1400-1440, 1515-1610, 1900-1940' },
+    { hz: 8416500, nome: '2100-2140   8416,5 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 200, hor: '2100-2140', dica: 'Servicio de Hidrografia Naval (Argentina)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0130-0220, 0140-0230, 0300-0410, 0330-0400, 0710-0930, 0730-0850, 1000-1300, 1100-1200, 1330-1450, 1400-1500, 1400-1610, 1530-1600, 1630-1720, 1730-1830, 1900-1940, 1910-2200, 2030-2120' },
+    { hz: 12580700, nome: '2100-2140   12580,7 kHz - Servicio de Hidrografia Naval (Argentina)', shift: 200, hor: '2100-2140', dica: 'Servicio de Hidrografia Naval (Argentina)\nA lista publica 12579 kHz, mas o sinal sai em 12580,7 kHz (medido no RXSDR: tons em 12580,6 e 12580,8 kHz, shift 200 Hz)\n\nOutros horários nesta frequência: 0030-0110, 1000-1140, 1400-1440, 1515-1610, 1900-1940' },
     { hz: 8424000, nome: '2130-2145   8424 kHz - Olympia Radio (Greece)', shift: 170, hor: '2130-2145', dica: 'Olympia Radio (Greece)\n\nOutros horários nesta frequência: 0000-2400, 0630-0645, 0700-0710, 0930-0945, 1000-1010, 1100-1110, 1300-1315, 1600-1610' },
-    { hz: 6448000, nome: '2130-2215   6448 kHz - Marinha do Brasil (Rio)', hor: '2130-2215', dica: 'Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930' },
-    { hz: 8580000, nome: '2130-2215   8580 kHz - Marinha do Brasil (Rio) - principal', hor: '2130-2215', dica: 'Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930' },
-    { hz: 12709000, nome: '2130-2215   12709 kHz - Marinha do Brasil (Rio)', hor: '2130-2215', dica: 'Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930' },
-    { hz: 16974000, nome: '2130-2215   16974 kHz - Marinha do Brasil (Rio)', hor: '2130-2215', dica: 'Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930' },
     { hz: 4209500, nome: '2200-2220   4209,5 kHz - Hai Phong Radio Meteo (Vietnam)', shift: 170, hor: '2200-2220', dica: 'Hai Phong Radio Meteo (Vietnam)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845 ...' },
     { hz: 4209500, nome: '2200-2245   4209,5 kHz - Istanbul Radio Meteo (Turkiye)', shift: 170, hor: '2200-2245', dica: 'Istanbul Radio Meteo (Turkiye)\n\nOutros horários nesta frequência: 0000-2400, 0020-0030, 0200-0220, 0200-0245, 0240-0250, 0300-0310, 0420-0430, 0600-0620, 0600-0645, 0640-0650, 0700-0710, 0820-0830, 1000-1020, 1000-1045, 1040-1050, 1220-1230, 1400-1420, 1400-1445, 1440-1450, 1500-1510, 1620-1630, 1700-1730, 1800-1820, 1800-1845 ...' },
     { hz: 8431000, nome: '2220-2230   8431 kHz - Guangzhou Radio Meteo (China)', shift: 170, hor: '2220-2230', dica: 'Guangzhou Radio Meteo (China)\n\nOutros horários nesta frequência: 0000-2400, 0120-0130, 0320-0330, 0720-0730, 0800-0815, 0920-0930, 1320-1330, 1520-1530, 2000-2015' },
@@ -13412,7 +13480,6 @@ const SitorBDecoder = (() => {
     { hz: 16806500, nome: '2315-2345   16806,5 kHz - USCG Apra Harbor (Guam)', shift: 170, hor: '2315-2345', dica: 'USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0015-0130, 0030-0110, 0230-0300, 0500-0530, 0900-0925, 1000-1140, 1200-1310, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1730-1830, 1900-1940' },
     { hz: 22376000, nome: '2315-2345   22376 kHz - USCG Apra Harbor (Guam)', shift: 170, hor: '2315-2345', dica: 'USCG Apra Harbor (Guam)\n\nOutros horários nesta frequência: 0130-0220, 0230-0300, 0500-0530, 0900-0925, 1500-1530, 1900-1940, 2030-2120' },
     { hz: 12579000, nome: '2350-2400   12579 kHz - Shanghai Radio Meteo (China)', shift: 170, hor: '2350-2400', dica: 'Shanghai Radio Meteo (China)\n\nOutros horários nesta frequência: 0030-0110, 0130-0220, 0140-0230, 0230-0300, 0250-0300, 0500-0530, 0700-1400, 0730-0850, 0800-0840, 0850-0900, 0900-0925, 1000-1140, 1100-1130, 1300-1340, 1330-1450, 1350-1420, 1400-1440, 1500-1530, 1515-1610, 1630-1720, 1700-1815, 1900-1940, 2030-2120, 2100-2140 ...' },
-    { hz: 4266000, nome: 'sem horário   4266 kHz - Marinha do Brasil (Rio) - só a pedido', dica: 'Sem horário conhecido (sai só a pedido do navegante)' },
     { hz: 8415000, nome: 'sem horário   8415 kHz - Marinha argentina / costeiras', dica: 'Sem horário conhecido' },
     { hz: 12578000, nome: 'sem horário   12578 kHz - Marinha argentina (Buenos Aires)', shift: 200, dica: 'Sem horário conhecido' }
   ];
@@ -13443,6 +13510,10 @@ const SitorBDecoder = (() => {
       <div class="dig-ctrl-bar" style="gap:4px 6px;flex-wrap:wrap">
         <label style="font-size:10px">Canal</label>
         <select id="sitorb-canal" style="font-size:10px" onchange="SitorBDecoder.irParaCanal()">${ops}</select>
+        <input type="text" id="sitorb-busca" placeholder="buscar: 8416,5 ou nome" style="width:130px;font-size:10px"
+               title="Digite uma frequencia (8416,5 - 8.416.5 - 8416500) ou parte do nome da estacao: o seletor passa a mostrar so os canais que batem"
+               oninput="decFiltrarCanais('sitorb-canal', this.value, 'sitorb-achados')">
+        <span id="sitorb-achados" style="font-size:10px"></span>
         <label style="font-size:10px">Tom central</label>
         <input type="number" id="sitorb-tom" value="1700" step="10" style="width:56px;font-size:10px"
                onchange="SitorBDecoder.reiniciar()" title="Frequencia no meio dos dois tons, em Hz">
@@ -13467,9 +13538,8 @@ const SitorBDecoder = (() => {
         <div id="sitorb-terminal" class="dec-terminal" style="flex:1;overflow-y:auto;background:#010402;border:1px solid #20aa40;padding:8px;color:#30dd70;font-family:Consolas,monospace;font-size:11px;margin-bottom:6px;min-height:0;white-space:pre-wrap;word-break:break-word;box-shadow:inset 0 0 10px rgba(0,255,80,0.1)">Aguardando mensagem NAVTEX...</div>
         <button onclick="SitorBDecoder.clearTerminal()" class="gt-btn" style="width:100%;padding:5px;background:#051a0b;border-color:#1e6c33;color:#40dd70;font-size:11px;font-weight:bold;cursor:pointer;border-radius:4px">Limpar</button>
         <div style="color:#6a8a70;font-size:10px;margin-top:5px;line-height:1.4">
-          Marinha do Brasil (Rio de Janeiro), horarios em UTC:
-          Avisos-Radio Nauticos e SAR as 0400-0445 e 2130-2215;
-          Meteoromarinha as 0230-0330, 0600-0730 e 1845-1930.
+          Horarios da lista em UTC (verde = no ar agora). A meteoromarinha da
+          Marinha do Brasil (Rio de Janeiro) e transmitida em PACTOR-I: use o decodificador PACTOR-I.
           <span id="sitorb-utc" style="color:#b0f020"></span>
         </div>
       </div>
@@ -13496,10 +13566,11 @@ const SitorBDecoder = (() => {
     }
 
     _sintonizou = true;
-    if (typeof renderVfo === 'function') renderVfo(hz);
-    if (typeof Backend !== 'undefined' && Backend.tune) {
-      Backend.tune(hz, 'USB', 3000).catch(() => {});
-    }
+    // Sintoniza pela mesma funcao das outras janelas: troca o VFO, o modo, a
+    // largura e os botoes da tela. Antes so o backend recebia os 3 kHz e a
+    // tela continuava na largura antiga (1,8 kHz, por exemplo) - no primeiro
+    // giro do VFO ela voltava e cortava os tons de ~1700 Hz.
+    decSintonizar(hz, 'USB', Math.max(3000, Number(currentBwHz) || 0));
   }
 
   function paramsAtuais() {
@@ -13554,21 +13625,15 @@ const SitorBDecoder = (() => {
     }
   }
 
-  // Faixas de transmissao em UTC, em minutos desde a meia-noite.
-  const JANELAS = [[240,285],[1290,1335],[150,210],[360,450],[1125,1170]];
 
   function pollStatus() {
     fetch('/api/sitorb/status').then(r => r.json()).then(mostrar).catch(() => mostrar(null));
     const u = el('sitorb-utc');
     if (u) {
       const d = new Date();
-      const m = d.getUTCHours() * 60 + d.getUTCMinutes();
-      const dentro = JANELAS.some(j => m >= j[0] && m <= j[1]);
       const hh = String(d.getUTCHours()).padStart(2, '0');
       const mm = String(d.getUTCMinutes()).padStart(2, '0');
-      u.textContent = ' | agora ' + hh + mm + 'Z' +
-                      (dentro ? ' - EM HORARIO DE TRANSMISSAO' : ' - fora de horario');
-      u.style.color = dentro ? '#7CFC00' : '#c08040';
+      u.textContent = ' | agora ' + hh + mm + 'Z';
     }
   }
 
@@ -13727,7 +13792,7 @@ const RttyDecoder = (() => {
 
   function buildPanelHTML() {
     const ops = '<option value="">- escolha para sintonizar -</option>' +
-      CANAIS.map((c, i) => '<option value="' + i + '">' + c.nome + '</option>').join('');
+      CANAIS.map((c, i) => '<option value="' + i + '" data-hz="' + c.hz + '">' + c.nome + '</option>').join('');
     const opB = BAUDS.map(b => '<option value="' + b + '">' + String(b).replace('.', ',') + '</option>').join('');
     const opS = SHIFTS.map(s => '<option value="' + s + '">' + s + ' Hz</option>').join('');
     return `
@@ -13743,6 +13808,10 @@ const RttyDecoder = (() => {
       <div class="dig-ctrl-bar" style="gap:4px 6px;flex-wrap:wrap">
         <label style="font-size:10px">Canal</label>
         <select id="rtty-canal" style="font-size:10px;max-width:230px" onchange="RttyDecoder.irParaCanal()">${ops}</select>
+        <input type="text" id="rtty-busca" placeholder="buscar: 8416,5 ou nome" style="width:130px;font-size:10px"
+               title="Digite uma frequencia (8416,5 - 8.416.5 - 8416500) ou parte do nome da estacao: o seletor passa a mostrar so os canais que batem"
+               oninput="decFiltrarCanais('rtty-canal', this.value, 'rtty-achados')">
+        <span id="rtty-achados" style="font-size:10px"></span>
         <label style="font-size:10px">Baud</label>
         <select id="rtty-baud" style="font-size:10px" onchange="RttyDecoder.reiniciar()"
                 title="Velocidade. Radioamador usa 45,45; a DWD usa 50">${opB}</select>
@@ -13917,8 +13986,7 @@ const RttyDecoder = (() => {
     if (el('rtty-shift')) el('rtty-shift').value = String(c.shift);
     const vfo = c.meio ? c.hz - 1500 : c.hz;
     _sintonizou = true;
-    if (typeof renderVfo === 'function') renderVfo(vfo);
-    if (typeof Backend !== 'undefined' && Backend.tune) Backend.tune(vfo, 'USB', currentBwHz).catch(() => {});
+    decSintonizar(vfo, 'USB', Math.max(3000, Number(currentBwHz) || 0));   // largura de pelo menos 3 kHz
     reiniciar();
   }
 
@@ -14353,8 +14421,7 @@ const AleDecoder = (() => {
     const sel = el('ale-canal'); if (!sel || sel.value === '') return;
     const c = CANAIS[Number(sel.value)]; if (!c) return;
     _sintonizou = true;
-    if (typeof renderVfo === 'function') renderVfo(c.hz);
-    if (typeof Backend !== 'undefined' && Backend.tune) Backend.tune(c.hz, 'USB', currentBwHz).catch(() => {});
+    decSintonizar(c.hz, 'USB', Math.max(3000, Number(currentBwHz) || 0));   // largura de pelo menos 3 kHz
     if (typeof updateMarkerPosition === 'function') updateMarkerPosition(c.hz);
     try { localStorage.setItem('ale-canal', sel.value); } catch (e) {}
   }
@@ -14542,6 +14609,9 @@ const ArquivoAudio = (() => {
       if (decoder === 'SITORB' && typeof SitorBDecoder !== 'undefined') SitorBDecoder.reiniciar();
       else if (decoder === 'CW' && typeof CwDecoder !== 'undefined') CwDecoder.reiniciar();
       else if (decoder === 'DSC' && typeof DscDecoder !== 'undefined')  DscDecoder.reiniciar();
+      else if (decoder === 'PACTOR' && typeof PactorDecoder !== 'undefined') PactorDecoder.reiniciar();
+      else if (decoder === 'SSTV' && typeof SstvDecoder !== 'undefined') SstvDecoder.reiniciar();
+      else if (decoder === 'WEFAX' && typeof WefaxDecoder !== 'undefined') WefaxDecoder.reiniciar();
       else if (decoder === 'ANALISE' && typeof AnaliseDecoder !== 'undefined') AnaliseDecoder.analisar();
     } catch (e) {}
   }
@@ -14972,6 +15042,10 @@ const DscDecoder = (() => {
       <div class="dig-ctrl-bar" style="gap:4px 6px;flex-wrap:wrap">
         <label style="font-size:10px">Canal</label>
         <select id="dsc-canal" style="font-size:10px" onchange="DscDecoder.irParaCanal()">${ops}</select>
+        <input type="text" id="dsc-busca" placeholder="buscar: 8416,5 ou nome" style="width:130px;font-size:10px"
+               title="Digite uma frequencia (8416,5 - 8.416.5 - 8416500) ou parte do nome da estacao: o seletor passa a mostrar so os canais que batem"
+               oninput="decFiltrarCanais('dsc-canal', this.value, 'dsc-achados')">
+        <span id="dsc-achados" style="font-size:10px"></span>
         <label style="font-size:10px">Tom central</label>
         <input type="number" id="dsc-tom" value="1700" step="10" style="width:56px;font-size:10px"
                title="Ponto de partida. O decodificador mede o tom real sozinho nos primeiros 12 segundos e escreve o valor no log."
@@ -15016,10 +15090,11 @@ const DscDecoder = (() => {
     if (!Number(sel.value)) return;   // a linha "escolha" nao sintoniza
     const hz = Number(sel.value) - (Number((el('dsc-tom') || {}).value) || 1700);
     _sintonizou = true;
-    if (typeof renderVfo === 'function') renderVfo(hz);
-    if (typeof Backend !== 'undefined' && Backend.tune) {
-      Backend.tune(hz, 'USB', 3000).catch(() => {});
-    }
+    // Sintoniza pela mesma funcao das outras janelas: troca o VFO, o modo, a
+    // largura e os botoes da tela. Antes so o backend recebia os 3 kHz e a
+    // tela continuava na largura antiga (1,8 kHz, por exemplo) - no primeiro
+    // giro do VFO ela voltava e cortava os tons de ~1700 Hz.
+    decSintonizar(hz, 'USB', Math.max(3000, Number(currentBwHz) || 0));
   }
 
   function paramsAtuais() {
@@ -15194,6 +15269,1058 @@ const DscDecoder = (() => {
   return { buildPanelHTML, init, onClose, appendLine, clearTerminal,
            irParaCanal, reiniciar };
 })();
+
+/* =========================================================
+   PACTOR-I - Marinha do Brasil (meteoromarinha e avisos)
+   O mesmo nucleo do RXSDR Nativo (PactorCore), rodando no backend: acha
+   sozinho o tom, 100 ou 200 baud e a polaridade; texto Huffman ou ASCII;
+   so aparece o pacote que fechou o CRC.
+   ========================================================= */
+// Lista de canais compartilhada pelos paineis novos: "no ar agora" pelos
+// horarios UTC da lista ("0230-0330", varios separados por espaco).
+function decCanalNoAr(hor) {
+  if (!hor) return false;
+  const d = new Date(), m = d.getUTCHours() * 60 + d.getUTCMinutes();
+  return String(hor).split(' ').some(j => {
+    const p = j.split('-');
+    if (p.length !== 2) return false;
+    const a = Math.floor(+p[0] / 100) * 60 + (+p[0] % 100);
+    const b = Math.floor(+p[1] / 100) * 60 + (+p[1] % 100);
+    return a <= b ? (m >= a && m < b) : (m >= a || m < b);
+  });
+}
+function decOpcoesCanal(lista) {
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  return '<option value="-1">- escolha para sintonizar (● = no ar agora, UTC) -</option>' +
+    lista.map((c, i) => {
+      const ar = decCanalNoAr(c.hor);
+      return '<option value="' + i + '" data-hz="' + c.hz + '"' + (ar ? ' style="color:#4dff80"' : '') +
+        (c.dica ? ' title="' + esc(c.dica + '\n(horarios em UTC)') + '"' : '') + '>' +
+        (ar ? '● ' : '') + esc(c.nome) + '</option>';
+    }).join('');
+}
+// Sintoniza como o restante do radio (VFO, modo, largura e botoes da tela)
+function decSintonizar(hz, modo, bw) {
+  const st = {
+    freq: Math.round(hz), mode: modo, bw: bw,
+    step: (typeof tuningStepHz !== 'undefined') ? tuningStepHz : 1000
+  };
+  if (typeof restoreReceiverState === 'function') restoreReceiverState(st);
+  else if (typeof Backend !== 'undefined' && Backend.tune) Backend.tune(st.freq, modo, bw).catch(() => {});
+}
+function decEstadoRadio() {
+  try {
+    return {
+      freq: currentFreqHz,
+      mode: (document.querySelector('.mode-btn.on')?.textContent || 'USB').trim(),
+      bw:   currentBwHz,
+      step: tuningStepHz
+    };
+  } catch (e) { return null; }
+}
+function decBaixarTexto(texto, prefixo) {
+  const d = new Date();
+  const p2 = n => String(n).padStart(2, '0');
+  const nome = prefixo + '_' + d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + '_' +
+               p2(d.getHours()) + p2(d.getMinutes()) + '.txt';
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([texto], { type: 'text/plain;charset=utf-8' }));
+  a.download = nome;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+const PactorDecoder = (() => {
+  let _pollTimer = null;
+  let _texto = '';
+  let _estadoAnterior = null;
+  let _sqlAnterior = null;
+  let _sintonizou = false;
+  const MAX_TEXTO = 80000;
+  const el = id => document.getElementById(id);
+
+  // A frequencia publicada e o centro do FSK (200 Hz de shift): o VFO (USB)
+  // fica 1500 Hz abaixo. Uma linha por transmissao, em ordem de horario UTC.
+  // As frequencias da Marinha no Rio vieram da lista do SITOR-B: a Marinha do
+  // Brasil transmite a meteoromarinha e os avisos em PACTOR-I, nao em SITOR-B.
+  const CANAIS = [
+    { hz: 12566700, nome: "0000-2400   12566,7 kHz - Marinha do Brasil (PWPU)", hor: "0000-2400", dica: "Marinha do Brasil (PWPU)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0600-2400" },
+    { hz: 6448000, nome: "0230-0330   6448 kHz - Marinha do Brasil (Rio)", hor: "0230-0330", dica: "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)" },
+    { hz: 8580000, nome: "0230-0330   8580 kHz - Marinha do Brasil (Rio) - principal", hor: "0230-0330", dica: "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)" },
+    { hz: 12709000, nome: "0230-0330   12709 kHz - Marinha do Brasil (Rio)", hor: "0230-0330", dica: "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)" },
+    { hz: 16974000, nome: "0230-0330   16974 kHz - Marinha do Brasil (Rio)", hor: "0230-0330", dica: "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)" },
+    { hz: 8582000, nome: "0230-0350   8582 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", hor: "0230-0350", dica: "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0400-0515, 0600-0715, 1430-1545, 1930-2230" },
+    { hz: 6448000, nome: "0400-0445   6448 kHz - Marinha do Brasil (Rio)", hor: "0400-0445", dica: "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)" },
+    { hz: 8580000, nome: "0400-0445   8580 kHz - Marinha do Brasil (Rio) - principal", hor: "0400-0445", dica: "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)" },
+    { hz: 12709000, nome: "0400-0445   12709 kHz - Marinha do Brasil (Rio)", hor: "0400-0445", dica: "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)" },
+    { hz: 16974000, nome: "0400-0445   16974 kHz - Marinha do Brasil (Rio)", hor: "0400-0445", dica: "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)" },
+    { hz: 6422000, nome: "0400-0515   6422 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", hor: "0400-0515", dica: "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 1930-2200" },
+    { hz: 6450000, nome: "0400-0515   6450 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", hor: "0400-0515", dica: "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0600-0715, 1430-1545, 1930-2200" },
+    { hz: 8570000, nome: "0400-0515   8570 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", hor: "0400-0515", dica: "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 1930-2200" },
+    { hz: 8582000, nome: "0400-0515   8582 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", hor: "0400-0515", dica: "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0230-0350, 0600-0715, 1430-1545, 1930-2230" },
+    { hz: 6450000, nome: "0600-0715   6450 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", hor: "0600-0715", dica: "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0400-0515, 1430-1545, 1930-2200" },
+    { hz: 8582000, nome: "0600-0715   8582 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", hor: "0600-0715", dica: "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0230-0350, 0400-0515, 1430-1545, 1930-2230" },
+    { hz: 6448000, nome: "0600-0730   6448 kHz - Marinha do Brasil (Rio)", hor: "0600-0730", dica: "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)" },
+    { hz: 8580000, nome: "0600-0730   8580 kHz - Marinha do Brasil (Rio) - principal", hor: "0600-0730", dica: "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)" },
+    { hz: 12709000, nome: "0600-0730   12709 kHz - Marinha do Brasil (Rio)", hor: "0600-0730", dica: "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)" },
+    { hz: 16974000, nome: "0600-0730   16974 kHz - Marinha do Brasil (Rio)", hor: "0600-0730", dica: "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)" },
+    { hz: 19502200, nome: "0600-1800   19502,2 kHz - Ministério do Exterior - Cartum (Sudão)", hor: "0600-1800", dica: "Ministério do Exterior - Cartum (Sudão)\nPACTOR-I 100 baud, shift 200 Hz" },
+    { hz: 20204200, nome: "0600-1800   20204,2 kHz - Ministério do Exterior - Cartum (Sudão)", hor: "0600-1800", dica: "Ministério do Exterior - Cartum (Sudão)\nPACTOR-I 100 baud, shift 200 Hz" },
+    { hz: 12566700, nome: "0600-2400   12566,7 kHz - Marinha do Brasil - Rio Grande (PWR44)", hor: "0600-2400", dica: "Marinha do Brasil - Rio Grande (PWR44)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0000-2400" },
+    { hz: 16984000, nome: "0800-0830   16984 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", hor: "0800-0830", dica: "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 1600-1800, 1930-2155" },
+    { hz: 6450000, nome: "1430-1545   6450 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", hor: "1430-1545", dica: "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0400-0515, 0600-0715, 1930-2200" },
+    { hz: 8582000, nome: "1430-1545   8582 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", hor: "1430-1545", dica: "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0230-0350, 0400-0515, 0600-0715, 1930-2230" },
+    { hz: 12731000, nome: "1430-1545   12731 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", hor: "1430-1545", dica: "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 1930-2155" },
+    { hz: 16984000, nome: "1600-1800   16984 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", hor: "1600-1800", dica: "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0800-0830, 1930-2155" },
+    { hz: 6448000, nome: "1845-1930   6448 kHz - Marinha do Brasil (Rio)", hor: "1845-1930", dica: "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)" },
+    { hz: 8580000, nome: "1845-1930   8580 kHz - Marinha do Brasil (Rio) - principal", hor: "1845-1930", dica: "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)" },
+    { hz: 12709000, nome: "1845-1930   12709 kHz - Marinha do Brasil (Rio)", hor: "1845-1930", dica: "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)" },
+    { hz: 16974000, nome: "1845-1930   16974 kHz - Marinha do Brasil (Rio)", hor: "1845-1930", dica: "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)" },
+    { hz: 12701000, nome: "1930-2155   12701 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", hor: "1930-2155", dica: "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)" },
+    { hz: 12731000, nome: "1930-2155   12731 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", hor: "1930-2155", dica: "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 1430-1545" },
+    { hz: 16984000, nome: "1930-2155   16984 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", hor: "1930-2155", dica: "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0800-0830, 1600-1800" },
+    { hz: 6422000, nome: "1930-2200   6422 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", hor: "1930-2200", dica: "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0400-0515" },
+    { hz: 6450000, nome: "1930-2200   6450 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", hor: "1930-2200", dica: "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0400-0515, 0600-0715, 1430-1545" },
+    { hz: 8570000, nome: "1930-2200   8570 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", hor: "1930-2200", dica: "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0400-0515" },
+    { hz: 8582000, nome: "1930-2230   8582 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", hor: "1930-2230", dica: "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0230-0350, 0400-0515, 0600-0715, 1430-1545" },
+    { hz: 6448000, nome: "2130-2215   6448 kHz - Marinha do Brasil (Rio)", hor: "2130-2215", dica: "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)" },
+    { hz: 8580000, nome: "2130-2215   8580 kHz - Marinha do Brasil (Rio) - principal", hor: "2130-2215", dica: "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)" },
+    { hz: 12709000, nome: "2130-2215   12709 kHz - Marinha do Brasil (Rio)", hor: "2130-2215", dica: "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)" },
+    { hz: 16974000, nome: "2130-2215   16974 kHz - Marinha do Brasil (Rio)", hor: "2130-2215", dica: "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)" },
+    { hz: 4266000, nome: "sem horário   4266 kHz - Marinha do Brasil (Rio) - só a pedido", hor: "", dica: "Sai só a pedido do navegante" }
+  ];
+
+  function buildPanelHTML() {
+    return `
+      <div style="display:flex;flex-direction:column;height:100%;min-height:0">
+      <div class="dec-status-banner" style="background:#020603;padding:6px 10px;border-bottom:1px solid #10301a">
+        <div style="color:#ffaa00;font-family:'Segoe UI',sans-serif;font-size:12px;font-weight:bold;margin-bottom:2px">
+          Modo: PACTOR-I (FEC) | <span id="pactor-status" style="color:#ffaa00">Parado</span>
+        </div>
+        <div style="color:#b0f020;font-family:Consolas,monospace;font-size:12px;font-weight:bold">
+          FSK 100/200 baud, shift 200 Hz - recepcao em USB, tudo medido sozinho
+        </div>
+      </div>
+
+      <div class="dig-ctrl-bar" style="gap:4px 6px;flex-wrap:wrap">
+        <label style="font-size:10px">Canal</label>
+        <select id="pactor-canal" style="font-size:10px;max-width:420px" onchange="PactorDecoder.irParaCanal()">${decOpcoesCanal(CANAIS)}</select>
+        <input type="text" id="pactor-busca" placeholder="buscar: 8416,5 ou nome" style="width:130px;font-size:10px"
+               title="Digite uma frequencia (8416,5 - 8.416.5 - 8416500) ou parte do nome da estacao: o seletor passa a mostrar so os canais que batem"
+               oninput="decFiltrarCanais('pactor-canal', this.value, 'pactor-achados')">
+        <span id="pactor-achados" style="font-size:10px"></span>
+        ${ArquivoAudio.botaoHTML('PACTOR')}
+        <span id="pactor-stats" style="font-size:10px;color:#7fb0ff;margin-left:auto"></span>
+      </div>
+
+      <div style="flex:1;min-height:0;width:100%;background:#020804;display:flex;flex-direction:column;padding:8px;box-sizing:border-box">
+        <pre id="pactor-terminal" class="dec-terminal" style="flex:1;min-height:80px;overflow-y:auto;background:#010402;border:1px solid #20aa40;padding:8px;color:#30dd70;font-family:Consolas,monospace;font-size:11px;margin:0 0 6px 0;white-space:pre-wrap;word-break:break-word">Aguardando PACTOR-I...</pre>
+        <div style="display:flex;gap:6px">
+          <button onclick="PactorDecoder.clearTerminal()" class="gt-btn" style="flex:1;padding:5px;background:#051a0b;border-color:#1e6c33;color:#40dd70;font-size:11px;font-weight:bold;cursor:pointer;border-radius:4px">Limpar</button>
+          <button onclick="PactorDecoder.copiar()" class="gt-btn" style="flex:1;padding:5px;background:#051a0b;border-color:#1e6c33;color:#40dd70;font-size:11px;font-weight:bold;cursor:pointer;border-radius:4px">Copiar</button>
+          <button onclick="PactorDecoder.salvar()" class="gt-btn" style="flex:1;padding:5px;background:#051a0b;border-color:#1e6c33;color:#40dd70;font-size:11px;font-weight:bold;cursor:pointer;border-radius:4px">Salvar .txt</button>
+        </div>
+        <div style="color:#6a8a70;font-size:10px;margin-top:5px;line-height:1.4">
+          Marinha do Brasil, horarios em UTC (lista em ordem de horario, verde = no ar agora).
+          Cada pacote e conferido pelo CRC: so aparece texto que chegou inteiro; copias repetidas com erro sao somadas.
+          <span id="pactor-utc" style="color:#b0f020"></span>
+        </div>
+      </div>
+      </div>
+    `;
+  }
+
+  function irParaCanal() {
+    const sel = el('pactor-canal');
+    if (!sel) return;
+    const c = CANAIS[Number(sel.value)];
+    if (!c) return;   // a linha "escolha" nao sintoniza
+    _sintonizou = true;
+    decSintonizar(c.hz - 1500, 'USB', 3000);
+  }
+
+  function iniciar() {
+    fetch('/api/pactor/start', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ autoDetect: true })
+    }).then(r => r.json()).then(mostrar).catch(() => {});
+  }
+  function parar() {
+    fetch('/api/pactor/stop', { method: 'POST' }).then(r => r.json()).then(mostrar).catch(() => {});
+  }
+  function reiniciar() { parar(); setTimeout(iniciar, 250); }
+
+  function mostrar(d) {
+    const t = el('pactor-status'), st = el('pactor-stats');
+    if (!t) return;
+    if (!d) { t.textContent = 'Sem resposta'; t.style.color = '#ff8080'; return; }
+    const rodando = d.state === 'running';
+    const recebendo = rodando && d.locked;
+    t.textContent = !rodando ? 'Parado' : (recebendo ? 'RECEBENDO' : 'procurando');
+    t.style.color = recebendo ? '#7CFC00' : (rodando ? '#ffaa00' : '#ff8080');
+    if (st) {
+      if (!rodando) { st.textContent = ''; return; }
+      const partes = [
+        d.baud ? d.baud + ' baud' : '- baud',
+        'tom ' + Math.round(d.tom || 0) + ' Hz',
+        (d.pacotes || 0) + ' pacotes (' + (d.somados || 0) + ' somados)',
+        d.formato || '-'
+      ];
+      if (d.indicativo) partes.push(d.indicativo);
+      st.textContent = partes.join(' | ');
+    }
+  }
+
+  function pollStatus() {
+    fetch('/api/pactor/status').then(r => r.json()).then(mostrar).catch(() => mostrar(null));
+    const u = el('pactor-utc');
+    if (u) {
+      const d = new Date();
+      u.textContent = ' | agora ' + String(d.getUTCHours()).padStart(2, '0') +
+                      String(d.getUTCMinutes()).padStart(2, '0') + 'Z';
+    }
+  }
+
+  function escrever(pedaco) {
+    const term = el('pactor-terminal');
+    if (term && term.textContent.indexOf('Aguardando') === 0) { term.textContent = ''; _texto = ''; }
+    _texto += pedaco;
+    if (_texto.length > MAX_TEXTO) _texto = _texto.slice(_texto.length - MAX_TEXTO * 0.8);
+    if (!term) return;
+    const grudado = (term.scrollTop + term.clientHeight >= term.scrollHeight - 20);
+    term.textContent = _texto;
+    if (grudado) term.scrollTop = term.scrollHeight;
+  }
+  // Texto dos pacotes, em pedacos (cont)
+  function appendTexto(pedaco) { if (pedaco) escrever(String(pedaco)); }
+  // Linhas de aviso (iniciado, parado)
+  function appendLine(line) {
+    if (!line) return;
+    const fim = _texto && !_texto.endsWith('\n') ? '\n' : '';
+    escrever(fim + line + '\n');
+  }
+
+  function clearTerminal() {
+    _texto = '';
+    const term = el('pactor-terminal');
+    if (term) term.textContent = 'Aguardando PACTOR-I...';
+  }
+  function copiar() {
+    try { navigator.clipboard.writeText(_texto); } catch (e) {}
+  }
+  function salvar() { if (_texto) decBaixarTexto(_texto, 'RXSDR_PACTOR'); }
+
+  function init() {
+    _estadoAnterior = decEstadoRadio();
+    // Squelch aberto enquanto a janela estiver aberta (o sinal chega fraco e
+    // intermitente); o valor volta ao fechar - igual ao SITOR-B.
+    const sql = el('sqlSlider');
+    if (sql) {
+      _sqlAnterior = sql.value;
+      sql.value = sql.min;
+      sql.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    iniciar();
+    if (_pollTimer) clearInterval(_pollTimer);
+    _pollTimer = setInterval(pollStatus, 1500);
+  }
+
+  function onClose() {
+    if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+    parar();
+    const sql = el('sqlSlider');
+    if (sql && _sqlAnterior !== null) {
+      sql.value = _sqlAnterior;
+      sql.dispatchEvent(new Event('input', { bubbles: true }));
+      _sqlAnterior = null;
+    }
+    if (_sintonizou && _estadoAnterior && typeof restoreReceiverState === 'function') {
+      restoreReceiverState(_estadoAnterior);
+    }
+    _estadoAnterior = null;
+    _sintonizou = false;
+  }
+
+  return { buildPanelHTML, init, onClose, appendLine, appendTexto, clearTerminal,
+           copiar, salvar, irParaCanal, reiniciar };
+})();
+
+/* =========================================================
+   SSTV - imagens dos radioamadores (o mesmo SstvCore do RXSDR Nativo)
+   A imagem e decodificada no backend; a pagina pergunta o estado e busca o
+   PNG quando a versao muda. O cabecalho VIS diz o modo e comeca sozinho.
+   ========================================================= */
+const SstvDecoder = (() => {
+  let _pollTimer = null;
+  let _estadoAnterior = null;
+  let _sqlAnterior = null;
+  let _sintonizou = false;
+  let _versao = -1, _buscando = false, _bitmap = null;
+  let _st = null, _esp = null, _modosOk = false, _histIds = '';
+  const el = id => document.getElementById(id);
+
+  const FREQS = [
+    { nome: '14.230 MHz  USB  (20 m - a mais movimentada)', hz: 14230000, modo: 'USB' },
+    { nome: '14.233 MHz  USB  (20 m)', hz: 14233000, modo: 'USB' },
+    { nome: '21.340 MHz  USB  (15 m)', hz: 21340000, modo: 'USB' },
+    { nome: '28.680 MHz  USB  (10 m)', hz: 28680000, modo: 'USB' },
+    { nome: '7.171 MHz  LSB  (40 m - Américas)', hz: 7171000, modo: 'LSB' },
+    { nome: '7.165 MHz  LSB  (40 m - Europa)', hz: 7165000, modo: 'LSB' },
+    { nome: '3.845 MHz  LSB  (80 m - Américas)', hz: 3845000, modo: 'LSB' },
+    { nome: '3.730 MHz  LSB  (80 m - Europa)', hz: 3730000, modo: 'LSB' },
+    { nome: '145.800 MHz  NFM  (ISS - eventos ARISS)', hz: 145800000, modo: 'NFM' }
+  ];
+
+  const BTN = 'padding:3px 8px;background:#0d2a1a;border:1px solid #2e8c5a;color:#8affc0;font-size:10px;font-weight:bold;cursor:pointer;border-radius:4px';
+
+  function buildPanelHTML() {
+    const ops = '<option value="-1">- escolha para sintonizar -</option>' +
+      FREQS.map((f, i) => '<option value="' + i + '">' + f.nome + '</option>').join('');
+    return `
+      <div style="display:flex;flex-direction:column;height:100%;min-height:0;font-family:'Segoe UI',sans-serif">
+      <div class="dec-status-banner" style="background:#020603;padding:5px 10px;border-bottom:1px solid #10301a">
+        <div style="color:#ffaa00;font-size:12px;font-weight:bold">
+          Modo: SSTV | <span id="sstv-status" style="color:#ffaa00">Parado</span>
+        </div>
+      </div>
+      <div class="dig-ctrl-bar" style="gap:4px 8px;flex-wrap:wrap">
+        <label style="font-size:10px">Frequência</label>
+        <select id="sstv-freq" style="font-size:10px" onchange="SstvDecoder.irParaFreq()">${ops}</select>
+        <label style="font-size:10px" title="Reconhece o modo pelo cabeçalho VIS e começa a imagem sozinho">
+          <input type="checkbox" id="sstv-vis" checked onchange="SstvDecoder.opcoes()"> VIS automático</label>
+        <label style="font-size:10px" title="Mede o relógio da placa de som de quem transmite pelos pulsos de 1200 Hz e endireita a imagem">
+          <input type="checkbox" id="sstv-incl" checked onchange="SstvDecoder.opcoes()"> Corrigir inclinação</label>
+        <label style="font-size:10px" title="Cada imagem recebida vai para a pasta RXSDR_SSTV na Área de Trabalho">
+          <input type="checkbox" id="sstv-salvar" checked onchange="SstvDecoder.opcoes()"> Salvar PNG</label>
+      </div>
+      <div class="dig-ctrl-bar" style="gap:4px 6px;flex-wrap:wrap">
+        <label style="font-size:10px">Modo</label>
+        <select id="sstv-modo" style="font-size:10px"><option value="0">Robot 36</option></select>
+        <button style="${BTN}" onclick="SstvDecoder.cmd('comecar')"
+          title="Pegou a transmissão no meio (sem o VIS)? Escolha o modo e clique: a imagem começa já, alinhada pelos próximos pulsos de sincronismo.">Começar agora</button>
+        <button style="${BTN}" onclick="SstvDecoder.cmd('terminar')" title="Encerra a imagem atual como está (e salva, se tiver pelo menos 1/4)">Terminar</button>
+        <button style="${BTN}" onclick="SstvDecoder.cmd('limpar')">Limpar imagem</button>
+        <button style="${BTN}" onclick="SstvDecoder.cmd('abrirpasta')" title="Abre a pasta RXSDR_SSTV no computador onde o RXSDR está rodando">Abrir pasta</button>
+        ${ArquivoAudio.botaoHTML('SSTV')}
+      </div>
+      <div style="flex:1;min-height:0;display:flex;gap:8px;padding:8px;box-sizing:border-box;background:#020804">
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+          <div style="flex:1;min-height:120px;position:relative">
+            <canvas id="sstv-tela" style="position:absolute;left:0;top:0;width:100%;height:100%;background:#080808"></canvas>
+          </div>
+          <div style="position:relative;height:16px;margin-top:4px;background:#0b1a10;border:1px solid #1e5a2e">
+            <div id="sstv-barra" style="position:absolute;left:0;top:0;bottom:0;width:0;background:#306040"></div>
+            <span id="sstv-prog" style="position:absolute;left:6px;top:1px;font-size:10px;color:#d0e8d0">sem imagem</span>
+          </div>
+        </div>
+        <div style="width:250px;flex-shrink:0;display:flex;flex-direction:column;min-height:0">
+          <canvas id="sstv-esp" width="250" height="90" style="width:250px;height:90px;background:#020603;border:1px solid #1e5a2e"></canvas>
+          <div id="sstv-info" style="font-size:10px;color:#a0c8a8;margin:4px 0;line-height:1.5"></div>
+          <div id="sstv-hist-tit" style="font-size:10px;color:#ffaa00;border-top:1px solid #1e5a2e;padding-top:3px">Recebidas (0)</div>
+          <div id="sstv-hist" style="flex:1;min-height:0;overflow-y:auto;display:flex;flex-wrap:wrap;gap:4px;align-content:flex-start;padding-top:4px"></div>
+        </div>
+      </div>
+      <div style="color:#6a8a70;font-size:10px;padding:0 8px 4px">
+        USB em 20/15/10 m, LSB em 40/80 m. A imagem começa sozinha no VIS; a linha vermelha mostra onde ela está.
+        Clique numa recebida para abrir o PNG.
+      </div>
+      </div>
+    `;
+  }
+
+  function irParaFreq() {
+    const sel = el('sstv-freq');
+    const f = sel ? FREQS[Number(sel.value)] : null;
+    if (!f) return;
+    _sintonizou = true;
+    decSintonizar(f.hz, f.modo, f.modo === 'NFM' ? 20000 : 3000);   // ISS: Doppler de ate 3,5 kHz
+  }
+
+  function valOpcoes() {
+    return {
+      vis:        !!(el('sstv-vis') || {}).checked,
+      inclinacao: !!(el('sstv-incl') || {}).checked,
+      salvar:     !!(el('sstv-salvar') || {}).checked
+    };
+  }
+  function guardar() {
+    try { localStorage.setItem('sstv-opcoes', JSON.stringify(valOpcoes())); } catch (e) {}
+  }
+  function carregar() {
+    try {
+      const o = JSON.parse(localStorage.getItem('sstv-opcoes') || 'null');
+      if (o) {
+        if (el('sstv-vis')) el('sstv-vis').checked = o.vis !== false;
+        if (el('sstv-incl')) el('sstv-incl').checked = o.inclinacao !== false;
+        if (el('sstv-salvar')) el('sstv-salvar').checked = o.salvar !== false;
+      }
+    } catch (e) {}
+  }
+
+  function post(acao, corpo) {
+    return fetch('/api/sstv/cmd/' + acao, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(corpo || {})
+    }).then(r => r.json()).then(d => { mostrar(d); return d; }).catch(() => null);
+  }
+  function opcoes() { guardar(); post('opcoes', valOpcoes()); }
+  function cmd(acao) {
+    const corpo = valOpcoes();
+    if (acao === 'comecar') corpo.modo = Number((el('sstv-modo') || {}).value) || 0;
+    post(acao, corpo);
+  }
+  function iniciar() { _versao = -1; return post('start', valOpcoes()); }
+  function parar() { return post('stop', {}); }
+  function reiniciar() { parar().then(() => setTimeout(iniciar, 150)); }
+
+  // ---- desenho -----------------------------------------------------------------
+  function desenharImagem() {
+    const cv = el('sstv-tela');
+    if (!cv) return;
+    const W = Math.max(50, cv.clientWidth), H = Math.max(50, cv.clientHeight);
+    if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+    const g = cv.getContext('2d');
+    g.fillStyle = '#080808'; g.fillRect(0, 0, W, H);
+    const s = _st || {};
+    const iw = s.w || 320, ih = s.h || 256;
+    const esc = Math.max(0.1, Math.min(W / iw, H / ih));
+    const tw = iw * esc, th = ih * esc, x0 = (W - tw) / 2, y0 = 0;
+    if (_bitmap && s.w > 0) {
+      g.imageSmoothingEnabled = true;
+      g.drawImage(_bitmap, x0, y0, tw, th);
+    } else {
+      g.fillStyle = '#888'; g.font = '12px Segoe UI, sans-serif'; g.textAlign = 'center';
+      g.fillText(s.state === 'running' ? 'esperando uma imagem...' : 'decodificador parado', W / 2, H / 2);
+    }
+    g.strokeStyle = '#2e6c3e'; g.strokeRect(x0 + 0.5, y0 + 0.5, tw - 1, th - 1);
+    // linha que esta chegando (como no MMSSTV)
+    if (s.estado === 'recebendo' && s.linhas > 0 && s.linha < s.linhas) {
+      const y = y0 + th * s.linha / s.linhas;
+      g.strokeStyle = 'rgba(255,64,64,0.65)'; g.lineWidth = 1.5;
+      g.beginPath(); g.moveTo(x0, y); g.lineTo(x0 + tw, y); g.stroke();
+    }
+  }
+
+  function desenharEspectro() {
+    const cv = el('sstv-esp');
+    if (!cv || !_st) return;
+    const g = cv.getContext('2d'), W = cv.width, H = cv.height;
+    g.fillStyle = '#020603'; g.fillRect(0, 0, W, H);
+    const f0 = 900, f1 = 2500;
+    const xDe = f => (f - f0) / (f1 - f0) * W;
+    const dv = _st.estado === 'recebendo' ? (_st.desvioHz || 0) : 0;
+    const marcas = [[1200, 'rgba(255,80,80,0.8)'], [1500, 'rgba(150,150,150,0.8)'],
+                    [1900, 'rgba(255,208,48,0.8)'], [2300, 'rgba(240,240,240,0.8)']];
+    g.font = '9px Segoe UI, sans-serif'; g.textAlign = 'left';
+    for (const [f, c] of marcas) {
+      const x = xDe(f + dv);
+      g.strokeStyle = c; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.stroke();
+      g.fillStyle = c; g.fillText(String(f), x + 2, 9);
+    }
+    const e = _st.espectro || [];
+    if (e.length) {
+      if (!_esp || _esp.length !== e.length) _esp = e.slice();
+      for (let i = 0; i < e.length; i++) _esp[i] += (e[i] - _esp[i]) * 0.5;
+      let mx = -1e9, mn = 1e9;
+      for (const v of _esp) { mx = Math.max(mx, v); mn = Math.min(mn, v); }
+      const topo = mx + 3, piso = Math.max(mn, mx - 45);
+      g.strokeStyle = '#ffc820'; g.lineWidth = 1.3; g.beginPath();
+      for (let i = 0; i < _esp.length; i++) {
+        const f = f0 + i * 20 + 10;
+        const v = Math.max(0, Math.min(1, (_esp[i] - piso) / Math.max(1, topo - piso)));
+        const x = xDe(f), y = H - 2 - v * (H - 14);
+        if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
+      }
+      g.stroke();
+    }
+    g.strokeStyle = '#1e5a2e'; g.strokeRect(0.5, 0.5, W - 1, H - 1);
+  }
+
+  function mostrar(d) {
+    const t = el('sstv-status');
+    if (!t) return;
+    if (!d || !d.state) { t.textContent = 'Sem resposta'; t.style.color = '#ff8080'; return; }
+    _st = d;
+    const rodando = d.state === 'running';
+    const recebendo = d.estado === 'recebendo';
+    t.textContent = !rodando ? 'Parado'
+      : recebendo ? 'recebendo ' + d.nomeModo + (d.porVis ? ' (VIS)' : ' (manual)')
+      : 'esperando o VIS | sinal ' + d.nivelDb + ' dB | ' + (d.imagens || 0) + ' imagens recebidas';
+    t.style.color = recebendo ? '#7CFC00' : (rodando ? '#ffaa00' : '#ff8080');
+
+    // lista de modos (uma vez so)
+    if (!_modosOk && Array.isArray(d.modos) && d.modos.length) {
+      const s = el('sstv-modo');
+      if (s) {
+        let anterior = '0';
+        try { anterior = localStorage.getItem('sstv-modo') || '0'; } catch (e) {}
+        s.innerHTML = d.modos.map((m, i) => '<option value="' + i + '">' + m.nome + '  ' + m.w + 'x' + m.h +
+                                             '  ' + m.s + ' s</option>').join('');
+        s.value = anterior;
+        s.onchange = () => { try { localStorage.setItem('sstv-modo', s.value); } catch (e) {} };
+        _modosOk = true;
+      }
+    }
+
+    // progresso
+    const frac = d.linhas > 0 ? Math.min(1, d.linha / d.linhas) : 0;
+    const barra = el('sstv-barra'), prog = el('sstv-prog');
+    if (barra) { barra.style.width = (frac * 100) + '%'; barra.style.background = recebendo ? '#00b050' : '#306040'; }
+    if (prog) prog.textContent = d.modo >= 0
+      ? d.nomeModo + '  ' + (d.w || 0) + 'x' + (d.h || 0) + '  -  linha ' + d.linha + ' de ' + d.linhas + (recebendo ? '' : '  (pronta)')
+      : 'sem imagem';
+
+    const info = el('sstv-info');
+    if (info) info.innerHTML = d.modo >= 0
+      ? 'Sintonia: ' + (d.desvioHz > 0 ? '+' : '') + d.desvioHz + ' Hz &nbsp; Inclinação: ' + (d.inclinacaoPpm > 0 ? '+' : '') + d.inclinacaoPpm + ' ppm<br>' +
+        'Sincronismos: ' + d.sincronismos + ' &nbsp; faltaram: ' + d.faltas
+      : '<span style="color:#708070">Sintonize e espere o cabeçalho VIS</span>';
+
+    // historico
+    const hs = Array.isArray(d.historico) ? d.historico : [];
+    const ids = hs.map(h => h.id).join(',');
+    if (ids !== _histIds) {
+      _histIds = ids;
+      const tit = el('sstv-hist-tit'); if (tit) tit.textContent = 'Recebidas (' + hs.length + ')';
+      const box = el('sstv-hist');
+      if (box) box.innerHTML = hs.map(h =>
+        '<a href="/api/sstv/png/' + h.id + '" target="_blank" title="' +
+        String(h.rotulo + (h.arquivo ? '\nsalva em ' + h.arquivo : '\n(não salva)')).replace(/"/g, '&quot;') + '">' +
+        '<img src="/api/sstv/png/' + h.id + '" style="width:119px;border:1px solid #2e6c3e;display:block"></a>').join('');
+    }
+
+    // imagem nova?
+    if (d.versao !== _versao && !_buscando) {
+      if (!(d.w > 0 && d.h > 0)) { _bitmap = null; _versao = d.versao; }
+      else {
+        _buscando = true;
+        const v = d.versao;
+        const img = new Image();
+        img.onload = () => { _bitmap = img; _versao = v; _buscando = false; desenharImagem(); };
+        img.onerror = () => { _buscando = false; };
+        img.src = '/api/sstv/png/atual?v=' + v;
+      }
+    }
+    desenharImagem();
+    desenharEspectro();
+  }
+
+  function pollStatus() {
+    fetch('/api/sstv/status').then(r => r.json()).then(mostrar).catch(() => mostrar(null));
+  }
+
+  function appendLine(line) {
+    // as linhas "[SSTV] Robot 36 ... salva em ..." aparecem como dica no status
+    const t = el('sstv-info');
+    if (t && line && line.indexOf('[SSTV]') === 0 && line.indexOf('esperando') < 0) t.title = line;
+  }
+
+  function init() {
+    carregar();
+    _estadoAnterior = decEstadoRadio();
+    _modosOk = false; _histIds = ''; _bitmap = null; _versao = -1; _esp = null;
+    const sql = el('sqlSlider');
+    if (sql) {
+      _sqlAnterior = sql.value;
+      sql.value = sql.min;
+      sql.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    iniciar();
+    if (_pollTimer) clearInterval(_pollTimer);
+    _pollTimer = setInterval(pollStatus, 700);
+  }
+
+  function onClose() {
+    if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+    parar();
+    const sql = el('sqlSlider');
+    if (sql && _sqlAnterior !== null) {
+      sql.value = _sqlAnterior;
+      sql.dispatchEvent(new Event('input', { bubbles: true }));
+      _sqlAnterior = null;
+    }
+    if (_sintonizou && _estadoAnterior && typeof restoreReceiverState === 'function') {
+      restoreReceiverState(_estadoAnterior);
+    }
+    _estadoAnterior = null;
+    _sintonizou = false;
+  }
+
+  return { buildPanelHTML, init, onClose, appendLine, irParaFreq, opcoes, cmd, reiniciar };
+})();
+
+/* =========================================================
+   WEFAX - fax meteorologico em HF (o mesmo WefaxCore do RXSDR Nativo)
+   O tom de inicio (300 Hz) comeca a imagem, a fase acha a margem e as linhas
+   por minuto, o tom de fim (450 Hz) termina e salva. A pagina mostra a
+   imagem em meia resolucao; o PNG salvo e o inteiro.
+   ========================================================= */
+const WefaxDecoder = (() => {
+  let _pollTimer = null;
+  let _estadoAnterior = null;
+  let _sqlAnterior = null;
+  let _sintonizou = false;
+  let _versao = -1, _buscando = false, _alinhar = false;
+  let _st = null, _histIds = '';
+  const el = id => document.getElementById(id);
+
+  // A frequencia ja e a do mostrador em USB (centro - 1,9 kHz).
+  // Uma linha por transmissao, em ordem de horario UTC.
+  const CANAIS = [
+    { hz: 4316000, nome: "0000-0320   4316 kHz - USCG New Orleans (USA)", lpm: 120, ioc: 576, hor: "0000-0320", dica: "USCG New Orleans (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0600-0920, 1200-1520, 1800-2120" },
+    { hz: 8502000, nome: "0000-0320   8502 kHz - USCG New Orleans (USA)", lpm: 120, ioc: 576, hor: "0000-0320", dica: "USCG New Orleans (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0600-0920, 1200-1520, 1800-2120" },
+    { hz: 12788000, nome: "0000-0320   12788 kHz - USCG New Orleans (USA)", lpm: 120, ioc: 576, hor: "0000-0320", dica: "USCG New Orleans (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0600-0920, 1200-1520, 1800-2120" },
+    { hz: 4197850, nome: "0000-1045   4197,85 kHz - Guangzhou Radio Meteo (China)", lpm: 120, ioc: 576, hor: "0000-1045", dica: "Guangzhou Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1225-1715, 2015-2050" },
+    { hz: 8410600, nome: "0000-1045   8410,6 kHz - Guangzhou Radio Meteo (China)", lpm: 120, ioc: 576, hor: "0000-1045", dica: "Guangzhou Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1225-1715, 2015-2050" },
+    { hz: 12627350, nome: "0000-1045   12627,35 kHz - Guangzhou Radio Meteo (China)", lpm: 120, ioc: 576, hor: "0000-1045", dica: "Guangzhou Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1225-1715, 2015-2050" },
+    { hz: 16824350, nome: "0000-1045   16824,35 kHz - Guangzhou Radio Meteo (China)", lpm: 120, ioc: 576, hor: "0000-1045", dica: "Guangzhou Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1225-1715, 2015-2050" },
+    { hz: 4168100, nome: "0000-1415   4168,1 kHz - Shanghai Radio Meteo (China)", lpm: 120, ioc: 576, hor: "0000-1415", dica: "Shanghai Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 2000-2055" },
+    { hz: 8300100, nome: "0000-1415   8300,1 kHz - Shanghai Radio Meteo (China)", lpm: 120, ioc: 576, hor: "0000-1415", dica: "Shanghai Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 2000-2055" },
+    { hz: 8789100, nome: "0000-1415   8789,1 kHz - Shanghai Radio Meteo (China)", lpm: 120, ioc: 576, hor: "0000-1415", dica: "Shanghai Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 2000-2055" },
+    { hz: 12380100, nome: "0000-1415   12380,1 kHz - Shanghai Radio Meteo (China)", lpm: 120, ioc: 576, hor: "0000-1415", dica: "Shanghai Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 2000-2055" },
+    { hz: 16557100, nome: "0000-1415   16557,1 kHz - Shanghai Radio Meteo (China)", lpm: 120, ioc: 576, hor: "0000-1415", dica: "Shanghai Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 2000-2055" },
+    { hz: 19785100, nome: "0000-1415   19785,1 kHz - Shanghai Radio Meteo (China)", lpm: 120, ioc: 576, hor: "0000-1415", dica: "Shanghai Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 2000-2055" },
+    { hz: 20492100, nome: "0000-1415   20492,1 kHz - Shanghai Radio Meteo (China)", lpm: 120, ioc: 576, hor: "0000-1415", dica: "Shanghai Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 3583100, nome: "0000-2400   3583,1 kHz - Seoul Meteo (Korea-South)", lpm: 120, ioc: 576, hor: "0000-2400", dica: "Seoul Meteo (Korea-South)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 3620600, nome: "0000-2400   3620,6 kHz - Tokyo Meteo (Japan)", lpm: 120, ioc: 576, hor: "0000-2400", dica: "Tokyo Meteo (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 4314100, nome: "0000-2400   4314,1 kHz - KYODO News Tokyo (Japan)", lpm: 60, ioc: 576, hor: "0000-2400", dica: "KYODO News Tokyo (Japan)\nWEFAX 60 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 4608100, nome: "0000-2400   4608,1 kHz - Northwood Meteo JOMOC (United Kingdom)", lpm: 120, ioc: 576, hor: "0000-2400", dica: "Northwood Meteo JOMOC (United Kingdom)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 5098100, nome: "0000-2400   5098,1 kHz - Australia Weather East (Australia)", lpm: 120, ioc: 576, hor: "0000-2400", dica: "Australia Weather East (Australia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 7431600, nome: "0000-2400   7431,6 kHz - Seoul Meteo (Korea-South)", lpm: 120, ioc: 576, hor: "0000-2400", dica: "Seoul Meteo (Korea-South)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 7533100, nome: "0000-2400   7533,1 kHz - Australia Weather West (Australia)", lpm: 120, ioc: 576, hor: "0000-2400", dica: "Australia Weather West (Australia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 7793100, nome: "0000-2400   7793,1 kHz - Tokyo Meteo (Japan)", lpm: 120, ioc: 576, hor: "0000-2400", dica: "Tokyo Meteo (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 8038100, nome: "0000-2400   8038,1 kHz - Northwood Meteo JOMOC (United Kingdom)", lpm: 120, ioc: 576, hor: "0000-2400", dica: "Northwood Meteo JOMOC (United Kingdom)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 8465600, nome: "0000-2400   8465,6 kHz - KYODO News Tokyo (Japan)", lpm: 60, ioc: 576, hor: "0000-2400", dica: "KYODO News Tokyo (Japan)\nWEFAX 60 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 8672200, nome: "0000-2400   8672,2 kHz - Northwood Meteo JOMOC (United Kingdom)", lpm: 120, ioc: 576, hor: "0000-2400", dica: "Northwood Meteo JOMOC (United Kingdom)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 9152100, nome: "0000-2400   9152,1 kHz - Seoul Meteo (Korea-South)", lpm: 120, ioc: 576, hor: "0000-2400", dica: "Seoul Meteo (Korea-South)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 9163100, nome: "0000-2400   9163,1 kHz - Seoul Meteo (Korea-South)", lpm: 120, ioc: 576, hor: "0000-2400", dica: "Seoul Meteo (Korea-South)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 10553100, nome: "0000-2400   10553,1 kHz - Australia Weather West (Australia)", lpm: 120, ioc: 576, hor: "0000-2400", dica: "Australia Weather West (Australia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 11028100, nome: "0000-2400   11028,1 kHz - Australia Weather East (Australia)", lpm: 120, ioc: 576, hor: "0000-2400", dica: "Australia Weather East (Australia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 12743600, nome: "0000-2400   12743,6 kHz - KYODO News Tokyo (Japan)", lpm: 60, ioc: 576, hor: "0000-2400", dica: "KYODO News Tokyo (Japan)\nWEFAX 60 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 13568100, nome: "0000-2400   13568,1 kHz - Seoul Meteo (Korea-South)", lpm: 120, ioc: 576, hor: "0000-2400", dica: "Seoul Meteo (Korea-South)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 13918100, nome: "0000-2400   13918,1 kHz - Australia Weather East (Australia)", lpm: 120, ioc: 576, hor: "0000-2400", dica: "Australia Weather East (Australia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 13986600, nome: "0000-2400   13986,6 kHz - Tokyo Meteo (Japan)", lpm: 120, ioc: 576, hor: "0000-2400", dica: "Tokyo Meteo (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 15613100, nome: "0000-2400   15613,1 kHz - Australia Weather West (Australia)", lpm: 120, ioc: 576, hor: "0000-2400", dica: "Australia Weather West (Australia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 16133100, nome: "0000-2400   16133,1 kHz - Honolulu Meteo (Hawaii)", lpm: 120, ioc: 576, hor: "0000-2400", dica: "Honolulu Meteo (Hawaii)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 16969100, nome: "0000-2400   16969,1 kHz - KYODO News Tokyo (Japan)", lpm: 60, ioc: 576, hor: "0000-2400", dica: "KYODO News Tokyo (Japan)\nWEFAX 60 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 17067700, nome: "0000-2400   17067,7 kHz - KYODO News Tokyo (Japan)", lpm: 60, ioc: 576, hor: "0000-2400", dica: "KYODO News Tokyo (Japan)\nWEFAX 60 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 22540100, nome: "0000-2400   22540,1 kHz - KYODO News Tokyo (Japan)", lpm: 60, ioc: 576, hor: "0000-2400", dica: "KYODO News Tokyo (Japan)\nWEFAX 60 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 8656100, nome: "0015-0045   8656,1 kHz - Kagoshima Prefec.Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "0015-0045", dica: "Kagoshima Prefec.Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0330-0400, 0430-0500, 0600-0630, 0700-0730, 0830-0840, 0930-0945, 1100-1115, 1800-1815, 2200-2315" },
+    { hz: 13072100, nome: "0015-0050   13072,1 kHz - Misaki Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "0015-0050", dica: "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0600-0645, 0730-0800, 0830-0840, 0930-0945, 1700-1715, 2200-2215, 2300-2315" },
+    { hz: 16907500, nome: "0030-0045   16907,5 kHz - Misaki Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "0030-0045", dica: "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0130-0200, 0300-0330, 0400-0430, 0600-0630, 0700-0730, 0810-0845, 1030-1050" },
+    { hz: 7395000, nome: "0050-0620   7395 kHz - Bangkok Meteorological (Thailand)", lpm: 120, ioc: 576, hor: "0050-0620", dica: "Bangkok Meteorological (Thailand)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0700-0840, 1000-1042, 1300-1322, 1700-1742, 2300-2342" },
+    { hz: 7708100, nome: "0100-0300   7708,1 kHz - VFR Resolute (Canada)", lpm: 120, ioc: 576, hor: "0100-0300", dica: "VFR Resolute (Canada)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0600-0800, 1000-1200" },
+    { hz: 16907500, nome: "0130-0200   16907,5 kHz - Misaki Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "0130-0200", dica: "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0030-0045, 0300-0330, 0400-0430, 0600-0630, 0700-0730, 0810-0845, 1030-1050" },
+    { hz: 4344100, nome: "0140-0420   4344,1 kHz - USCG San Francisco (USA)", lpm: 120, ioc: 576, hor: "0140-0420", dica: "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0655-1030, 1120-1237, 1400-1630" },
+    { hz: 8680100, nome: "0140-0420   8680,1 kHz - USCG San Francisco (USA)", lpm: 120, ioc: 576, hor: "0140-0420", dica: "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0655-1030, 1120-1237, 1400-1630, 1840-2356" },
+    { hz: 12784100, nome: "0140-0420   12784,1 kHz - USCG San Francisco (USA)", lpm: 120, ioc: 576, hor: "0140-0420", dica: "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0655-1030, 1120-1237, 1400-1630, 1840-2356" },
+    { hz: 17149300, nome: "0140-0420   17149,3 kHz - USCG San Francisco (USA)", lpm: 120, ioc: 576, hor: "0140-0420", dica: "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0655-1030, 1120-1237, 1400-1630, 1840-2356" },
+    { hz: 8442100, nome: "0200-0300   8442,1 kHz - Murmansk Meteo Radio (Russia)", lpm: 120, ioc: 576, hor: "0200-0300", dica: "Murmansk Meteo Radio (Russia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0700-0715, 1000-1100, 1330-1350, 2000-2020" },
+    { hz: 4233100, nome: "0230-0455   4233,1 kHz - USCG Boston (USA)", lpm: 120, ioc: 576, hor: "0230-0455", dica: "USCG Boston (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0745-1039" },
+    { hz: 6338600, nome: "0230-0455   6338,6 kHz - USCG Boston (USA)", lpm: 120, ioc: 576, hor: "0230-0455", dica: "USCG Boston (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0745-1039, 1400-1610, 1720-2315" },
+    { hz: 9108100, nome: "0230-0455   9108,1 kHz - USCG Boston (USA)", lpm: 120, ioc: 576, hor: "0230-0455", dica: "USCG Boston (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0745-1039, 1400-1610, 1720-2315" },
+    { hz: 16907500, nome: "0300-0330   16907,5 kHz - Misaki Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "0300-0330", dica: "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0030-0045, 0130-0200, 0400-0430, 0600-0630, 0700-0730, 0810-0845, 1030-1050" },
+    { hz: 8656100, nome: "0330-0400   8656,1 kHz - Kagoshima Prefec.Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "0330-0400", dica: "Kagoshima Prefec.Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0015-0045, 0430-0500, 0600-0630, 0700-0730, 0830-0840, 0930-0945, 1100-1115, 1800-1815, 2200-2315" },
+    { hz: 2052100, nome: "0340-0608   2052,1 kHz - USCG Kodiak (Alaska)", lpm: 120, ioc: 576, hor: "0340-0608", dica: "USCG Kodiak (Alaska)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0950-1213, 1540-1818, 2150-0028" },
+    { hz: 4296100, nome: "0340-0608   4296,1 kHz - USCG Kodiak (Alaska)", lpm: 120, ioc: 576, hor: "0340-0608", dica: "USCG Kodiak (Alaska)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0950-1213, 1540-1818, 2150-0028" },
+    { hz: 8457100, nome: "0340-0608   8457,1 kHz - USCG Kodiak (Alaska)", lpm: 120, ioc: 576, hor: "0340-0608", dica: "USCG Kodiak (Alaska)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0950-1213, 1540-1818, 2150-0028" },
+    { hz: 12410600, nome: "0340-0608   12410,6 kHz - USCG Kodiak (Alaska)", lpm: 120, ioc: 576, hor: "0340-0608", dica: "USCG Kodiak (Alaska)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0950-1213, 1540-1818, 2150-0028" },
+    { hz: 4320100, nome: "0350-0415   4320,1 kHz - Magallanes Radio (Chile)", lpm: 120, ioc: 576, hor: "0350-0415", dica: "Magallanes Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1550-1630, 1730-1755, 2005-2040, 2240-2340" },
+    { hz: 8694100, nome: "0350-0415   8694,1 kHz - Magallanes Radio (Chile)", lpm: 120, ioc: 576, hor: "0350-0415", dica: "Magallanes Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1550-1630, 1730-1755, 2005-2040, 2240-2340" },
+    { hz: 16907500, nome: "0400-0430   16907,5 kHz - Misaki Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "0400-0430", dica: "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0030-0045, 0130-0200, 0300-0330, 0600-0630, 0700-0730, 0810-0845, 1030-1050" },
+    { hz: 22559600, nome: "0400-0430   22559,6 kHz - Misaki Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "0400-0430", dica: "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0500-0530, 0600-0630, 0700-0730, 0800-0830" },
+    { hz: 8656100, nome: "0430-0500   8656,1 kHz - Kagoshima Prefec.Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "0430-0500", dica: "Kagoshima Prefec.Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0015-0045, 0330-0400, 0600-0630, 0700-0730, 0830-0840, 0930-0945, 1100-1115, 1800-1815, 2200-2315" },
+    { hz: 3853100, nome: "0430-2400   3853,1 kHz - Deutscher Wetterdienst (Germany)", lpm: 120, ioc: 576, hor: "0430-2400", dica: "Deutscher Wetterdienst (Germany)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 7878100, nome: "0430-2400   7878,1 kHz - Deutscher Wetterdienst (Germany)", lpm: 120, ioc: 576, hor: "0430-2400", dica: "Deutscher Wetterdienst (Germany)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 13880600, nome: "0430-2400   13880,6 kHz - Deutscher Wetterdienst (Germany)", lpm: 120, ioc: 576, hor: "0430-2400", dica: "Deutscher Wetterdienst (Germany)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 15986400, nome: "0430-2400   15986,4 kHz - Deutscher Wetterdienst (Germany)", lpm: 120, ioc: 576, hor: "0430-2400", dica: "Deutscher Wetterdienst (Germany)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 22559600, nome: "0500-0530   22559,6 kHz - Misaki Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "0500-0530", dica: "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0400-0430, 0600-0630, 0700-0730, 0800-0830" },
+    { hz: 9980600, nome: "0519-1556   9980,6 kHz - Honolulu Meteo (Hawaii)", lpm: 120, ioc: 576, hor: "0519-1556", dica: "Honolulu Meteo (Hawaii)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 11088100, nome: "0519-1556   11088,1 kHz - Honolulu Meteo (Hawaii)", lpm: 120, ioc: 576, hor: "0519-1556", dica: "Honolulu Meteo (Hawaii)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1719-0356" },
+    { hz: 8656100, nome: "0600-0630   8656,1 kHz - Kagoshima Prefec.Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "0600-0630", dica: "Kagoshima Prefec.Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0015-0045, 0330-0400, 0430-0500, 0700-0730, 0830-0840, 0930-0945, 1100-1115, 1800-1815, 2200-2315" },
+    { hz: 16907500, nome: "0600-0630   16907,5 kHz - Misaki Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "0600-0630", dica: "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0030-0045, 0130-0200, 0300-0330, 0400-0430, 0700-0730, 0810-0845, 1030-1050" },
+    { hz: 22559600, nome: "0600-0630   22559,6 kHz - Misaki Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "0600-0630", dica: "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0400-0430, 0500-0530, 0700-0730, 0800-0830" },
+    { hz: 13072100, nome: "0600-0645   13072,1 kHz - Misaki Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "0600-0645", dica: "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0015-0050, 0730-0800, 0830-0840, 0930-0945, 1700-1715, 2200-2215, 2300-2315" },
+    { hz: 7708100, nome: "0600-0800   7708,1 kHz - VFR Resolute (Canada)", lpm: 120, ioc: 576, hor: "0600-0800", dica: "VFR Resolute (Canada)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0100-0300, 1000-1200" },
+    { hz: 4316000, nome: "0600-0920   4316 kHz - USCG New Orleans (USA)", lpm: 120, ioc: 576, hor: "0600-0920", dica: "USCG New Orleans (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-0320, 1200-1520, 1800-2120" },
+    { hz: 8502000, nome: "0600-0920   8502 kHz - USCG New Orleans (USA)", lpm: 120, ioc: 576, hor: "0600-0920", dica: "USCG New Orleans (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-0320, 1200-1520, 1800-2120" },
+    { hz: 12788000, nome: "0600-0920   12788 kHz - USCG New Orleans (USA)", lpm: 120, ioc: 576, hor: "0600-0920", dica: "USCG New Orleans (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-0320, 1200-1520, 1800-2120" },
+    { hz: 11084600, nome: "0600-2100   11084,6 kHz - Northwood Meteo JOMOC (United Kingdom)", lpm: 120, ioc: 576, hor: "0600-2100", dica: "Northwood Meteo JOMOC (United Kingdom)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 4344100, nome: "0655-1030   4344,1 kHz - USCG San Francisco (USA)", lpm: 120, ioc: 576, hor: "0655-1030", dica: "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0140-0420, 1120-1237, 1400-1630" },
+    { hz: 8680100, nome: "0655-1030   8680,1 kHz - USCG San Francisco (USA)", lpm: 120, ioc: 576, hor: "0655-1030", dica: "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0140-0420, 1120-1237, 1400-1630, 1840-2356" },
+    { hz: 12784100, nome: "0655-1030   12784,1 kHz - USCG San Francisco (USA)", lpm: 120, ioc: 576, hor: "0655-1030", dica: "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0140-0420, 1120-1237, 1400-1630, 1840-2356" },
+    { hz: 17149300, nome: "0655-1030   17149,3 kHz - USCG San Francisco (USA)", lpm: 120, ioc: 576, hor: "0655-1030", dica: "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0140-0420, 1120-1237, 1400-1630, 1840-2356" },
+    { hz: 8442100, nome: "0700-0715   8442,1 kHz - Murmansk Meteo Radio (Russia)", lpm: 120, ioc: 576, hor: "0700-0715", dica: "Murmansk Meteo Radio (Russia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0200-0300, 1000-1100, 1330-1350, 2000-2020" },
+    { hz: 8656100, nome: "0700-0730   8656,1 kHz - Kagoshima Prefec.Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "0700-0730", dica: "Kagoshima Prefec.Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0015-0045, 0330-0400, 0430-0500, 0600-0630, 0830-0840, 0930-0945, 1100-1115, 1800-1815, 2200-2315" },
+    { hz: 16907500, nome: "0700-0730   16907,5 kHz - Misaki Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "0700-0730", dica: "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0030-0045, 0130-0200, 0300-0330, 0400-0430, 0600-0630, 0810-0845, 1030-1050" },
+    { hz: 22559600, nome: "0700-0730   22559,6 kHz - Misaki Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "0700-0730", dica: "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0400-0430, 0500-0530, 0600-0630, 0800-0830" },
+    { hz: 17231000, nome: "0700-0745   17231 kHz - Misaki Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "0700-0745", dica: "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 7395000, nome: "0700-0840   7395 kHz - Bangkok Meteorological (Thailand)", lpm: 120, ioc: 576, hor: "0700-0840", dica: "Bangkok Meteorological (Thailand)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0050-0620, 1000-1042, 1300-1322, 1700-1742, 2300-2342" },
+    { hz: 13072100, nome: "0730-0800   13072,1 kHz - Misaki Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "0730-0800", dica: "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0015-0050, 0600-0645, 0830-0840, 0930-0945, 1700-1715, 2200-2215, 2300-2315" },
+    { hz: 4233100, nome: "0745-1039   4233,1 kHz - USCG Boston (USA)", lpm: 120, ioc: 576, hor: "0745-1039", dica: "USCG Boston (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0230-0455" },
+    { hz: 6338600, nome: "0745-1039   6338,6 kHz - USCG Boston (USA)", lpm: 120, ioc: 576, hor: "0745-1039", dica: "USCG Boston (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0230-0455, 1400-1610, 1720-2315" },
+    { hz: 9108100, nome: "0745-1039   9108,1 kHz - USCG Boston (USA)", lpm: 120, ioc: 576, hor: "0745-1039", dica: "USCG Boston (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0230-0455, 1400-1610, 1720-2315" },
+    { hz: 12748100, nome: "0745-1039   12748,1 kHz - USCG Boston (USA)", lpm: 120, ioc: 576, hor: "0745-1039", dica: "USCG Boston (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1400-1610, 1720-2315" },
+    { hz: 22559600, nome: "0800-0830   22559,6 kHz - Misaki Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "0800-0830", dica: "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0400-0430, 0500-0530, 0600-0630, 0700-0730" },
+    { hz: 16907500, nome: "0810-0845   16907,5 kHz - Misaki Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "0810-0845", dica: "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0030-0045, 0130-0200, 0300-0330, 0400-0430, 0600-0630, 0700-0730, 1030-1050" },
+    { hz: 22557600, nome: "0810-0845   22557,6 kHz - Misaki Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "0810-0845", dica: "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 8105000, nome: "0815-1055   8105 kHz - Hellenic National Meteo Sce. (Greece)", lpm: 120, ioc: 576, hor: "0815-1055", dica: "Hellenic National Meteo Sce. (Greece)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 8656100, nome: "0830-0840   8656,1 kHz - Kagoshima Prefec.Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "0830-0840", dica: "Kagoshima Prefec.Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0015-0045, 0330-0400, 0430-0500, 0600-0630, 0700-0730, 0930-0945, 1100-1115, 1800-1815, 2200-2315" },
+    { hz: 13072100, nome: "0830-0840   13072,1 kHz - Misaki Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "0830-0840", dica: "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0015-0050, 0600-0645, 0730-0800, 0930-0945, 1700-1715, 2200-2215, 2300-2315" },
+    { hz: 4481000, nome: "0835-1055   4481 kHz - Hellenic National Meteo Sce. (Greece)", lpm: 120, ioc: 576, hor: "0835-1055", dica: "Hellenic National Meteo Sce. (Greece)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 2626100, nome: "0900-1900   2626,1 kHz - Australia Weather East (Australia)", lpm: 120, ioc: 576, hor: "0900-1900", dica: "Australia Weather East (Australia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 8656100, nome: "0930-0945   8656,1 kHz - Kagoshima Prefec.Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "0930-0945", dica: "Kagoshima Prefec.Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0015-0045, 0330-0400, 0430-0500, 0600-0630, 0700-0730, 0830-0840, 1100-1115, 1800-1815, 2200-2315" },
+    { hz: 13072100, nome: "0930-0945   13072,1 kHz - Misaki Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "0930-0945", dica: "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0015-0050, 0600-0645, 0730-0800, 0830-0840, 1700-1715, 2200-2215, 2300-2315" },
+    { hz: 6412600, nome: "0930-1030   6412,6 kHz - Fukushima Prefec.Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "0930-1030", dica: "Fukushima Prefec.Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 2052100, nome: "0950-1213   2052,1 kHz - USCG Kodiak (Alaska)", lpm: 120, ioc: 576, hor: "0950-1213", dica: "USCG Kodiak (Alaska)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0340-0608, 1540-1818, 2150-0028" },
+    { hz: 4296100, nome: "0950-1213   4296,1 kHz - USCG Kodiak (Alaska)", lpm: 120, ioc: 576, hor: "0950-1213", dica: "USCG Kodiak (Alaska)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0340-0608, 1540-1818, 2150-0028" },
+    { hz: 8457100, nome: "0950-1213   8457,1 kHz - USCG Kodiak (Alaska)", lpm: 120, ioc: 576, hor: "0950-1213", dica: "USCG Kodiak (Alaska)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0340-0608, 1540-1818, 2150-0028" },
+    { hz: 12410600, nome: "0950-1213   12410,6 kHz - USCG Kodiak (Alaska)", lpm: 120, ioc: 576, hor: "0950-1213", dica: "USCG Kodiak (Alaska)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0340-0608, 1540-1818, 2150-0028" },
+    { hz: 4205500, nome: "1000-1020   4205,5 kHz - Canadian Forces (Canada)", lpm: 120, ioc: 576, hor: "1000-1020", dica: "Canadian Forces (Canada)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 4272100, nome: "1000-1020   4272,1 kHz - Kagoshima Prefec.Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "1000-1020", dica: "Kagoshima Prefec.Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 7395000, nome: "1000-1042   7395 kHz - Bangkok Meteorological (Thailand)", lpm: 120, ioc: 576, hor: "1000-1042", dica: "Bangkok Meteorological (Thailand)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0050-0620, 0700-0840, 1300-1322, 1700-1742, 2300-2342" },
+    { hz: 6326000, nome: "1000-1100   6326 kHz - Murmansk Meteo Radio (Russia)", lpm: 120, ioc: 576, hor: "1000-1100", dica: "Murmansk Meteo Radio (Russia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1330-1345, 1430-1500, 2000-2020" },
+    { hz: 8442100, nome: "1000-1100   8442,1 kHz - Murmansk Meteo Radio (Russia)", lpm: 120, ioc: 576, hor: "1000-1100", dica: "Murmansk Meteo Radio (Russia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0200-0300, 0700-0715, 1330-1350, 2000-2020" },
+    { hz: 7708100, nome: "1000-1200   7708,1 kHz - VFR Resolute (Canada)", lpm: 120, ioc: 576, hor: "1000-1200", dica: "VFR Resolute (Canada)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0100-0300, 0600-0800" },
+    { hz: 16907500, nome: "1030-1050   16907,5 kHz - Misaki Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "1030-1050", dica: "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0030-0045, 0130-0200, 0300-0330, 0400-0430, 0600-0630, 0700-0730, 0810-0845" },
+    { hz: 16905500, nome: "1030-1100   16905,5 kHz - Misaki Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "1030-1100", dica: "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 4226100, nome: "1058-1145   4226,1 kHz - Valparaiso Radio (Chile)", lpm: 120, ioc: 576, hor: "1058-1145", dica: "Valparaiso Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1628-1715, 1913-2000, 2158-2345" },
+    { hz: 8675100, nome: "1058-1145   8675,1 kHz - Valparaiso Meteo Radio (Chile)", lpm: 120, ioc: 576, hor: "1058-1145", dica: "Valparaiso Meteo Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1628-1715, 1913-2000, 2158-2345" },
+    { hz: 17144500, nome: "1058-1145   17144,5 kHz - Valparaiso Meteo Radio (Chile)", lpm: 120, ioc: 576, hor: "1058-1145", dica: "Valparaiso Meteo Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1200-1520, 1628-1705, 1800-2120, 2158-2345" },
+    { hz: 8656100, nome: "1100-1115   8656,1 kHz - Kagoshima Prefec.Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "1100-1115", dica: "Kagoshima Prefec.Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0015-0045, 0330-0400, 0430-0500, 0600-0630, 0700-0730, 0830-0840, 0930-0945, 1800-1815, 2200-2315" },
+    { hz: 5753100, nome: "1100-2100   5753,1 kHz - Australia Weather West (Australia)", lpm: 120, ioc: 576, hor: "1100-2100", dica: "Australia Weather West (Australia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 4344100, nome: "1120-1237   4344,1 kHz - USCG San Francisco (USA)", lpm: 120, ioc: 576, hor: "1120-1237", dica: "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0140-0420, 0655-1030, 1400-1630" },
+    { hz: 8680100, nome: "1120-1237   8680,1 kHz - USCG San Francisco (USA)", lpm: 120, ioc: 576, hor: "1120-1237", dica: "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0140-0420, 0655-1030, 1400-1630, 1840-2356" },
+    { hz: 12784100, nome: "1120-1237   12784,1 kHz - USCG San Francisco (USA)", lpm: 120, ioc: 576, hor: "1120-1237", dica: "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0140-0420, 0655-1030, 1400-1630, 1840-2356" },
+    { hz: 17149300, nome: "1120-1237   17149,3 kHz - USCG San Francisco (USA)", lpm: 120, ioc: 576, hor: "1120-1237", dica: "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0140-0420, 0655-1030, 1400-1630, 1840-2356" },
+    { hz: 4316000, nome: "1200-1520   4316 kHz - USCG New Orleans (USA)", lpm: 120, ioc: 576, hor: "1200-1520", dica: "USCG New Orleans (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-0320, 0600-0920, 1800-2120" },
+    { hz: 8502000, nome: "1200-1520   8502 kHz - USCG New Orleans (USA)", lpm: 120, ioc: 576, hor: "1200-1520", dica: "USCG New Orleans (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-0320, 0600-0920, 1800-2120" },
+    { hz: 12788000, nome: "1200-1520   12788 kHz - USCG New Orleans (USA)", lpm: 120, ioc: 576, hor: "1200-1520", dica: "USCG New Orleans (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-0320, 0600-0920, 1800-2120" },
+    { hz: 17144500, nome: "1200-1520   17144,5 kHz - USCG New Orleans (USA)", lpm: 120, ioc: 576, hor: "1200-1520", dica: "USCG New Orleans (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1058-1145, 1628-1705, 1800-2120, 2158-2345" },
+    { hz: 4197850, nome: "1225-1715   4197,85 kHz - Guangzhou Radio Meteo (China)", lpm: 120, ioc: 576, hor: "1225-1715", dica: "Guangzhou Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-1045, 2015-2050" },
+    { hz: 8410600, nome: "1225-1715   8410,6 kHz - Guangzhou Radio Meteo (China)", lpm: 120, ioc: 576, hor: "1225-1715", dica: "Guangzhou Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-1045, 2015-2050" },
+    { hz: 12627350, nome: "1225-1715   12627,35 kHz - Guangzhou Radio Meteo (China)", lpm: 120, ioc: 576, hor: "1225-1715", dica: "Guangzhou Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-1045, 2015-2050" },
+    { hz: 16824350, nome: "1225-1715   16824,35 kHz - Guangzhou Radio Meteo (China)", lpm: 120, ioc: 576, hor: "1225-1715", dica: "Guangzhou Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-1045, 2015-2050" },
+    { hz: 7395000, nome: "1300-1322   7395 kHz - Bangkok Meteorological (Thailand)", lpm: 120, ioc: 576, hor: "1300-1322", dica: "Bangkok Meteorological (Thailand)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0050-0620, 0700-0840, 1000-1042, 1700-1742, 2300-2342" },
+    { hz: 6326000, nome: "1330-1345   6326 kHz - Murmansk Meteo Radio (Russia)", lpm: 120, ioc: 576, hor: "1330-1345", dica: "Murmansk Meteo Radio (Russia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1000-1100, 1430-1500, 2000-2020" },
+    { hz: 8442100, nome: "1330-1350   8442,1 kHz - Murmansk Meteo Radio (Russia)", lpm: 120, ioc: 576, hor: "1330-1350", dica: "Murmansk Meteo Radio (Russia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0200-0300, 0700-0715, 1000-1100, 2000-2020" },
+    { hz: 6338600, nome: "1400-1610   6338,6 kHz - USCG Boston (USA)", lpm: 120, ioc: 576, hor: "1400-1610", dica: "USCG Boston (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0230-0455, 0745-1039, 1720-2315" },
+    { hz: 9108100, nome: "1400-1610   9108,1 kHz - USCG Boston (USA)", lpm: 120, ioc: 576, hor: "1400-1610", dica: "USCG Boston (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0230-0455, 0745-1039, 1720-2315" },
+    { hz: 12748100, nome: "1400-1610   12748,1 kHz - USCG Boston (USA)", lpm: 120, ioc: 576, hor: "1400-1610", dica: "USCG Boston (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0745-1039, 1720-2315" },
+    { hz: 4344100, nome: "1400-1630   4344,1 kHz - USCG San Francisco (USA)", lpm: 120, ioc: 576, hor: "1400-1630", dica: "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0140-0420, 0655-1030, 1120-1237" },
+    { hz: 8680100, nome: "1400-1630   8680,1 kHz - USCG San Francisco (USA)", lpm: 120, ioc: 576, hor: "1400-1630", dica: "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0140-0420, 0655-1030, 1120-1237, 1840-2356" },
+    { hz: 12784100, nome: "1400-1630   12784,1 kHz - USCG San Francisco (USA)", lpm: 120, ioc: 576, hor: "1400-1630", dica: "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0140-0420, 0655-1030, 1120-1237, 1840-2356" },
+    { hz: 17149300, nome: "1400-1630   17149,3 kHz - USCG San Francisco (USA)", lpm: 120, ioc: 576, hor: "1400-1630", dica: "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0140-0420, 0655-1030, 1120-1237, 1840-2356" },
+    { hz: 6326000, nome: "1430-1500   6326 kHz - Murmansk Meteo Radio (Russia)", lpm: 120, ioc: 576, hor: "1430-1500", dica: "Murmansk Meteo Radio (Russia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1000-1100, 1330-1345, 2000-2020" },
+    { hz: 2616600, nome: "1500-0800   2616,6 kHz - Northwood Meteo JOMOC (United Kingdom)", lpm: 120, ioc: 576, hor: "1500-0800", dica: "Northwood Meteo JOMOC (United Kingdom)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 2052100, nome: "1540-1818   2052,1 kHz - USCG Kodiak (Alaska)", lpm: 120, ioc: 576, hor: "1540-1818", dica: "USCG Kodiak (Alaska)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0340-0608, 0950-1213, 2150-0028" },
+    { hz: 4296100, nome: "1540-1818   4296,1 kHz - USCG Kodiak (Alaska)", lpm: 120, ioc: 576, hor: "1540-1818", dica: "USCG Kodiak (Alaska)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0340-0608, 0950-1213, 2150-0028" },
+    { hz: 8457100, nome: "1540-1818   8457,1 kHz - USCG Kodiak (Alaska)", lpm: 120, ioc: 576, hor: "1540-1818", dica: "USCG Kodiak (Alaska)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0340-0608, 0950-1213, 2150-0028" },
+    { hz: 12410600, nome: "1540-1818   12410,6 kHz - USCG Kodiak (Alaska)", lpm: 120, ioc: 576, hor: "1540-1818", dica: "USCG Kodiak (Alaska)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0340-0608, 0950-1213, 2150-0028" },
+    { hz: 4320100, nome: "1550-1630   4320,1 kHz - Magallanes Radio (Chile)", lpm: 120, ioc: 576, hor: "1550-1630", dica: "Magallanes Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0350-0415, 1730-1755, 2005-2040, 2240-2340" },
+    { hz: 8694100, nome: "1550-1630   8694,1 kHz - Magallanes Radio (Chile)", lpm: 120, ioc: 576, hor: "1550-1630", dica: "Magallanes Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0350-0415, 1730-1755, 2005-2040, 2240-2340" },
+    { hz: 17144500, nome: "1628-1705   17144,5 kHz - Valparaiso Meteo Radio (Chile)", lpm: 120, ioc: 576, hor: "1628-1705", dica: "Valparaiso Meteo Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1058-1145, 1200-1520, 1800-2120, 2158-2345" },
+    { hz: 4226100, nome: "1628-1715   4226,1 kHz - Valparaiso Radio (Chile)", lpm: 120, ioc: 576, hor: "1628-1715", dica: "Valparaiso Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1058-1145, 1913-2000, 2158-2345" },
+    { hz: 8675100, nome: "1628-1715   8675,1 kHz - Valparaiso Meteo Radio (Chile)", lpm: 120, ioc: 576, hor: "1628-1715", dica: "Valparaiso Meteo Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1058-1145, 1913-2000, 2158-2345" },
+    { hz: 13072100, nome: "1700-1715   13072,1 kHz - Misaki Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "1700-1715", dica: "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0015-0050, 0600-0645, 0730-0800, 0830-0840, 0930-0945, 2200-2215, 2300-2315" },
+    { hz: 7395000, nome: "1700-1742   7395 kHz - Bangkok Meteorological (Thailand)", lpm: 120, ioc: 576, hor: "1700-1742", dica: "Bangkok Meteorological (Thailand)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0050-0620, 0700-0840, 1000-1042, 1300-1322, 2300-2342" },
+    { hz: 11088100, nome: "1719-0356   11088,1 kHz - Honolulu Meteo (Hawaii)", lpm: 120, ioc: 576, hor: "1719-0356", dica: "Honolulu Meteo (Hawaii)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0519-1556" },
+    { hz: 6338600, nome: "1720-2315   6338,6 kHz - USCG Boston (USA)", lpm: 120, ioc: 576, hor: "1720-2315", dica: "USCG Boston (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0230-0455, 0745-1039, 1400-1610" },
+    { hz: 9108100, nome: "1720-2315   9108,1 kHz - USCG Boston (USA)", lpm: 120, ioc: 576, hor: "1720-2315", dica: "USCG Boston (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0230-0455, 0745-1039, 1400-1610" },
+    { hz: 12748100, nome: "1720-2315   12748,1 kHz - USCG Boston (USA)", lpm: 120, ioc: 576, hor: "1720-2315", dica: "USCG Boston (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0745-1039, 1400-1610" },
+    { hz: 4320100, nome: "1730-1755   4320,1 kHz - Magallanes Radio (Chile)", lpm: 120, ioc: 576, hor: "1730-1755", dica: "Magallanes Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0350-0415, 1550-1630, 2005-2040, 2240-2340" },
+    { hz: 8694100, nome: "1730-1755   8694,1 kHz - Magallanes Radio (Chile)", lpm: 120, ioc: 576, hor: "1730-1755", dica: "Magallanes Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0350-0415, 1550-1630, 2005-2040, 2240-2340" },
+    { hz: 8656100, nome: "1800-1815   8656,1 kHz - Kagoshima Prefec.Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "1800-1815", dica: "Kagoshima Prefec.Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0015-0045, 0330-0400, 0430-0500, 0600-0630, 0700-0730, 0830-0840, 0930-0945, 1100-1115, 2200-2315" },
+    { hz: 4316000, nome: "1800-2120   4316 kHz - USCG New Orleans (USA)", lpm: 120, ioc: 576, hor: "1800-2120", dica: "USCG New Orleans (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-0320, 0600-0920, 1200-1520" },
+    { hz: 8502000, nome: "1800-2120   8502 kHz - USCG New Orleans (USA)", lpm: 120, ioc: 576, hor: "1800-2120", dica: "USCG New Orleans (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-0320, 0600-0920, 1200-1520" },
+    { hz: 12788000, nome: "1800-2120   12788 kHz - USCG New Orleans (USA)", lpm: 120, ioc: 576, hor: "1800-2120", dica: "USCG New Orleans (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-0320, 0600-0920, 1200-1520" },
+    { hz: 17144500, nome: "1800-2120   17144,5 kHz - USCG New Orleans (USA)", lpm: 120, ioc: 576, hor: "1800-2120", dica: "USCG New Orleans (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1058-1145, 1200-1520, 1628-1705, 2158-2345" },
+    { hz: 8680100, nome: "1840-2356   8680,1 kHz - USCG San Francisco (USA)", lpm: 120, ioc: 576, hor: "1840-2356", dica: "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0140-0420, 0655-1030, 1120-1237, 1400-1630" },
+    { hz: 12784100, nome: "1840-2356   12784,1 kHz - USCG San Francisco (USA)", lpm: 120, ioc: 576, hor: "1840-2356", dica: "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0140-0420, 0655-1030, 1120-1237, 1400-1630" },
+    { hz: 17149300, nome: "1840-2356   17149,3 kHz - USCG San Francisco (USA)", lpm: 120, ioc: 576, hor: "1840-2356", dica: "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0140-0420, 0655-1030, 1120-1237, 1400-1630" },
+    { hz: 22525100, nome: "1840-2356   22525,1 kHz - USCG San Francisco (USA)", lpm: 120, ioc: 576, hor: "1840-2356", dica: "USCG San Francisco (USA)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 20467100, nome: "1900-0900   20467,1 kHz - Australia Weather East (Australia)", lpm: 120, ioc: 576, hor: "1900-0900", dica: "Australia Weather East (Australia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 4226100, nome: "1913-2000   4226,1 kHz - Valparaiso Radio (Chile)", lpm: 120, ioc: 576, hor: "1913-2000", dica: "Valparaiso Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1058-1145, 1628-1715, 2158-2345" },
+    { hz: 8675100, nome: "1913-2000   8675,1 kHz - Valparaiso Meteo Radio (Chile)", lpm: 120, ioc: 576, hor: "1913-2000", dica: "Valparaiso Meteo Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1058-1145, 1628-1715, 2158-2345" },
+    { hz: 6326000, nome: "2000-2020   6326 kHz - Murmansk Meteo Radio (Russia)", lpm: 120, ioc: 576, hor: "2000-2020", dica: "Murmansk Meteo Radio (Russia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1000-1100, 1330-1345, 1430-1500" },
+    { hz: 8442100, nome: "2000-2020   8442,1 kHz - Murmansk Meteo Radio (Russia)", lpm: 120, ioc: 576, hor: "2000-2020", dica: "Murmansk Meteo Radio (Russia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0200-0300, 0700-0715, 1000-1100, 1330-1350" },
+    { hz: 4168100, nome: "2000-2055   4168,1 kHz - Shanghai Radio Meteo (China)", lpm: 120, ioc: 576, hor: "2000-2055", dica: "Shanghai Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-1415" },
+    { hz: 8300100, nome: "2000-2055   8300,1 kHz - Shanghai Radio Meteo (China)", lpm: 120, ioc: 576, hor: "2000-2055", dica: "Shanghai Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-1415" },
+    { hz: 8789100, nome: "2000-2055   8789,1 kHz - Shanghai Radio Meteo (China)", lpm: 120, ioc: 576, hor: "2000-2055", dica: "Shanghai Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-1415" },
+    { hz: 12380100, nome: "2000-2055   12380,1 kHz - Shanghai Radio Meteo (China)", lpm: 120, ioc: 576, hor: "2000-2055", dica: "Shanghai Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-1415" },
+    { hz: 16557100, nome: "2000-2055   16557,1 kHz - Shanghai Radio Meteo (China)", lpm: 120, ioc: 576, hor: "2000-2055", dica: "Shanghai Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-1415" },
+    { hz: 19785100, nome: "2000-2055   19785,1 kHz - Shanghai Radio Meteo (China)", lpm: 120, ioc: 576, hor: "2000-2055", dica: "Shanghai Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-1415" },
+    { hz: 4320100, nome: "2005-2040   4320,1 kHz - Magallanes Radio (Chile)", lpm: 120, ioc: 576, hor: "2005-2040", dica: "Magallanes Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0350-0415, 1550-1630, 1730-1755, 2240-2340" },
+    { hz: 8694100, nome: "2005-2040   8694,1 kHz - Magallanes Radio (Chile)", lpm: 120, ioc: 576, hor: "2005-2040", dica: "Magallanes Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0350-0415, 1550-1630, 1730-1755, 2240-2340" },
+    { hz: 4197850, nome: "2015-2050   4197,85 kHz - Guangzhou Radio Meteo (China)", lpm: 120, ioc: 576, hor: "2015-2050", dica: "Guangzhou Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-1045, 1225-1715" },
+    { hz: 8410600, nome: "2015-2050   8410,6 kHz - Guangzhou Radio Meteo (China)", lpm: 120, ioc: 576, hor: "2015-2050", dica: "Guangzhou Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-1045, 1225-1715" },
+    { hz: 12627350, nome: "2015-2050   12627,35 kHz - Guangzhou Radio Meteo (China)", lpm: 120, ioc: 576, hor: "2015-2050", dica: "Guangzhou Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-1045, 1225-1715" },
+    { hz: 16824350, nome: "2015-2050   16824,35 kHz - Guangzhou Radio Meteo (China)", lpm: 120, ioc: 576, hor: "2015-2050", dica: "Guangzhou Radio Meteo (China)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0000-1045, 1225-1715" },
+    { hz: 18058100, nome: "2100-1100   18058,1 kHz - Australia Weather West (Australia)", lpm: 120, ioc: 576, hor: "2100-1100", dica: "Australia Weather West (Australia)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)" },
+    { hz: 2052100, nome: "2150-0028   2052,1 kHz - USCG Kodiak (Alaska)", lpm: 120, ioc: 576, hor: "2150-0028", dica: "USCG Kodiak (Alaska)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0340-0608, 0950-1213, 1540-1818" },
+    { hz: 4296100, nome: "2150-0028   4296,1 kHz - USCG Kodiak (Alaska)", lpm: 120, ioc: 576, hor: "2150-0028", dica: "USCG Kodiak (Alaska)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0340-0608, 0950-1213, 1540-1818" },
+    { hz: 8457100, nome: "2150-0028   8457,1 kHz - USCG Kodiak (Alaska)", lpm: 120, ioc: 576, hor: "2150-0028", dica: "USCG Kodiak (Alaska)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0340-0608, 0950-1213, 1540-1818" },
+    { hz: 12410600, nome: "2150-0028   12410,6 kHz - USCG Kodiak (Alaska)", lpm: 120, ioc: 576, hor: "2150-0028", dica: "USCG Kodiak (Alaska)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0340-0608, 0950-1213, 1540-1818" },
+    { hz: 4226100, nome: "2158-2345   4226,1 kHz - Valparaiso Radio (Chile)", lpm: 120, ioc: 576, hor: "2158-2345", dica: "Valparaiso Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1058-1145, 1628-1715, 1913-2000" },
+    { hz: 8675100, nome: "2158-2345   8675,1 kHz - Valparaiso Meteo Radio (Chile)", lpm: 120, ioc: 576, hor: "2158-2345", dica: "Valparaiso Meteo Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1058-1145, 1628-1715, 1913-2000" },
+    { hz: 17144500, nome: "2158-2345   17144,5 kHz - Valparaiso Meteo Radio (Chile)", lpm: 120, ioc: 576, hor: "2158-2345", dica: "Valparaiso Meteo Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 1058-1145, 1200-1520, 1628-1705, 1800-2120" },
+    { hz: 13072100, nome: "2200-2215   13072,1 kHz - Misaki Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "2200-2215", dica: "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0015-0050, 0600-0645, 0730-0800, 0830-0840, 0930-0945, 1700-1715, 2300-2315" },
+    { hz: 8656100, nome: "2200-2315   8656,1 kHz - Kagoshima Prefec.Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "2200-2315", dica: "Kagoshima Prefec.Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0015-0045, 0330-0400, 0430-0500, 0600-0630, 0700-0730, 0830-0840, 0930-0945, 1100-1115, 1800-1815" },
+    { hz: 4320100, nome: "2240-2340   4320,1 kHz - Magallanes Radio (Chile)", lpm: 120, ioc: 576, hor: "2240-2340", dica: "Magallanes Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0350-0415, 1550-1630, 1730-1755, 2005-2040" },
+    { hz: 8694100, nome: "2240-2340   8694,1 kHz - Magallanes Radio (Chile)", lpm: 120, ioc: 576, hor: "2240-2340", dica: "Magallanes Radio (Chile)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0350-0415, 1550-1630, 1730-1755, 2005-2040" },
+    { hz: 13072100, nome: "2300-2315   13072,1 kHz - Misaki Fishery Radio (Japan)", lpm: 120, ioc: 576, hor: "2300-2315", dica: "Misaki Fishery Radio (Japan)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0015-0050, 0600-0645, 0730-0800, 0830-0840, 0930-0945, 1700-1715, 2200-2215" },
+    { hz: 7395000, nome: "2300-2342   7395 kHz - Bangkok Meteorological (Thailand)", lpm: 120, ioc: 576, hor: "2300-2342", dica: "Bangkok Meteorological (Thailand)\nWEFAX 120 LPM, IOC 576 (USB, frequência do mostrador)\n\nOutros horários nesta frequência: 0050-0620, 0700-0840, 1000-1042, 1300-1322, 1700-1742" }
+  ];
+
+  const BTN = 'padding:3px 8px;background:#0d2a1a;border:1px solid #2e8c5a;color:#8affc0;font-size:10px;font-weight:bold;cursor:pointer;border-radius:4px';
+
+  function buildPanelHTML() {
+    const lpms = [60, 90, 100, 120, 180, 240].map(v => '<option value="' + v + '"' + (v === 120 ? ' selected' : '') + '>' + v + '</option>').join('');
+    return `
+      <div style="display:flex;flex-direction:column;height:100%;min-height:0;font-family:'Segoe UI',sans-serif">
+      <div class="dec-status-banner" style="background:#020603;padding:5px 10px;border-bottom:1px solid #10301a">
+        <div style="color:#ffaa00;font-size:12px;font-weight:bold">
+          Modo: WEFAX | <span id="wefax-status" style="color:#ffaa00">Parado</span>
+        </div>
+      </div>
+      <div class="dig-ctrl-bar" style="gap:4px 8px;flex-wrap:wrap">
+        <label style="font-size:10px">Canal</label>
+        <select id="wefax-canal" style="font-size:10px;max-width:400px" onchange="WefaxDecoder.irParaCanal()">${decOpcoesCanal(CANAIS)}</select>
+        <input type="text" id="wefax-busca" placeholder="buscar: 8416,5 ou nome" style="width:130px;font-size:10px"
+               title="Digite uma frequencia (8416,5 - 8.416.5 - 8416500) ou parte do nome da estacao: o seletor passa a mostrar so os canais que batem"
+               oninput="decFiltrarCanais('wefax-canal', this.value, 'wefax-achados')">
+        <span id="wefax-achados" style="font-size:10px"></span>
+        <label style="font-size:10px" title="Linhas por minuto (vale para o Começar agora; com o tom de início a fase mede sozinha)">LPM</label>
+        <select id="wefax-lpm" style="font-size:10px;min-width:50px" onchange="WefaxDecoder.config()">${lpms}</select>
+        <label style="font-size:10px">IOC</label>
+        <select id="wefax-ioc" style="font-size:10px;min-width:50px" onchange="WefaxDecoder.config()"><option value="576" selected>576</option><option value="288">288</option></select>
+      </div>
+      <div class="dig-ctrl-bar" style="gap:4px 8px;flex-wrap:wrap">
+        <label style="font-size:10px" title="O tom de início (300 Hz) começa a imagem e o de fim (450 Hz) termina e salva">
+          <input type="checkbox" id="wefax-auto" checked onchange="WefaxDecoder.opcoes()"> Automático</label>
+        <label style="font-size:10px"><input type="checkbox" id="wefax-inv" onchange="WefaxDecoder.opcoes()"> Inverter (negativo)</label>
+        <label style="font-size:10px" title="Ao terminar, mede a inclinação pelas linhas verticais do mapa e endireita (só se a melhora for clara)">
+          <input type="checkbox" id="wefax-endauto" checked onchange="WefaxDecoder.opcoes()"> Endireitar sozinho</label>
+        <label style="font-size:10px" title="Cada fax recebido vai para a pasta RXSDR_WEFAX na Área de Trabalho">
+          <input type="checkbox" id="wefax-salvar" checked onchange="WefaxDecoder.opcoes()"> Salvar PNG</label>
+        <span style="font-size:10px;color:#708070">verde na lista = no ar agora (UTC)</span>
+      </div>
+      <div class="dig-ctrl-bar" style="gap:4px 6px;flex-wrap:wrap">
+        <button style="${BTN}" onclick="WefaxDecoder.cmd('comecar')" title="Pegou o fax no meio? Começa já com o LPM/IOC escolhidos; depois use Alinhar margem">Começar agora</button>
+        <button style="${BTN}" onclick="WefaxDecoder.cmd('terminar')" title="Encerra a imagem atual e salva">Terminar</button>
+        <button style="${BTN}" onclick="WefaxDecoder.cmd('limpar')">Limpar</button>
+        <button style="${BTN}" onclick="WefaxDecoder.cmd('endireitar')" title="Mede a inclinação pelas linhas verticais do mapa">Endireitar</button>
+        <span style="font-size:10px;color:#3a8a50;margin-left:4px">Inclinação</span>
+        <button style="${BTN}" onclick="WefaxDecoder.inclinar(-0.02)" title="Pixels por linha (o relógio de quem transmite fora do nominal)">&#9664;</button>
+        <span id="wefax-incl" style="font-size:10px;color:#d0e8d0;min-width:38px;text-align:center">+0.00</span>
+        <button style="${BTN}" onclick="WefaxDecoder.inclinar(0.02)" title="Pixels por linha (o relógio de quem transmite fora do nominal)">&#9654;</button>
+        <button style="${BTN}" onclick="WefaxDecoder.inclinar(null)">Zerar</button>
+        <button id="wefax-alinhar" style="${BTN}" onclick="WefaxDecoder.alternarAlinhar()" title="Clique depois na imagem, onde deveria ser a margem esquerda do mapa">Alinhar margem</button>
+        <button style="${BTN}" onclick="WefaxDecoder.cmd('abrirpasta')" title="Abre a pasta RXSDR_WEFAX no computador onde o RXSDR está rodando">Abrir pasta</button>
+        ${ArquivoAudio.botaoHTML('WEFAX')}
+      </div>
+      <div id="wefax-rolagem" style="flex:1;min-height:120px;overflow-y:scroll;background:#080808;border:1px solid #1e5a2e;margin:6px 8px 0;position:relative">
+        <div id="wefax-msg" style="color:#999;font-size:11px;padding:10px">decodificador parado</div>
+        <img id="wefax-img" style="display:none;width:100%;image-rendering:auto" onclick="WefaxDecoder.cliqueImagem(event)">
+        <div id="wefax-guia" style="display:none;position:absolute;top:0;bottom:0;width:2px;background:rgba(255,160,0,0.8);pointer-events:none"></div>
+      </div>
+      <div id="wefax-hist" style="flex-shrink:0;display:none;gap:4px;overflow-x:auto;padding:4px 8px;height:64px"></div>
+      <div style="color:#6a8a70;font-size:10px;padding:2px 8px 4px">
+        O WEFAX vem em USB, 1,9 kHz abaixo da frequência central publicada (a lista já dá a frequência do mostrador).
+        Clique num fax recebido para abrir o PNG.
+      </div>
+      </div>
+    `;
+  }
+
+  function irParaCanal() {
+    const sel = el('wefax-canal');
+    const c = sel ? CANAIS[Number(sel.value)] : null;
+    if (!c) return;
+    if (el('wefax-lpm')) el('wefax-lpm').value = String(c.lpm);
+    if (el('wefax-ioc')) el('wefax-ioc').value = String(c.ioc);
+    _sintonizou = true;
+    decSintonizar(c.hz, 'USB', 3000);   // WEFAX: a lista ja da a frequencia do mostrador
+    // o que estava pela metade fica salvo e volta a esperar o tom de inicio
+    post('recomecar', Object.assign(valOpcoes(), { lpm: c.lpm, ioc: c.ioc }));
+  }
+
+  function valOpcoes() {
+    return {
+      automatico:     !!(el('wefax-auto') || {}).checked,
+      inverter:       !!(el('wefax-inv') || {}).checked,
+      endireitarAuto: !!(el('wefax-endauto') || {}).checked,
+      salvar:         !!(el('wefax-salvar') || {}).checked,
+      lpm: Number((el('wefax-lpm') || {}).value) || 120,
+      ioc: Number((el('wefax-ioc') || {}).value) || 576
+    };
+  }
+  function guardar() {
+    try { localStorage.setItem('wefax-opcoes', JSON.stringify(valOpcoes())); } catch (e) {}
+  }
+  function carregar() {
+    try {
+      const o = JSON.parse(localStorage.getItem('wefax-opcoes') || 'null');
+      if (!o) return;
+      if (el('wefax-auto')) el('wefax-auto').checked = o.automatico !== false;
+      if (el('wefax-inv')) el('wefax-inv').checked = !!o.inverter;
+      if (el('wefax-endauto')) el('wefax-endauto').checked = o.endireitarAuto !== false;
+      if (el('wefax-salvar')) el('wefax-salvar').checked = o.salvar !== false;
+      if (o.lpm && el('wefax-lpm')) el('wefax-lpm').value = String(o.lpm);
+      if (o.ioc && el('wefax-ioc')) el('wefax-ioc').value = String(o.ioc);
+    } catch (e) {}
+  }
+
+  function post(acao, corpo) {
+    return fetch('/api/wefax/cmd/' + acao, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(corpo || {})
+    }).then(r => r.json()).then(d => { mostrar(d); return d; }).catch(() => null);
+  }
+  function opcoes() { guardar(); post('opcoes', valOpcoes()); }
+  function config() { guardar(); post('opcoes', valOpcoes()); }
+  function cmd(acao) { post(acao, valOpcoes()); }
+  function inclinar(passo) {
+    const atual = (_st && typeof _st.inclinacao === 'number') ? _st.inclinacao : 0;
+    post('inclinacao', { valor: passo === null ? 0 : Math.round((atual + passo) * 100) / 100 });
+  }
+  function iniciar() { _versao = -1; return post('start', valOpcoes()); }
+  function parar() { return post('stop', {}); }
+  function reiniciar() { parar().then(() => setTimeout(iniciar, 150)); }
+
+  // ---- alinhar a margem: clique na imagem ----------------------------------------
+  function alternarAlinhar() {
+    _alinhar = !_alinhar;
+    const b = el('wefax-alinhar'), img = el('wefax-img'), guia = el('wefax-guia');
+    if (b) { b.textContent = _alinhar ? 'Clique na margem...' : 'Alinhar margem'; b.style.background = _alinhar ? '#995a0d' : '#0d2a1a'; }
+    if (img) img.style.cursor = _alinhar ? 'pointer' : '';
+    if (guia && !_alinhar) guia.style.display = 'none';
+  }
+  function moverGuia(ev) {
+    const guia = el('wefax-guia'), img = el('wefax-img'), rol = el('wefax-rolagem');
+    if (!guia || !img || !rol || !_alinhar) return;
+    const r = rol.getBoundingClientRect();
+    guia.style.left = (ev.clientX - r.left) + 'px';
+    guia.style.display = '';
+  }
+  function cliqueImagem(ev) {
+    if (!_alinhar || !_st || !(_st.w > 0)) return;
+    const img = el('wefax-img');
+    const r = img.getBoundingClientRect();
+    const coluna = (ev.clientX - r.left) / r.width * _st.w;   // meia resolucao
+    alternarAlinhar();
+    post('alinhar', { coluna: Math.round(coluna) });
+  }
+
+  function mostrar(d) {
+    const t = el('wefax-status');
+    if (!t) return;
+    if (!d || !d.state) { t.textContent = 'Sem resposta'; t.style.color = '#ff8080'; return; }
+    _st = d;
+    const rodando = d.state === 'running';
+    let txt;
+    if (!rodando) txt = 'Parado';
+    else if (d.estado === 'recebendo')
+      txt = 'recebendo | ' + d.lpm + ' LPM, IOC ' + d.ioc + ' | ' + d.linhas + ' linhas | margem ' + (d.pelaFase ? 'pela fase' : 'manual');
+    else if (d.estado === 'inicio') txt = 'tom de início - IOC ' + d.ioc;
+    else if (d.estado === 'fase') txt = 'fase: medindo a margem e as linhas por minuto | sinal ' + d.nivelDb + ' dB';
+    else txt = (d.estado === 'pronta' ? 'pronta' : 'esperando o tom de início') + ' | sinal ' + d.nivelDb + ' dB | ' + (d.imagens || 0) + ' imagens recebidas';
+    t.textContent = txt;
+    t.style.color = d.estado === 'recebendo' ? '#7CFC00' : (rodando ? '#ffaa00' : '#ff8080');
+
+    const inc = el('wefax-incl');
+    if (inc) inc.textContent = (d.inclinacao >= 0 ? '+' : '') + Number(d.inclinacao || 0).toFixed(2);
+
+    const msg = el('wefax-msg'), img = el('wefax-img');
+    const temImg = d.w > 0 && d.h > 0;
+    if (msg) {
+      msg.style.display = temImg ? 'none' : '';
+      msg.textContent = d.estado === 'inicio' ? 'tom de início ouvido - esperando a fase...'
+                      : d.estado === 'fase' ? 'fase: medindo a margem e as linhas por minuto...'
+                      : rodando ? 'esperando o tom de início (ou clique Começar agora)' : 'decodificador parado';
+    }
+    if (!temImg && img) { img.style.display = 'none'; _versao = d.versao; }
+
+    // historico
+    const hs = Array.isArray(d.historico) ? d.historico : [];
+    const ids = hs.map(h => h.id).join(',');
+    if (ids !== _histIds) {
+      _histIds = ids;
+      const box = el('wefax-hist');
+      if (box) {
+        box.style.display = hs.length ? 'flex' : 'none';
+        box.innerHTML = hs.map(h =>
+          '<a href="/api/wefax/png/' + h.id + '" target="_blank" style="flex-shrink:0" title="' +
+          String(h.rotulo + (h.arquivo ? '\nsalva em ' + h.arquivo : '\n(não salva)')).replace(/"/g, '&quot;') + '">' +
+          '<img src="/api/wefax/png/' + h.id + '" style="height:56px;border:1px solid #2e6c3e;display:block"></a>').join('');
+      }
+    }
+
+    // imagem nova? (desce sozinha enquanto chega, se voce estiver no fim)
+    if (temImg && d.versao !== _versao && !_buscando && img) {
+      _buscando = true;
+      const v = d.versao;
+      const rol = el('wefax-rolagem');
+      const noFim = rol ? (rol.scrollTop + rol.clientHeight >= rol.scrollHeight - 6) : true;
+      const nova = new Image();
+      nova.onload = () => {
+        img.src = nova.src;
+        img.style.display = '';
+        _versao = v; _buscando = false;
+        if (rol && noFim && d.estado === 'recebendo') rol.scrollTop = rol.scrollHeight;
+      };
+      nova.onerror = () => { _buscando = false; };
+      nova.src = '/api/wefax/png/atual?v=' + v;
+    }
+  }
+
+  function pollStatus() {
+    fetch('/api/wefax/status').then(r => r.json()).then(mostrar).catch(() => mostrar(null));
+  }
+
+  function appendLine(line) {
+    const t = el('wefax-status');
+    if (t && line && line.indexOf('[WEFAX]') === 0 && line.indexOf('esperando') < 0) t.title = line;
+  }
+
+  function init() {
+    carregar();
+    _estadoAnterior = decEstadoRadio();
+    _histIds = ''; _versao = -1; _alinhar = false;
+    const rol = el('wefax-rolagem');
+    if (rol) rol.addEventListener('pointermove', moverGuia);
+    const sql = el('sqlSlider');
+    if (sql) {
+      _sqlAnterior = sql.value;
+      sql.value = sql.min;
+      sql.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    iniciar();
+    if (_pollTimer) clearInterval(_pollTimer);
+    _pollTimer = setInterval(pollStatus, 1500);
+  }
+
+  function onClose() {
+    if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+    parar();
+    const sql = el('sqlSlider');
+    if (sql && _sqlAnterior !== null) {
+      sql.value = _sqlAnterior;
+      sql.dispatchEvent(new Event('input', { bubbles: true }));
+      _sqlAnterior = null;
+    }
+    if (_sintonizou && _estadoAnterior && typeof restoreReceiverState === 'function') {
+      restoreReceiverState(_estadoAnterior);
+    }
+    _estadoAnterior = null;
+    _sintonizou = false;
+  }
+
+  return { buildPanelHTML, init, onClose, appendLine, irParaCanal, opcoes, config, cmd,
+           inclinar, alternarAlinhar, cliqueImagem, reiniciar };
+})();
+
 
 
 /* =========================================================

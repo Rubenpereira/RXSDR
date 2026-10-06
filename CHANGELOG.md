@@ -1,5 +1,25 @@
 # Histórico de mudanças
 
+## 1.0.69
+
+Nova Versão RXSDR v1.0.69
+
+RXSDR e RXSDR Nativo 1.0.4: novo decodificador PACTOR-I, o modo em que a Marinha do Brasil transmite a meteoromarinha e os avisos aos navegantes (Rio de Janeiro e Rio Grande). Escolha PACTOR-I (Marinha / FEC) na janela dos decodificadores e um canal da lista, em ordem de horário (UTC), com os que estão no ar em verde. Recebe 100 e 200 baud, acha sozinho o tom, a velocidade e a polaridade, aceita texto comprimido (Huffman) ou ASCII, e cada pacote é conferido pelo CRC: só aparece texto que chegou inteiro. Pacotes repetidos que chegam com erro são somados para recuperar o texto. As frequências da Marinha do Brasil (Rio), que estavam na lista do SITOR-B, passaram para a lista do PACTOR-I. Testado com sinal gerado: texto completo até 0 dB de relação sinal/ruído.
+
+RXSDR: novos decodificadores SSTV (imagens) e WEFAX (fax meteorológico), os mesmos do RXSDR Nativo, no menu dos decodificadores. A imagem aparece na janela enquanto chega; no SSTV o modo é reconhecido sozinho pelo cabeçalho VIS, e no WEFAX o tom de início, a fase e o tom de fim comandam tudo (a lista de estações vem em ordem de horário, com as que estão no ar em verde). Cada imagem recebida é salva em PNG nas pastas RXSDR_SSTV e RXSDR_WEFAX da Área de Trabalho, e as miniaturas das recebidas abrem o PNG. Os dois também aceitam arquivo de áudio (Abrir arquivo).
+
+RXSDR: ao sintonizar uma frequência fora da faixa que aparece na tela, a estação não cai mais exatamente no centro do dongle, onde fica o "apito" do DC: o centro vai 20 kHz para o lado (abaixo em USB, CW, AM e FM, acima em LSB). O Zoom faz o mesmo. Clicar dentro da tela continua sem mexer na cachoeira.
+
+RXSDR: a frequência que aparece junto ao ponteiro do mouse na cachoeira ficou maior e em negrito.
+
+RXSDR e RXSDR Nativo 1.0.4: campo de busca nas listas de canais dos decodificadores (SITOR-B, DSC, RTTY, PACTOR-I e WEFAX, e também as emissoras do DRM no Nativo). Digite a frequência do jeito que estiver acostumado (8416,5 - 8.416.5 - 8416500) ou parte do nome da estação, e a lista mostra só os canais que batem, ou avisa que a frequência não está nela.
+
+RXSDR e RXSDR Nativo 1.0.4: ao escolher um canal na lista do SITOR-B, DSC, RTTY ou PACTOR-I (e do ALE, na versão web), a largura vai sozinha para pelo menos 3 kHz. Com 1,4 ou 1,8 kHz os tons, que ficam perto de 1700 Hz, caíam na borda do filtro e o texto saía picado. Na versão web a tela (modo e largura) agora acompanha a troca.
+
+RXSDR e RXSDR Nativo 1.0.4: SITOR-B do Servicio de Hidrografia Naval (Argentina) acertado com sinais recebidos: em 12579 kHz o sinal sai na verdade em 12580,7 kHz (a lista agora sintoniza certo); o shift é de 200 Hz em 8416,5 e 12580,7 kHz e de 170 Hz em 16806,5 kHz.
+
+RXSDR Nativo 1.0.4: relógio digital em UTC (por exemplo 15:36 UTC) ao lado do botão IF DISPLAY - as grades de horários das estações são todas em UTC.
+
 ## 1.0.68
 
 Nova Versão RXSDR v1.0.68

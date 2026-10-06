@@ -4,6 +4,7 @@
 #include "../decoders/AnaliseCore.h"
 #include "../decoders/CwCore.h"
 #include "../decoders/DscCore.h"
+#include "../decoders/PactorCore.h"
 #include "../decoders/RttyCore.h"
 #include "../decoders/SitorBCore.h"
 
@@ -54,6 +55,7 @@ const char* Decoders::nome(Tipo t)
     case DRM: return "DRM (rádio digital)";
     case SSTV: return "SSTV (imagens)";
     case WEFAX: return "WEFAX (fax meteorológico)";
+    case PACTOR: return "PACTOR-I (Marinha / FEC)";
     default: return "Nenhum";
     }
 }
@@ -80,7 +82,7 @@ void Decoders::iniciar(Tipo t, const Ajustes& a)
 {
     std::lock_guard<std::mutex> lk(coreMutex_);
     aj_ = a;
-    cw_.reset(); rtty_.reset(); sitor_.reset(); dsc_.reset(); ale_.reset(); analise_.reset();
+    cw_.reset(); rtty_.reset(); sitor_.reset(); dsc_.reset(); ale_.reset(); analise_.reset(); pactor_.reset();
     analiseFeita_ = false;
     if (t != DMR) dsd_.parar();
     if (t != TETRA) tetra_.parar();
@@ -130,6 +132,11 @@ void Decoders::iniciar(Tipo t, const Ajustes& a)
         escrever("[DSC] iniciado - 100 baud, shift 170 Hz, recepcao em USB\n");
         break;
     }
+    case PACTOR:
+        pactor_ = std::make_unique<PactorCore>(kTaxa);
+        pactorUltimo_ = -1e9; pactorRelogio_ = 0;
+        escrever("[PACTOR-I] iniciado - procurando pacotes (100/200 baud, shift 200 Hz, USB)\n");
+        break;
     case ALE:
         ale_ = std::make_unique<AleCore>();
         escrever("[ALE] iniciado - 2G ALE (MIL-STD-188-141), 8-FSK 125 baud, USB com BW de 3 kHz\n");
@@ -218,7 +225,7 @@ void Decoders::parar()
     if (tipo_.load() == WEFAX) { wefax_.parar(); colherWefax(); }
     std::lock_guard<std::mutex> lk(coreMutex_);
     tipo_ = NENHUM;
-    cw_.reset(); rtty_.reset(); sitor_.reset(); dsc_.reset(); ale_.reset(); analise_.reset();
+    cw_.reset(); rtty_.reset(); sitor_.reset(); dsc_.reset(); ale_.reset(); analise_.reset(); pactor_.reset();
 }
 
 void Decoders::empurrar(const int16_t* pcm, size_t n, uint32_t sps)
@@ -402,6 +409,16 @@ void Decoders::alimentar(const float* x, size_t n)
             }
         }
         else if (sitor_) saida = sitor_->feed(x, n);
+        else if (pactor_) {
+            saida = pactor_->feed(x, n);
+            pactorRelogio_ += double(n) / kTaxa;
+            // texto depois de 1 minuto calado: linha com a hora (e o indicativo)
+            if (!saida.empty()) {
+                if (pactorRelogio_ - pactorUltimo_ > 60)
+                    saida = "\n[PACTOR-I] " + horaUtc() + " UTC" + (pactor_->indicativo().empty() ? "" : "  " + pactor_->indicativo()) + "\n" + saida;
+                pactorUltimo_ = pactorRelogio_;
+            }
+        }
         else if (dsc_) saida = dsc_->feed(x, n);
         else if (ale_) {
             for (const auto& c : ale_->feed(x, n)) saida += "[ALE] " + horaUtc() + " UTC  " + c + "\n";
@@ -549,6 +566,12 @@ std::string Decoders::estado()
         std::snprintf(b, sizeof b, "%s  |  tom %.0f Hz  |  %d caracteres  |  %d erros",
                       rtty_->sincronizado() ? "SINCRONIZADO" : "procurando", rtty_->tomMedido(),
                       rtty_->totalChars(), rtty_->erros());
+    else if (pactor_)
+        std::snprintf(b, sizeof b, "%s  |  %s  |  tom %.0f Hz  |  %d pacotes (%d somados)  |  %s%s%s",
+                      pactor_->travado() ? "RECEBENDO" : "procurando",
+                      pactor_->baud() ? (pactor_->baud() == 200 ? "200 baud" : "100 baud") : "- baud",
+                      pactor_->tomCentral(), pactor_->pacotes(), pactor_->somados(), pactor_->formato(),
+                      pactor_->indicativo().empty() ? "" : "  |  ", pactor_->indicativo().c_str());
     else if (sitor_)
         std::snprintf(b, sizeof b, "%s  |  %d/%d validos  |  %d salvos pela copia RX",
                       sitor_->sincronizado() ? "SINCRONIZADO" : "procurando", sitor_->validChars(),
@@ -646,6 +669,7 @@ bool Decoders::travado()
     std::lock_guard<std::mutex> lk(coreMutex_);
     if (rtty_) return rtty_->sincronizado();
     if (sitor_) return sitor_->sincronizado();
+    if (pactor_) return pactor_->travado();
     if (dsc_) return dsc_->sincronizado();
     if (ale_) return ale_->sincronizado();
     if (cw_) return cw_->ppm() > 0;

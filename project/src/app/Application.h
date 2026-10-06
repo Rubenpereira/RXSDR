@@ -29,6 +29,8 @@ class AprsManager;
 class AprsIsClient;
 class SitorBManager;
 class PactorManager;
+class SstvManager;
+class WefaxManager;
 class DscManager;
 class AnaliseManager;
 class CwManager;
@@ -74,6 +76,8 @@ private:
     std::unique_ptr<RttyManager>   rttyDeco_;
     std::unique_ptr<AleManager>    aleDeco_;
     std::unique_ptr<PactorManager> pactorDeco_;
+    std::unique_ptr<SstvManager>   sstvDeco_;
+    std::unique_ptr<WefaxManager>  wefaxDeco_;
     std::unique_ptr<DscManager> dscDeco_;
     std::unique_ptr<AnaliseManager> analiseDeco_;
     std::unique_ptr<SelcalManager> selcalDeco_;
