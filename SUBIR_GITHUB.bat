@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
 setlocal
-title RXSDR - Enviar para o GitHub
+title RXSDR Nativo - Enviar para o GitHub
 cd /d "%~dp0"
 
 set "REPO=RXSDR"
@@ -21,8 +21,18 @@ if not exist ".git" git init -b main
 git config user.name  >nul 2>nul || git config user.name  "Ruben Pereira PU1XTB"
 git config user.email >nul 2>nul || git config user.email "pu1xtb@gmail.com"
 
+rem ============================================================
+rem  SO O RXSDR NATIVO SOBE (decisao do autor, 09/10/2026).
+rem  A versao web (pasta project) ficou TRAVADA na 1.0.69: o que esta
+rem  no GitHub fica como esta e nada dela e enviado daqui em diante,
+rem  mesmo que algum arquivo dela mude no PC. Nada e apagado do GitHub.
+rem  Sobem: a pasta project-nativo, o CHANGELOG/README/licenca e os
+rem  scripts do Nativo e de publicacao.
+rem ============================================================
+echo  Versao web travada na 1.0.69 - sobe somente o RXSDR Nativo.
 echo  Selecionando arquivos conforme o .gitignore...
-git add -A
+git reset -q >nul 2>nul
+git add -A -- project-nativo CHANGELOG.md README.md LICENSE.txt .gitignore COMPILAR_NATIVO.bat GERAR_PACOTE_NATIVO.bat SUBIR_GITHUB.bat PUBLICAR_RELEASE.bat publicar_release.ps1
 
 rem ============================================================
 rem  TRAVA DE SEGURANCA - roda ANTES de qualquer envio.
@@ -62,6 +72,7 @@ echo.
 rem Conta os arquivos e mostra so uma amostra. Sem "more": o paginador
 rem trava a tela pedindo tecla a cada pagina, e a lista tem centenas.
 for /f %%N in ('git diff --cached --name-only --diff-filter=ACMR ^| find /c /v ""') do set "QTD=%%N"
+if "%QTD%"=="0" goto NADAMUDOU
 echo  Serao enviados %QTD% arquivos. Os primeiros:
 echo  --------------------------------------------------------------
 git diff --cached --name-only --diff-filter=ACMR > "%TEMP%\rxsdr_envio.txt"
@@ -127,6 +138,11 @@ echo  PAROU POR SEGURANCA
 echo  Algum arquivo da lista contem a senha de root dos TV box.
 echo  Confira o .gitignore antes de tentar de novo.
 echo ==============================================================
+git reset >nul 2>nul
+goto FIM
+
+:NADAMUDOU
+echo  Nada mudou no RXSDR Nativo desde o ultimo envio. Nada foi enviado.
 git reset >nul 2>nul
 goto FIM
 

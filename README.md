@@ -1,112 +1,130 @@
-# RXSDR
+# RXSDR Nativo
 
-Receptor SDR para Windows, escrito em C++ com Qt6. O programa roda como um
-servidor local e a interface abre no navegador — o rádio em si não tem janela
-própria, o painel é uma página web servida pelo próprio executável.
+Receptor SDR para Windows que roda **direto no Windows, sem navegador e sem
+instalar** — descompacte a pasta e rode o `RXSDR.exe`, como nos SDR# antigos.
+Funciona do **Windows 7 SP1 ao 11**, inclusive em PCs antigos ou mais fracos.
+Em **português e inglês**.
 
 Feito por **PU1XTB — Ruben**, radioamador e radioescuta, em Araruama/RJ.
+
+![RXSDR Nativo](project-nativo/tela/rxsdr_nativo.png)
+
+### Em ação: PACTOR-I da Marinha do Brasil
+
+Recepção da meteoromarinha e dos avisos aos navegantes em PACTOR-I
+(8581 kHz), decodificados direto no RXSDR Nativo (vídeo acelerado 8x):
+
+![PACTOR-I no RXSDR Nativo](project-nativo/tela/rxsdr_nativo_pactor.gif)
+
+▶ [Vídeo completo, com som (2 min 38 s)](project-nativo/tela/rxsdr_nativo_pactor.mp4)
+
+**[⬇ Baixar a última versão (Releases)](https://github.com/Rubenpereira/RXSDR/releases/latest)**
+
+---
+
+## English
+
+**RXSDR Nativo** is a native Windows SDR receiver (Windows 7 SP1 to 11):
+no browser, no installation — unzip the folder and run `RXSDR.exe`.
+Supports RTL-SDR, RTL-TCP and SDRplay, with built-in decoders for CW, RTTY,
+SITOR-B/NAVTEX, DSC, ALE 2G, PACTOR-I, SSTV, WEFAX, DRM, DMR/P25/NXDN, TETRA,
+HFDL, ACARS, VDL2, AIS and APRS, plus an unknown-signal analyzer.
+The interface is available in **English and Portuguese** (chosen on first
+start, switchable at any time with the PT/EN button at the top).
+Download the `RXSDR_Nativo_x.x.x.zip` from the
+[Releases](https://github.com/Rubenpereira/RXSDR/releases/latest) page.
 
 ---
 
 ## O que ele faz
 
-- Recepção em **AM, FM, NFM, WFM, USB, LSB e CW**
-- **Espectro e cachoeira** com paleta Eclipse e média de espectros, o mesmo
-  tratamento usado pelo OpenWebRX+ (o piso de ruído fica liso em vez de tremer)
-- **Cor da cachoeira que se ajusta sozinha a cada banda.** Deixe a imagem do
-  jeito que você gosta e clique em **PADRÃO**; a partir daí o botão **AUTO**
-  reproduz aquela mesma aparência em qualquer frequência. Ele mede o piso de
-  ruído local e recalcula os controles — os números mudam, a imagem não. É a
-  diferença entre uma cor que serve para a banda em que foi ajustada e uma cor
-  que serve para todas.
-- **S-meter analógico**, controle de ganho de RF, squelch, AGC e filtro de tom
-- **Decodificadores digitais**: DMR, P25, NXDN, D-Star, TETRA, ACARS, APRS
-  e **AIS** (embarcações, com MMSI clicável para VesselFinder/MarineTraffic)
-- **SITOR-B / NAVTEX** e **DSC** (chamada seletiva, ITU-R M.493) — escritos
-  do zero em C++, sem depender de programa externo. Medem o tom central
-  sozinhos e usam decisão suave, que rende cerca de 3 dB em sinal fraco
-- **PACTOR-I** (meteoromarinha e avisos da Marinha do Brasil) — acha sozinho o
-  tom, a velocidade e a polaridade, e só mostra pacote conferido pelo CRC
-- **SSTV** e **WEFAX** (fax meteorológico) — a imagem aparece enquanto chega e
-  é salva em PNG na Área de Trabalho
-- **Analisador de sinal desconhecido** — mede tons, deslocamento e velocidade
-  de um sinal digital que você não reconhece, e diz com que modos ele é
-  compatível
-- **Abrir arquivo de áudio** em qualquer decodificador (MP3, WAV, OGG): toca
-  acompanhando o texto, com pausa, continuação e reinício
-- **Envio de mensagens APRS** pela internet (APRS-IS), incluindo boletins
-  para todas as estações
-- **Memórias** com régua no topo do espectro, no formato do OpenWebRX
-  (`bookmarks.json`) — criar do VFO, editar, excluir, importar e exportar
-- Marcadores de banda e ajuste de sintonia de 1 Hz a 1 MHz, com áudio
-  contínuo enquanto você gira
-- Interface responsiva — funciona no navegador do PC, do celular e do tablet
+- Recepção em **AM, SAM, FM, NFM, WFM, USB, LSB e CW**
+- **Espectro e cachoeira** com zoom, ajuste de range, brilho e velocidade.
+  O botão **AUTO** ajusta a cor da cachoeira sozinho a cada banda, a partir
+  do jeito que você deixou e gravou em **PADRÃO**
+- **S-meter analógico** com referência S9 própria para HF e VHF, olho mágico,
+  squelch com ajuste automático, AGC, ganho de RF, tonalidade,
+  **Noise Blanker** e **redutor de ruído espectral**
+- **IF Display** ao lado do espectro e **relógio UTC** (o das grades de horário
+  das estações)
+- **Botão direito na cachoeira**: lista das bandas (Ondas Médias, 160 a 10 m,
+  PX, 6 m, FM, aviação, 2 m, marítimo, satélite, 70 cm...) — vai direto com o
+  modo e a largura padrão
+- **Memórias** com régua em cima do espectro, no formato do OpenWebRX
+  (`bookmarks.json`), com filtros (utilitárias, broadcast no ar agora...)
+- **Gravação** do áudio em WAV
+- **Decodificadores** (menu DECODERS):
+
+| Modo | O que recebe |
+|---|---|
+| **CW / Morse** | mede o tom e a velocidade sozinho |
+| **RTTY** | radioamador e meteorologia (DWD) |
+| **SITOR-B / NAVTEX** | avisos e meteorologia marítima, lista de estações com horários UTC |
+| **DSC** | chamada seletiva digital (ITU-R M.493) |
+| **PACTOR-I** | meteoromarinha e avisos da Marinha do Brasil, conferidos pelo CRC |
+| **ALE 2G** | MIL-STD-188-141 |
+| **SSTV** | imagens dos radioamadores (Robot, Martin, Scottie, PD...), salvas em PNG |
+| **WEFAX** | fax meteorológico, com lista de estações e horários |
+| **DRM** | rádio digital das ondas curtas (com o Dream) |
+| **DMR / P25 / NXDN / D-STAR / YSF** | voz digital (com o dsd-fme) |
+| **TETRA** | dados da célula e voz (osmo-tetra) |
+| **HFDL / ACARS / VDL2** | mensagens de aviões, com link para o FlightAware |
+| **AIS** | navios, com mapa e links para VesselFinder / MarineTraffic |
+| **APRS** | VHF (1200 baud) e HF (300 baud) |
+| **Analisar sinal** | mede tons, shift e velocidade de um sinal desconhecido e diz com que modos ele é compatível |
+
+As listas de canais dos decodificadores marcam em verde o que está **no ar
+agora** pela grade UTC e têm **campo de busca** (por frequência ou nome).
+Ao escolher um canal, o rádio já sintoniza com o modo e a largura certos.
 
 ## Hardware suportado
 
 | Dispositivo | Observação |
 |---|---|
-| RTL-SDR (todos os modelos) | funciona direto, drivers inclusos |
+| RTL-SDR (todos os modelos) | precisa do driver WinUSB (Zadig), como no SDR# |
 | RTL-TCP | rádio remoto pela rede |
-| SDRplay (RSP1/1A/1B/2/duo/dx) | exige a API oficial da SDRplay |
+| SDRplay (RSP1/1A/1B/2/duo/dx) | exige a [API oficial da SDRplay](https://www.sdrplay.com/api/) |
 
 ---
 
-## Instalação no Windows
+## Instalação
 
-Baixe na aba **Releases** deste repositório. São duas versões:
+1. Baixe o **RXSDR_Nativo_x.x.x.zip** na aba
+   [Releases](https://github.com/Rubenpereira/RXSDR/releases/latest).
+2. Descompacte em qualquer pasta e rode o `RXSDR.exe`.
+3. Na primeira abertura, escolha o idioma (Português / English).
 
-- **RXSDR_Setup_x.x.xx.exe** — Windows 10 e 11. Instalador; o painel abre no
-  navegador (com todos os decodificadores).
-- **RXSDR_Nativo_x.x.x.zip** — Windows 7 SP1, 8, 10 e 11. **Não precisa
-  instalar e não usa navegador**: descompacte a pasta e rode o `RXSDR.exe`,
-  como nos SDR# antigos. A configuração fica no `RXSDR.ini` ao lado do programa.
-  É a versão para PCs mais fracos ou antigos (substitui a antiga "Win7").
-
-As duas já trazem todas as DLLs necessárias.
-
-Para hardware **SDRplay** é preciso instalar à parte a
-[API oficial da SDRplay](https://www.sdrplay.com/api/) — ela não pode ser
-redistribuída junto.
+**Portátil**: nada vai para o Registro do Windows. A configuração fica no
+`RXSDR.ini` ao lado do programa — dá para levar a pasta para outro PC com tudo
+junto. Duas cópias em pastas diferentes podem rodar ao mesmo tempo (por
+exemplo, uma em HF e outra em VHF).
 
 ---
 
 ## Compilar a partir do código
 
-Requisitos: Visual Studio 2019 ou superior (MSVC), CMake 3.16+ e Qt6
-(Core, Gui, Widgets, Network, WebSockets, HttpServer, Svg).
+Requisitos: Visual Studio 2019 ou superior (MSVC) e CMake 3.16+. Não usa Qt:
+a tela é feita com Dear ImGui e Direct3D 9.
 
 ```
-COMPILAR.bat          build completo do Windows 10/11 (Qt6)
-COMPILAR_NATIVO.bat   RXSDR Nativo (Windows 7 a 11, sem navegador, sem Qt)
-GERAR_PACOTE_NATIVO.bat  gera o .zip portátil do RXSDR Nativo
-ATUALIZAR_WEB.bat     só a interface (HTML/CSS/JS), sem recompilar
-ABRIR.bat             abre o executável já compilado
-GERAR_INSTALADOR.bat  gera o instalador (precisa do Inno Setup 6)
+COMPILAR_NATIVO.bat       compila o RXSDR Nativo (pasta project-nativo)
+GERAR_PACOTE_NATIVO.bat   gera o .zip portátil
 ```
 
-A interface fica em `project/web/index.html`, num arquivo único. O servidor
-lê a pasta `web` que está **ao lado do executável em uso** — se alterar o HTML
-e não vir mudança, confira qual `RXSDR.exe` você abriu.
-
-### Decodificadores
-
-Os decodificadores externos (DSDPlus, FMP24, Direwolf e outros)
-**não estão neste repositório** — são programas de terceiros, com licenças
-próprias, e precisam ser obtidos direto com seus autores. Os instaladores da
-aba Releases já vêm com eles configurados.
+Os decodificadores externos (dsd-fme, Dream, dumphfdl, acarsdec, dumpvdl2,
+AIS-catcher, direwolf, osmo-tetra) são programas de outros autores, com
+licenças próprias (veja `project-nativo/TERCEIROS.txt`). O pacote da aba
+Releases já vem com eles.
 
 ---
 
-## Memórias
+## Versão web (encerrada)
 
-As memórias ficam em `bookmarks.json`, **ao lado do executável**, no mesmo
-formato do OpenWebRX — dá para trocar o arquivo entre os dois programas sem
-converter nada. O instalador traz um arquivo inicial com 958 frequências e
-**não sobrescreve** o seu ao atualizar.
-
-Elas aparecem como uma régua na faixa acima do espectro, fora da cachoeira,
-para não cobrir os sinais. Um clique sintoniza e já troca o modo gravado.
+A versão anterior do RXSDR, com o painel no navegador (Qt6, Windows 10 e 11),
+ficou **congelada na 1.0.69** — o código continua na pasta `project` e o
+instalador está na
+[release 1.0.69](https://github.com/Rubenpereira/RXSDR/releases/tag/v1.0.69).
+Daqui em diante o desenvolvimento segue só no RXSDR Nativo.
 
 ---
 
@@ -122,13 +140,12 @@ O RXSDR é distribuído sob a licença que está em [LICENSE.txt](LICENSE.txt):
 uso, modificação e redistribuição livres para fins **não comerciais**, desde
 que os créditos ao autor inicial sejam mantidos.
 
-Partes do decodificador D-Star seguem a GPL v2 — veja
-[LICENSE-DSD.txt](LICENSE-DSD.txt).
-
 ## Créditos
 
-- `dstar_header.c/h` e `fcs.h` — Kristoff Bonne, ON1ARF
-- `descramble.h` — Jonathan Naylor, G4KLX
+- Tela: [Dear ImGui](https://github.com/ocornut/imgui) (MIT) · imagens:
+  stb_image (domínio público)
+- Decodificadores externos: cada um com a licença do seu autor
+  (`project-nativo/TERCEIROS.txt`)
 - A cachoeira segue o tratamento e a paleta Eclipse do
   [OpenWebRX+](https://github.com/luarvique/openwebrx), de Marat Fayzullin,
   com o tema de Dimitar (LZ2DMV) e LZ4ZD

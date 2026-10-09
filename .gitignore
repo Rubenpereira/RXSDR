@@ -67,6 +67,8 @@
 !/project-nativo/TERCEIROS.txt
 !/project-nativo/dsd_arquivos.txt
 !/project-nativo/decoders_corrigidos/
+# fotos e video da pagina principal (README)
+!/project-nativo/tela/
 /project-nativo/third_party/imgui/examples/
 /project-nativo/third_party/imgui/docs/
 /project-nativo/third_party/imgui/.github/
