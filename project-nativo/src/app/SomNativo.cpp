@@ -1,4 +1,5 @@
 #include "SomNativo.h"
+#include "../ui/Idioma.h"
 #include "../util/Logger.h"
 
 #include <algorithm>
@@ -71,7 +72,7 @@ bool SomNativo::iniciar(int dispositivo)
     evento_ = CreateEventA(nullptr, FALSE, FALSE, nullptr);
     const MMRESULT r = waveOutOpen(&h_, dispositivo < 0 ? WAVE_MAPPER : (UINT)dispositivo, &fmt, (DWORD_PTR)evento_, 0, CALLBACK_EVENT);
     if (r != MMSYSERR_NOERROR) {
-        erro_ = "waveOutOpen falhou (" + std::to_string((int)r) + ")";
+        erro_ = T("waveOutOpen falhou (") + std::to_string((int)r) + ")";
         Logger::error("SomNativo: " + erro_);
         CloseHandle(evento_); evento_ = nullptr; h_ = nullptr;
         return false;

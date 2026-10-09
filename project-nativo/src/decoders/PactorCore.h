@@ -3,7 +3,7 @@
 //  PactorCore - PACTOR-I (modo FEC / "unproto" e escuta de ARQ), dentro do RXSDR
 //
 //  FSK de 2 tons, 200 Hz de shift, 100 ou 200 baud. Cada pacote (0,96 s):
-//    cabecalho 0x55 | dados (8 bytes a 100 Bd, 20 a 200 Bd) | status | CRC-16
+//    cabecalho 0x55/0xAA (alternando) | dados (8 bytes a 100 Bd, 20 a 200 Bd) | status | CRC-16
 //  com os bits de cada byte saindo do menos significativo para o mais.
 //  O texto vem em ASCII de 8 bits ou comprimido em Huffman (2 a 15 bits por
 //  letra). O CRC (polinomio CCITT x16+x12+x5+1) valida cada pacote - e o que
@@ -92,6 +92,7 @@ private:
     const char* formato_ = "-";
     std::string indicativo_, recente_;
     std::string saida_;
+    std::string utf8Pend_;          // primeiro byte de uma letra UTF-8 partida entre pacotes
 };
 
 } // namespace masdr

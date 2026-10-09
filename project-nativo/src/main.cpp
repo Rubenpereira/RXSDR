@@ -19,6 +19,7 @@
 
 #include "app/Config.h"
 #include "app/Radio.h"
+#include "ui/Idioma.h"
 #include "ui/Recursos.h"
 #include "ui/Ui.h"
 #include "util/Logger.h"
@@ -114,7 +115,7 @@ ImFont* fonte(const char* arquivo, float px)
     const std::string p = std::string(win) + "\\Fonts\\" + arquivo;
     ImGuiIO& io = ImGui::GetIO();
     // Latim (acentos) + "…" (U+2026) + "●" (U+25CF, do GRAVANDO)
-    static const ImWchar faixas[] = {0x0020, 0x00FF, 0x2014, 0x2014, 0x2026, 0x2026, 0x25CB, 0x25CB, 0x25CF, 0x25CF, 0};
+    static const ImWchar faixas[] = {0x0020, 0x00FF, 0x2014, 0x2014, 0x2026, 0x2026, 0x25BC, 0x25BC, 0x25CB, 0x25CB, 0x25CF, 0x25CF, 0};
     if (GetFileAttributesA(p.c_str()) != INVALID_FILE_ATTRIBUTES)
         return io.Fonts->AddFontFromFileTTF(p.c_str(), px, nullptr, faixas);
     ImFontConfig cfg; cfg.SizePixels = px;
@@ -187,6 +188,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
     Logger::info("=== RXSDR Nativo " RXSDR_VERSAO " iniciando ===");
     Config::instance().carregar();
     auto& c = Config::instance();
+    definirIngles(c.str("lang") == "en");   // sem a chave: pergunta na tela (Ui)
 
     WNDCLASSEXW wc = {sizeof(wc), CS_CLASSDC, WndProc, 0, 0, hInst,
                       LoadIconW(hInst, MAKEINTRESOURCEW(IDI_APP)), LoadCursor(nullptr, IDC_ARROW),

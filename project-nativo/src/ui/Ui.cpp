@@ -5,6 +5,7 @@
 #include "../util/Logger.h"
 #include "masdr_json.h"
 #include "Recursos.h"
+#include "Idioma.h"
 
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include "imgui.h"
@@ -35,6 +36,15 @@ namespace masdr {
 
 namespace {
 
+// Idioma escolhido (janela da primeira vez ou "PT/EN" no topo): vale na hora
+// e fica gravado no RXSDR.ini (lang=pt / lang=en).
+void escolherIdioma(bool en)
+{
+    definirIngles(en);
+    Config::instance().set("lang", std::string(en ? "en" : "pt"));
+    Config::instance().salvar(true);
+}
+
 constexpr double kPi = 3.14159265358979323846;
 
 // Cores do tema "dark green" da pagina (index.html, :root)
@@ -54,7 +64,7 @@ constexpr ImU32 C_MENU     = IM_COL32(0x03, 0x07, 0x04, 255);
 constexpr ImU32 C_BTN      = IM_COL32(0x1a, 0x1a, 0x1a, 255);
 
 const char* const kFiltrosMem[5] = {"Mostrar todas", "Somente utilitárias", "Broadcast — no ar agora",
-                                    "Broadcast — no ar, Américas", "Broadcast — todas"};
+                                    "Broadcast — no ar, Américas", "Broadcast — todas"};   // traduzidos com T() ao mostrar
 
 double agoraS()
 {
@@ -308,7 +318,7 @@ void Ui::quadro()
                 for (float a : sqlAmostras_) { topo = std::max(topo, a); soma += a; }
                 sql_ = std::clamp(std::round(topo + 2.f), -90.f, 30.f);
                 char d[160];
-                std::snprintf(d, sizeof d, "Ruído medido: pico %.0f dB, médio %.0f dB. Squelch em %.0f dB. Clique de novo para medir outra vez.",
+                std::snprintf(d, sizeof d, T("Ruído medido: pico %.0f dB, médio %.0f dB. Squelch em %.0f dB. Clique de novo para medir outra vez."),
                               topo, soma / sqlAmostras_.size(), sql_);
                 sqlDica_ = d;
             }
@@ -391,6 +401,25 @@ void Ui::quadro()
     if (memAberta_) janelaMemorias();
     if (decAberta_) janelaDecoders();
 
+    // Primeira abertura (sem "lang" no RXSDR.ini): pergunta o idioma uma vez,
+    // como a versao de navegador. Depois troca-se pelo "PT/EN" do topo.
+    if (Config::instance().str("lang").empty()) {
+        if (!ImGui::IsPopupOpen("IDIOMA / LANGUAGE")) ImGui::OpenPopup("IDIOMA / LANGUAGE");
+        ImGui::SetNextWindowPos(ImVec2(W * 0.5f, H * 0.45f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+        if (ImGui::BeginPopupModal("IDIOMA / LANGUAGE", nullptr, ImGuiWindowFlags_AlwaysAutoResize |
+                                   ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings)) {
+            ImGui::Dummy(ImVec2(0, 6 * s_));
+            ImGui::PushFont(f_.negrito);
+            if (ImGui::Button("Português", ImVec2(180 * s_, 48 * s_))) { escolherIdioma(false); ImGui::CloseCurrentPopup(); }
+            ImGui::SameLine(0, 14 * s_);
+            if (ImGui::Button("English", ImVec2(180 * s_, 48 * s_))) { escolherIdioma(true); ImGui::CloseCurrentPopup(); }
+            ImGui::PopFont();
+            ImGui::Dummy(ImVec2(0, 4 * s_));
+            ImGui::TextDisabled("Pode trocar depois no topo da tela  \xC2\xB7  You can change this later at the top");
+            ImGui::EndPopup();
+        }
+    }
+
     // aviso de erro (ex.: dongle nao encontrado)
     if (!erro_.empty() && t < erroAte_) {
         ImGui::SetNextWindowPos(ImVec2(W * 0.5f, H * 0.45f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
@@ -435,7 +464,7 @@ void Ui::barraTopo()
         x += w;
         return clicou;
     };
-    if (item("CONFIGURAÇÃO", IM_COL32(0xff, 0x9a, 0x1f, 255))) {
+    if (item(T("CONFIGURAÇÃO"), IM_COL32(0xff, 0x9a, 0x1f, 255))) {
         cfgAberta_ = true;
         cfgAssin_.clear(); cfgMsg_.clear();
         // prepara os campos com o que esta valendo
@@ -446,7 +475,7 @@ void Ui::barraTopo()
         if (r_.temDispositivo() && r_.tipo() != "rtltcp") {
             bool achou = false;
             for (const auto& d : lista_) if (d.tipo == r_.tipo() && d.serial == r_.serial()) achou = true;
-            if (!achou) lista_.insert(lista_.begin(), DispositivoInfo{r_.tipo(), r_.serial(), r_.tipo() == "rtlsdr" ? "RTL-SDR (em uso)" : "SDRplay (em uso)"});
+            if (!achou) lista_.insert(lista_.begin(), DispositivoInfo{r_.tipo(), r_.serial(), r_.tipo() == "rtlsdr" ? T("RTL-SDR (em uso)") : T("SDRplay (em uso)")});
         }
         const std::string tp = c.device();
         cfgTipo_ = tp == "rtltcp" ? 1 : tp == "sdrplay" ? 2 : 0;
@@ -468,15 +497,15 @@ void Ui::barraTopo()
         cfgSaida_ = 0;
         for (size_t i = 0; i < saidas_.size(); ++i) if (saidas_[i] == c.str("audio_saida")) cfgSaida_ = (int)i + 1;
     }
-    if (item("SALVAR", C_RX)) {
+    if (item(T("SALVAR"), C_RX)) {
         salvarEstado();
         Config::instance().salvar(true);
-        erro_ = "Configuração salva em " + Config::instance().caminho();
+        erro_ = T("Configuração salva em ") + Config::instance().caminho();
         erroAte_ = agoraS() + 2.5;
     }
     {   // MEMORIAS abre um menu (igual ao da pagina)
         const float xm = x;
-        if (item("MEMÓRIAS", IM_COL32(0x7f, 0xb0, 0xff, 255))) ImGui::OpenPopup("menuMem");
+        if (item(T("MEMÓRIAS"), IM_COL32(0x7f, 0xb0, 0xff, 255))) ImGui::OpenPopup("menuMem");
         if (ImGui::IsPopupOpen("menuMem")) ImGui::SetNextWindowPos(ImVec2(xm, h));
         menuMemorias();
     }
@@ -486,11 +515,22 @@ void Ui::barraTopo()
         char rot[48];
         if (g) {
             const int sgs = (int)r_.som().segundosGravados();
-            std::snprintf(rot, sizeof rot, "● GRAVANDO %02d:%02d", sgs / 60, sgs % 60);
-        } else std::snprintf(rot, sizeof rot, "GRAVAR");
+            std::snprintf(rot, sizeof rot, T("● GRAVANDO %02d:%02d"), sgs / 60, sgs % 60);
+        } else std::snprintf(rot, sizeof rot, T("GRAVAR"));
         if (item(rot, g ? IM_COL32(0xff, 0x52, 0x52, 255) : IM_COL32(0xff, 0x80, 0x80, 255))) alternarGravacao();
     }
-    if (item("SOBRE", C_MID)) sobreAberta_ = true;
+    if (item(T("SOBRE"), C_MID)) sobreAberta_ = true;
+    {   // IDIOMA (como o "PT" do topo da pagina): Portugues / English
+        const float xi = x;
+        if (item(emIngles() ? "EN \xE2\x96\xBC" : "PT \xE2\x96\xBC", IM_COL32(0x8a, 0xc0, 0xff, 255)))
+            ImGui::OpenPopup("##idioma");
+        if (ImGui::IsPopupOpen("##idioma")) ImGui::SetNextWindowPos(ImVec2(xi, h));
+        if (ImGui::BeginPopup("##idioma")) {
+            if (ImGui::Selectable("Português", !emIngles())) escolherIdioma(false);
+            if (ImGui::Selectable("English", emIngles())) escolherIdioma(true);
+            ImGui::EndPopup();
+        }
+    }
 
     ImGui::PushFont(f_.negrito);
     const char* nome = "RXSDR Nativo v" RXSDR_VERSAO;
@@ -585,7 +625,10 @@ void Ui::painelEsquerdo(float x, float y, float w, float h)
     if (botao(rotPasso.c_str(), x + bw + g, yy, bw, hb, false)) ImGui::OpenPopup("passo");
     yy += hb + g;
     if (botao(">.<", x, yy, bw, hb, false)) {          // poe o centro do dongle no VFO
-        r_.centralizar(r_.vfo());
+        // ...mas nao cravado nele (o "apito" do DC): com zoom, o centrarParaZoom
+        // ja faz isso dentro do que se ve; sem zoom, 20 kHz ao lado
+        if (zoom_ > 0) centrarParaZoom(true);
+        else r_.centralizar(r_.centroSemDc(r_.vfo()));
         muteAte_ = agoraS() + 0.25;
     }
     const bool dc = Config::instance().dcRemove();
@@ -593,7 +636,7 @@ void Ui::painelEsquerdo(float x, float y, float w, float h)
     yy += hb + g;
     if (botao("AUTO", x, yy, bw, hb, autoWf_)) autoCachoeira();
     const bool msg = agoraS() < padraoMsgAte_;
-    if (botao(msg ? padraoMsg_.c_str() : "PADRÃO", x + bw + g, yy, bw, hb, msg)) padrao();
+    if (botao(msg ? padraoMsg_.c_str() : T("PADRÃO"), x + bw + g, yy, bw, hb, msg)) padrao();
 
     if (ImGui::BeginPopup("bw")) {
         for (int b : kBandas) {
@@ -733,7 +776,7 @@ void Ui::mostradorFreq(float x, float y, float w, float h)
     ImGui::PopFont();
 
     if (ImGui::BeginPopup("##editfreq")) {
-        ImGui::TextUnformatted("Frequência (kHz):");
+        ImGui::TextUnformatted(T("Frequência (kHz):"));
         if (ImGui::IsWindowAppearing()) ImGui::SetKeyboardFocusHere();
         if (ImGui::InputText("##ft", freqTxt_, sizeof freqTxt_,
                              ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CharsDecimal)) {
@@ -908,10 +951,10 @@ void Ui::grupoSliders(float x, float y, float w, float h, int qual)
     const float px = x + 12 * s_, pw = w - 24 * s_;
     char b[32];
     if (qual == 1) {
-        const char* t = tom_ < 45 ? "Grave" : tom_ > 55 ? "Agudo" : "Plano";
+        const char* t = tom_ < 45 ? T("Grave") : tom_ > 55 ? T("Agudo") : T("Plano");
         if (tom_ < 45 || tom_ > 55) std::snprintf(b, sizeof b, "%s %d%%", t, (int)std::lround(std::fabs(tom_ - 50) * 2));
         else std::snprintf(b, sizeof b, "%s", t);
-        slider("tom", "Tonalidade", b, &tom_, 0, 100, px, y + h * 0.5f - 12 * s_, pw, 2);
+        slider("tom", T("Tonalidade"), b, &tom_, 0, 100, px, y + h * 0.5f - 12 * s_, pw, 2);
         return;
     }
     const float lh = (h - 12 * s_) / 3.f;
@@ -924,9 +967,9 @@ void Ui::grupoSliders(float x, float y, float w, float h, int qual)
         }
         yy += lh;
         std::snprintf(b, sizeof b, "%d%%", (int)std::lround(vol_));
-        slider("vol", mudo_ ? "Volume (MUDO)" : "Volume", b, &vol_, 0, 100, px, yy, pw, 2);
+        slider("vol", mudo_ ? T("Volume (MUDO)") : "Volume", b, &vol_, 0, 100, px, yy, pw, 2);
         yy += lh;
-        if (sql_ <= -90) std::snprintf(b, sizeof b, "aberto");
+        if (sql_ <= -90) std::snprintf(b, sizeof b, T("aberto"));
         else std::snprintf(b, sizeof b, "%ddB", (int)std::lround(sql_));
         {
             // SQL e um botao (igual a pagina): o clique mede o ruido por 4 s e
@@ -946,14 +989,14 @@ void Ui::grupoSliders(float x, float y, float w, float h, int qual)
             const bool so = ImGui::IsItemHovered();
             dl->AddRect(a, bb, sqlMedindo_ ? IM_COL32(0x37, 0xc0, 0xd6, 255) : corSql ? (ImU32)corSql
                         : so ? IM_COL32(0x25, 0x46, 0x7a, 255) : IM_COL32(0x1c, 0x36, 0x24, 255), 3 * s_);
-            if (so) ImGui::SetTooltip("%s", sqlDica_.empty() ? "Clique para ajustar o squelch na beirada do silêncio" : sqlDica_.c_str());
+            if (so) ImGui::SetTooltip("%s", sqlDica_.empty() ? T("Clique para ajustar o squelch na beirada do silêncio") : sqlDica_.c_str());
         }
     } else {
         std::snprintf(b, sizeof b, "%d%%", (int)std::lround(nb_));
         slider("nb", "Noise Blanker NB", b, &nb_, 0, 100, px, yy, pw, 5);
         yy += lh;
         std::snprintf(b, sizeof b, "%d%%", (int)std::lround(nr_));
-        slider("nr", "Redutor de Ruído", b, &nr_, 0, 100, px, yy, pw, 1);
+        slider("nr", T("Redutor de Ruído"), b, &nr_, 0, 100, px, yy, pw, 1);
         yy += lh;
         const bool semGanho = r_.tipo() == "sdrplay" || Config::instance().agc();
         std::snprintf(b, sizeof b, semGanho ? "AGC" : "%.1f dB", 49.6f * (1.f - ganhoRf_ / 100.f));
@@ -963,7 +1006,7 @@ void Ui::grupoSliders(float x, float y, float w, float h, int qual)
             const float p = 0.5f + 0.5f * std::sin((float)agoraS() * 5.f);
             corAgc = IM_COL32(0xff, 0x9a, 0x1f, (int)(90 + 165 * p));
         }
-        if (slider("rf", "Ganho de RF", b, &ganhoRf_, 0, 100, px, yy, pw, 5, corAgc, corAgc, corAgc))
+        if (slider("rf", T("Ganho de RF"), b, &ganhoRf_, 0, 100, px, yy, pw, 5, corAgc, corAgc, corAgc))
             r_.setGanho((int)std::lround(496.f * (1.f - ganhoRf_ / 100.f)));
     }
 }
@@ -1031,16 +1074,16 @@ void Ui::linhaModos(float y, float h)
         x += sw + 6 * s_;
     };
     grupo("rng", "Range", &wfRange_, 20, 120, "%.0f", 1);
-    grupo("bri", "Brilho", &wfBrilho_, 0, 200, "%.0f", 1);
+    grupo("bri", T("Brilho"), &wfBrilho_, 0, 200, "%.0f", 1);
     grupo("spd", "Speed", &wfSpeed_, 1, 10, "%.0fx", 1);
     x += 10 * s_;
 
     // NR ESPECTRAL + setinha da forca
     const float nw = 118 * s_;
-    if (botao("NR ESPECTRAL", x, by, nw, bh, nrEsp_, IM_COL32(0xff, 0x9a, 0x1f, 255))) nrEsp_ = !nrEsp_;
+    if (botao(T("NR ESPECTRAL"), x, by, nw, bh, nrEsp_, IM_COL32(0xff, 0x9a, 0x1f, 255))) nrEsp_ = !nrEsp_;
     if (botao("v", x + nw + 3 * s_, by, 22 * s_, bh, false)) ImGui::OpenPopup("forca");
     if (ImGui::BeginPopup("forca")) {
-        ImGui::Text("Força do NR ESPECTRAL: %d  (%d dB)", (int)nrEspForca_, (int)std::lround(10 + 35 * nrEspForca_ / 100.f));
+        ImGui::Text(T("Força do NR ESPECTRAL: %d  (%d dB)"), (int)nrEspForca_, (int)std::lround(10 + 35 * nrEspForca_ / 100.f));
         ImGui::SetNextItemWidth(260 * s_);
         ImGui::SliderFloat("##fz", &nrEspForca_, 0, 100, "%.0f");
         ImGui::EndPopup();
@@ -1099,7 +1142,7 @@ void Ui::linhaModos(float y, float h)
         ImGui::PopFont();
         ImGui::SetCursorScreenPos(ImVec2(x, by));
         ImGui::Dummy(ImVec2(rw, bh));
-        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Hora UTC (a das grades de horários das estações)");
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip(T("Hora UTC (a das grades de horários das estações)"));
     }
 }
 
@@ -1203,7 +1246,76 @@ bool Ui::interacaoEspectro(float x, float y, float w, float h, const char* id)
         if (io.MouseWheel > 0) sintonizar(r_.vfo() + passo_, false);
         else if (r_.vfo() > (uint64_t)passo_) sintonizar(r_.vfo() - passo_, false);
     }
+    // botao direito: lista das bandas (uma por area - cachoeira e espectro)
+    ImGui::PushID(id);
+    if (sobre && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) ImGui::OpenPopup("##bandas");
+    menuBandas();
+    ImGui::PopID();
     return sobre;
+}
+
+// ---------------------------------------------------------------------------
+//  Menu de bandas (botao direito na cachoeira ou no espectro): um clique e o
+//  radio vai para a banda com o modo e a largura padrao do modo, e com a
+//  amostragem direta em automatico (liga sozinha abaixo de 24 MHz).
+// ---------------------------------------------------------------------------
+namespace {
+struct BandaRapida { const char* grupo; uint64_t hz; const char* nome; const char* modo; };
+const BandaRapida kBandasRapidas[] = {
+    {"Ondas médias e curtas (HF)", 1000000, "OM - Ondas Médias (radiodifusão)", "AM"},
+    {nullptr, 1800000, "160 m", "LSB"},
+    {nullptr, 3710000, "80 m", "LSB"},
+    {nullptr, 5351500, "60 m", "USB"},
+    {nullptr, 7100000, "40 m", "LSB"},
+    {nullptr, 10000000, "30 m", "USB"},
+    {nullptr, 14200000, "20 m", "USB"},
+    {nullptr, 18100000, "17 m", "USB"},
+    {nullptr, 21200000, "15 m", "USB"},
+    {nullptr, 24950000, "12 m", "USB"},
+    {nullptr, 27455000, "11 m - Faixa do Cidadão (PX), canal 45", "AM"},
+    {nullptr, 28460000, "10 m", "USB"},
+    {nullptr, 28680000, "10 m - repetidoras em FM", "FM"},
+    {"VHF", 50100000, "6 m", "USB"},
+    {nullptr, 101700000, "FM - radiodifusão (88 a 108)", "WFM"},
+    {nullptr, 119450000, "Aviação (118 a 137)", "AM"},
+    {nullptr, 146000000, "2 m (144 a 148)", "NFM"},
+    {nullptr, 156800000, "Marítimo - canal 16", "NFM"},
+    {"UHF", 261620000, "Satélite militar (UHF)", "NFM"},
+    {nullptr, 439400000, "70 cm (430 a 440)", "NFM"},
+    {nullptr, 462562500, "Rádios comunicadores (FRS 462 MHz)", "NFM"},
+};
+} // namespace
+
+void Ui::menuBandas()
+{
+    if (!ImGui::BeginPopup("##bandas")) return;
+    ImGui::TextDisabled(T("Ir para a banda (modo e largura padrão, amostragem direta automática)"));
+    const uint64_t vfo = r_.vfo();
+    for (size_t i = 0; i < sizeof kBandasRapidas / sizeof kBandasRapidas[0]; ++i) {
+        const BandaRapida& b = kBandasRapidas[i];
+        if (b.grupo) ImGui::SeparatorText(TL(b.grupo));
+        char mhz[32];
+        std::snprintf(mhz, sizeof mhz, "%.3f", b.hz / 1e6);
+        for (char* c = mhz; *c; ++c) if (*c == '.') *c = ',';
+        char rot[160];
+        std::snprintf(rot, sizeof rot, "%10s MHz   %-40s %s", mhz, TL(b.nome), b.modo);
+        ImGui::PushID((int)i);
+        // a banda em que o VFO esta (ate 150 kHz da frequencia da lista) aparece marcada
+        const bool aqui = (vfo > b.hz ? vfo - b.hz : b.hz - vfo) < 150000;
+        if (ImGui::Selectable(rot, aqui)) irParaBanda(b.hz, b.modo);
+        ImGui::PopID();
+    }
+    ImGui::EndPopup();
+}
+
+void Ui::irParaBanda(uint64_t hz, const char* modo)
+{
+    Config::instance().set("qmode", std::string("auto"));   // amostragem direta automatica
+    const std::string m = modo;
+    if (m != r_.modo()) r_.setModo(m);
+    for (int i = 0; i < 7; ++i) if (m == kModos[i]) r_.setBanda(kBwPadrao[i]);   // largura padrao mesmo sem trocar de modo
+    muteAte_ = agoraS() + 0.25;
+    sintonizar(hz, false);
 }
 
 void Ui::espectro(float x, float y, float w, float h)
@@ -1449,8 +1561,8 @@ void Ui::cachoeira(float x, float y, float w, float h)
     }
     if (!r_.ligado()) {
         ImGui::PushFont(f_.negrito);
-        const char* msg = r_.temDispositivo() ? "Rádio desligado - clique em OFF para ligar"
-                                              : "Clique em OFF para ligar (ou escolha o aparelho em CONFIGURAÇÃO)";
+        const char* msg = r_.temDispositivo() ? T("Rádio desligado - clique em OFF para ligar")
+                                              : T("Clique em OFF para ligar (ou escolha o aparelho em CONFIGURAÇÃO)");
         const ImVec2 ts = ImGui::CalcTextSize(msg);
         dl->AddText(ImVec2(x + (w - ts.x) * 0.5f, y + h * 0.4f), C_DIM, msg);
         ImGui::PopFont();
@@ -1470,17 +1582,17 @@ void Ui::rodape(float y, float h)
     char b[512];
     const double span = taxaMostrada_ / (1.0 + zoom_);
     std::snprintf(b, sizeof b,
-        "%s  |  %s  |  Q: %s  |  Span: %.0f kHz  |  FFT %d  |  Sinal: %.1f dB (SQL %s)  |  %s %s  |  %.3f Msps  |  CPU %.0f%%",
+        T("%s  |  %s  |  Q: %s  |  Span: %.0f kHz  |  FFT %d  |  Sinal: %.1f dB (SQL %s)  |  %s %s  |  %.3f Msps  |  CPU %.0f%%"),
         fmtFreq(r_.vfo()).c_str(), r_.modo().c_str(), r_.qAtivo() ? "ON (HF)" : "OFF",
-        span / 1000.0, (int)fft_.bins.size(), peakDb_, sqlAberto_ ? "aberto" : "fechado",
-        r_.temDispositivo() ? r_.tipo().c_str() : "sem aparelho", r_.serial().c_str(),
+        span / 1000.0, (int)fft_.bins.size(), peakDb_, sqlAberto_ ? T("aberto") : T("fechado"),
+        r_.temDispositivo() ? r_.tipo().c_str() : T("sem aparelho"), r_.serial().c_str(),
         r_.taxa() / 1e6, cpu_);
     ImGui::PushFont(f_.pequena);
     const float ty = y + (h - ImGui::GetFontSize()) * 0.5f;
     dl->AddText(ImVec2(8 * s_, ty), C_RX, b);
     char sm[128];
-    if (som.ativo()) std::snprintf(sm, sizeof sm, "Som: fila %d ms | ajuste x%.3f | faltas %d", som.filaMs(), som.passo(), som.faltas());
-    else std::snprintf(sm, sizeof sm, "Som: placa de som não abriu");
+    if (som.ativo()) std::snprintf(sm, sizeof sm, T("Som: fila %d ms | ajuste x%.3f | faltas %d"), som.filaMs(), som.passo(), som.faltas());
+    else std::snprintf(sm, sizeof sm, T("Som: placa de som não abriu"));
     const ImVec2 ts = ImGui::CalcTextSize(sm);
     dl->AddText(ImVec2(W - ts.x - 8 * s_, ty), som.faltas() > 0 ? C_WARN : IM_COL32(0x7f, 0xb0, 0xff, 255), sm);
     ImGui::PopFont();
@@ -1571,8 +1683,8 @@ void Ui::ligarDesligar()
 {
     std::string e;
     if (!r_.ligar(!r_.ligado(), e)) {
-        erro_ = "Não foi possível ligar: " + e + "\n\nConfira o aparelho em CONFIGURAÇÃO. No RTL-SDR o driver WinUSB "
-                "tem de estar instalado (Zadig), como no SDR#.";
+        erro_ = T("Não foi possível ligar: ") + e + T("\n\nConfira o aparelho em CONFIGURAÇÃO. No RTL-SDR o driver WinUSB "
+                "tem de estar instalado (Zadig), como no SDR#.");
         erroAte_ = agoraS() + 8;
     } else if (r_.ligado()) {
         muteAte_ = agoraS() + 0.4;
@@ -1637,7 +1749,7 @@ void Ui::padrao()
         c.salvar();
         padraoMsg_ = "OK";
     } else {
-        padraoMsg_ = "SEM SINAL";
+        padraoMsg_ = T("SEM SINAL");
     }
     padraoMsgAte_ = agoraS() + 1.2;
 }
@@ -1791,32 +1903,32 @@ void Ui::janelaConfig()
 {
     ImGui::SetNextWindowSize(ImVec2(520 * s_, 0), ImGuiCond_Appearing);
     ImGui::SetNextWindowPos(ImGui::GetIO().DisplaySize * 0.5f, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-    if (!ImGui::Begin("Configuração", &cfgAberta_, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (!ImGui::Begin(T("Configuração###cfg"), &cfgAberta_, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize)) {
         ImGui::End(); return;
     }
     const float lw = 170 * s_;
     auto rot = [&](const char* t) { ImGui::AlignTextToFramePadding(); ImGui::TextUnformatted(t); ImGui::SameLine(lw); ImGui::SetNextItemWidth(300 * s_); };
 
-    ImGui::SeparatorText("Aparelho");
-    const char* tipos[] = {"RTL-SDR (USB)", "RTL-TCP (rede)", "SDRplay"};
-    rot("Tipo");
+    ImGui::SeparatorText(T("Aparelho"));
+    const char* tipos[] = {"RTL-SDR (USB)", T("RTL-TCP (rede)"), "SDRplay"};
+    rot(T("Tipo"));
     if (ImGui::Combo("##tipo", &cfgTipo_, tipos, 3) && cfgTipo_ == 2) {
         // SDRplay escolhido agora: procura os aparelhos dela (so aqui carrega a API)
         auto extra = Radio::listar("rtlsdr", "-", true);
         for (const auto& d : extra) if (d.tipo == "sdrplay") lista_.push_back(d);
     }
     if (cfgTipo_ == 1) {
-        rot("Endereço (IP)"); ImGui::InputText("##host", cfgHost_, sizeof cfgHost_);
-        rot("Porta"); ImGui::InputInt("##porta", &cfgPorta_, 0);
+        rot(T("Endereço (IP)")); ImGui::InputText("##host", cfgHost_, sizeof cfgHost_);
+        rot(T("Porta")); ImGui::InputInt("##porta", &cfgPorta_, 0);
     } else {
         const std::string alvo = cfgTipo_ == 0 ? "rtlsdr" : "sdrplay";
         std::vector<int> idx;
         for (int i = 0; i < (int)lista_.size(); ++i) if (lista_[i].tipo == alvo) idx.push_back(i);
-        std::string atual = idx.empty() ? std::string("(nenhum encontrado)") : std::string();
+        std::string atual = idx.empty() ? std::string(T("(nenhum encontrado)")) : std::string();
         int sel = 0;
         for (int k = 0; k < (int)idx.size(); ++k) if (idx[k] == cfgDisp_) sel = k;
         if (!idx.empty()) atual = lista_[idx[sel]].nome + "  [" + lista_[idx[sel]].serial + "]";
-        rot("Dispositivo");
+        rot(T("Dispositivo"));
         if (ImGui::BeginCombo("##disp", atual.c_str())) {
             for (int k = 0; k < (int)idx.size(); ++k) {
                 const auto& d = lista_[idx[k]];
@@ -1826,68 +1938,68 @@ void Ui::janelaConfig()
             ImGui::EndCombo();
         }
         ImGui::SameLine();
-        if (ImGui::Button("Procurar")) {
+        if (ImGui::Button(T("Procurar"))) {
             lista_ = Radio::listar(r_.temDispositivo() ? r_.tipo() : std::string(), r_.serial(), cfgTipo_ == 2);
             if (r_.temDispositivo() && r_.tipo() != "rtltcp") {
                 bool achou = false;
                 for (const auto& d : lista_) if (d.tipo == r_.tipo() && d.serial == r_.serial()) achou = true;
-                if (!achou) lista_.insert(lista_.begin(), DispositivoInfo{r_.tipo(), r_.serial(), "(em uso)"});
+                if (!achou) lista_.insert(lista_.begin(), DispositivoInfo{r_.tipo(), r_.serial(), T("(em uso)")});
             }
         }
     }
 
-    ImGui::SeparatorText("Recepção");
+    ImGui::SeparatorText(T("Recepção"));
     char tx[64];
     std::snprintf(tx, sizeof tx, "%.3f Msps", kTaxas[cfgTaxa_] / 1e6);
-    rot("Taxa de amostragem");
+    rot(T("Taxa de amostragem"));
     if (ImGui::BeginCombo("##taxa", tx)) {
         for (int i = 0; i < (int)(sizeof kTaxas / sizeof kTaxas[0]); ++i) {
-            std::snprintf(tx, sizeof tx, "%.3f Msps (janela de %.3f MHz)", kTaxas[i] / 1e6, kTaxas[i] / 1e6);
+            std::snprintf(tx, sizeof tx, T("%.3f Msps (janela de %.3f MHz)"), kTaxas[i] / 1e6, kTaxas[i] / 1e6);
             if (ImGui::Selectable(tx, i == cfgTaxa_)) cfgTaxa_ = i;
         }
         ImGui::EndCombo();
     }
-    const char* qs[] = {"Desligada (VHF/UHF)", "Ligada (HF)", "Automática (abaixo de 24 MHz)"};
-    rot("Amostragem direta (Q)"); ImGui::Combo("##q", &cfgQ_, qs, 3);
+    const char* qs[] = {T("Desligada (VHF/UHF)"), T("Ligada (HF)"), T("Automática (abaixo de 24 MHz)")};
+    rot(T("Amostragem direta (Q)")); ImGui::Combo("##q", &cfgQ_, qs, 3);
     const char* ffts[] = {"1024", "2048", "4096", "8192", "16384"};
-    rot("Tamanho da FFT"); ImGui::Combo("##fft", &cfgFft_, ffts, 5);
+    rot(T("Tamanho da FFT")); ImGui::Combo("##fft", &cfgFft_, ffts, 5);
     if (cfgTipo_ != 2) {
-        rot("AGC do dongle"); ImGui::Checkbox("##agc", &cfgAgc_);
-        if (!cfgAgc_) { rot("Ganho (dB)"); ImGui::SliderFloat("##g", &cfgGanho_, 0, 49.6f, "%.1f dB"); }
-        rot("Correção PPM");
+        rot(T("AGC do dongle")); ImGui::Checkbox("##agc", &cfgAgc_);
+        if (!cfgAgc_) { rot(T("Ganho (dB)")); ImGui::SliderFloat("##g", &cfgGanho_, 0, 49.6f, "%.1f dB"); }
+        rot(T("Correção PPM"));
         ImGui::SetNextItemWidth(190 * s_);
         ImGui::SliderInt("##ppm", &cfgPpm_, -150, 150, "");
         ImGui::SameLine();
         ImGui::SetNextItemWidth(102 * s_);
         if (ImGui::InputInt("##ppmn", &cfgPpm_, 1, 10)) cfgPpm_ = std::clamp(cfgPpm_, -150, 150);
-        rot("Bias-T (alimenta LNA)"); ImGui::Checkbox("##bias", &cfgBias_);
+        rot(T("Bias-T (alimenta LNA)")); ImGui::Checkbox("##bias", &cfgBias_);
     } else {
         rot("LNA (0-9)"); ImGui::SliderInt("##lna", &cfgLna_, 0, 9);
-        rot("Ganho FI (dB)"); ImGui::SliderInt("##ifg", &cfgIfGain_, 20, 59);
-        rot("AGC da FI"); ImGui::Checkbox("##ifagc", &cfgIfAgc_);
+        rot(T("Ganho FI (dB)")); ImGui::SliderInt("##ifg", &cfgIfGain_, 20, 59);
+        rot(T("AGC da FI")); ImGui::Checkbox("##ifagc", &cfgIfAgc_);
     }
-    ImGui::SeparatorText("Som");
+    ImGui::SeparatorText(T("Som"));
     {
-        const char* atual = cfgSaida_ <= 0 || cfgSaida_ > (int)saidas_.size() ? "Padrão do Windows" : saidas_[cfgSaida_ - 1].c_str();
-        rot("Placa de som (saída)");
+        const char* atual = cfgSaida_ <= 0 || cfgSaida_ > (int)saidas_.size() ? T("Padrão do Windows") : saidas_[cfgSaida_ - 1].c_str();
+        rot(T("Placa de som (saída)"));
         if (ImGui::BeginCombo("##saida", atual)) {
-            if (ImGui::Selectable("Padrão do Windows", cfgSaida_ == 0)) cfgSaida_ = 0;
+            if (ImGui::Selectable(T("Padrão do Windows"), cfgSaida_ == 0)) cfgSaida_ = 0;
             for (int i = 0; i < (int)saidas_.size(); ++i)
                 if (ImGui::Selectable(saidas_[i].c_str(), cfgSaida_ == i + 1)) cfgSaida_ = i + 1;
             ImGui::EndCombo();
         }
     }
     ImGui::SeparatorText("S-meter");
-    rot("Referência S9 em HF"); ImGui::SliderInt("##s9h", &cfgS9Hf_, -120, -50, "%d dBm");
-    rot("Referência S9 em VHF"); ImGui::SliderInt("##s9v", &cfgS9Vhf_, -120, -50, "%d dBm");
-    rot("Retorno do ponteiro");
+    rot(T("Referência S9 em HF")); ImGui::SliderInt("##s9h", &cfgS9Hf_, -120, -50, "%d dBm");
+    rot(T("Referência S9 em VHF")); ImGui::SliderInt("##s9v", &cfgS9Vhf_, -120, -50, "%d dBm");
+    rot(T("Retorno do ponteiro"));
     if (ImGui::SliderFloat("##smret", &smRetorno_, 0.1f, 5.f, "%.1f s")) {
         Config::instance().set("smeter_retorno", (double)smRetorno_);
         if (!ImGui::IsItemActive()) Config::instance().salvar();
     }
     if (ImGui::IsItemDeactivatedAfterEdit()) Config::instance().salvar();
-    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Quanto tempo o ponteiro leva para voltar quando o sinal some\n"
-                                                  "(ex.: quando o squelch fecha em NFM). Mais alto = volta mais devagar.");
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip(T("Quanto tempo o ponteiro leva para voltar quando o sinal some\n"
+                                                  "(ex.: quando o squelch fecha em NFM). Mais alto = volta mais devagar."));
 
     // ---- Ajustes ao vivo: Recepcao, Som e S-meter valem enquanto se mexe ----
     {
@@ -1908,7 +2020,7 @@ void Ui::janelaConfig()
         auto t = tcpTeste_; tcpTeste_.reset();
         if (t->estado.load() > 0) {
             if (trocarAparelho("rtltcp", tcpTesteAlvo_)) {
-                erro_ = "Conectado ao rtl_tcp " + tcpTesteAlvo_ + (t->info.empty() ? "" : "  (" + t->info + ")");
+                erro_ = T("Conectado ao rtl_tcp ") + tcpTesteAlvo_ + (t->info.empty() ? "" : "  (" + t->info + ")");
                 erroAte_ = agoraS() + 4;
                 cfgAberta_ = false;
             }
@@ -1920,7 +2032,7 @@ void Ui::janelaConfig()
 
     ImGui::Separator();
     ImGui::BeginDisabled(testando);
-    if (ImGui::Button(testando ? "Conectando..." : "Aplicar", ImVec2(120 * s_, 0))) {
+    if (ImGui::Button(testando ? T("Conectando...") : T("Aplicar"), ImVec2(120 * s_, 0))) {
         auto& c = Config::instance();
         gravarAjustes();
         const std::string tipoNovo = cfgTipo_ == 0 ? "rtlsdr" : cfgTipo_ == 1 ? "rtltcp" : "sdrplay";
@@ -1962,14 +2074,14 @@ void Ui::janelaConfig()
                 t->erro = e; t->info = info;
                 t->estado.store(ok ? 1 : -1);
             }).detach();
-            cfgMsg_ = "Conectando a " + serialNovo + " ..."; cfgMsgErro_ = false;
+            cfgMsg_ = T("Conectando a ") + serialNovo + " ..."; cfgMsgErro_ = false;
         } else if (trocarAparelho(tipoNovo, serialNovo)) {
             cfgAberta_ = false;
         }
     }
     ImGui::EndDisabled();
     ImGui::SameLine();
-    if (ImGui::Button("Fechar", ImVec2(120 * s_, 0))) { Config::instance().salvar(); cfgAberta_ = false; }
+    if (ImGui::Button(T("Fechar"), ImVec2(120 * s_, 0))) { Config::instance().salvar(); cfgAberta_ = false; }
     ImGui::SameLine();
     ImGui::TextDisabled("  %s", Config::instance().caminho().c_str());
     ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + 490 * s_);
@@ -1978,8 +2090,8 @@ void Ui::janelaConfig()
         ImGui::TextWrapped("%s", cfgMsg_.c_str());
         ImGui::PopStyleColor();
     }
-    ImGui::TextDisabled("Recepção, Som e S-meter valem na hora, enquanto você mexe. "
-                        "\"Aplicar\" só é preciso para trocar de aparelho ou de endereço.");
+    ImGui::TextDisabled(T("Recepção, Som e S-meter valem na hora, enquanto você mexe. "
+                        "\"Aplicar\" só é preciso para trocar de aparelho ou de endereço."));
     ImGui::PopTextWrapPos();
     ImGui::End();
 }
@@ -2006,7 +2118,7 @@ bool Ui::trocarAparelho(const std::string& tipo, const std::string& serial)
 {
     std::string e;
     if (!r_.selecionar(tipo, serial, e)) {
-        cfgMsg_ = "Não foi possível abrir o aparelho: " + e; cfgMsgErro_ = true;
+        cfgMsg_ = T("Não foi possível abrir o aparelho: ") + e; cfgMsgErro_ = true;
         return false;
     }
     r_.ligar(true, e);
@@ -2146,16 +2258,16 @@ bool Ui::passaFiltro(const Memoria& m) const
 void Ui::menuMemorias()
 {
     if (!ImGui::BeginPopup("menuMem")) return;
-    if (ImGui::MenuItem("Criar a partir do VFO atual")) {
+    if (ImGui::MenuItem(T("Criar a partir do VFO atual"))) {
         memAberta_ = true;
         std::snprintf(memNome_, sizeof memNome_, "%s %s", fmtFreq(r_.vfo()).c_str(), r_.modo().c_str());
     }
-    if (ImGui::MenuItem("Editar / excluir…")) memAberta_ = true;
+    if (ImGui::MenuItem(T("Editar / excluir…"))) memAberta_ = true;
     ImGui::Separator();
     for (int i = 0; i < 5; ++i)
-        if (ImGui::MenuItem(kFiltrosMem[i], nullptr, memFiltroTipo_ == i)) { memFiltroTipo_ = i; memVisivel_ = true; }
+        if (ImGui::MenuItem(T(kFiltrosMem[i]), nullptr, memFiltroTipo_ == i)) { memFiltroTipo_ = i; memVisivel_ = true; }
     ImGui::Separator();
-    if (ImGui::MenuItem(memVisivel_ ? "Ocultar a régua" : "Mostrar a régua")) memVisivel_ = !memVisivel_;
+    if (ImGui::MenuItem(memVisivel_ ? T("Ocultar a régua") : T("Mostrar a régua"))) memVisivel_ = !memVisivel_;
     ImGui::EndPopup();
 }
 
@@ -2213,27 +2325,31 @@ void Ui::janelaMemorias()
 {
     ImGui::SetNextWindowSize(ImVec2(560 * s_, 460 * s_), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowPos(ImGui::GetIO().DisplaySize * 0.5f, ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
-    if (!ImGui::Begin("Memórias", &memAberta_, ImGuiWindowFlags_NoCollapse)) { ImGui::End(); return; }
-    ImGui::Checkbox("Mostrar os nomes em cima do espectro", &memVisivel_);
+    if (!ImGui::Begin(T("Memórias###mem"), &memAberta_, ImGuiWindowFlags_NoCollapse)) { ImGui::End(); return; }
+    ImGui::Checkbox(T("Mostrar os nomes em cima do espectro"), &memVisivel_);
     ImGui::SameLine();
     ImGui::SetNextItemWidth(230 * s_);
-    ImGui::Combo("##filtroTipo", &memFiltroTipo_, kFiltrosMem, 5);
+    {
+        const char* filtros[5];
+        for (int i = 0; i < 5; ++i) filtros[i] = T(kFiltrosMem[i]);
+        ImGui::Combo("##filtroTipo", &memFiltroTipo_, filtros, 5);
+    }
     ImGui::SetNextItemWidth(260 * s_);
-    ImGui::InputTextWithHint("##filtro", "procurar (nome ou kHz)", memFiltro_, sizeof memFiltro_);
+    ImGui::InputTextWithHint("##filtro", T("procurar (nome ou kHz)"), memFiltro_, sizeof memFiltro_);
     ImGui::SameLine();
-    ImGui::TextDisabled("%d memórias", (int)mem_.size());
+    ImGui::TextDisabled(T("%d memórias"), (int)mem_.size());
 
     // nova memoria com a sintonia atual
     ImGui::SetNextItemWidth(260 * s_);
-    ImGui::InputTextWithHint("##nome", "nome para a frequência atual", memNome_, sizeof memNome_);
+    ImGui::InputTextWithHint("##nome", T("nome para a frequência atual"), memNome_, sizeof memNome_);
     ImGui::SameLine();
-    if (ImGui::Button("Salvar atual") && memNome_[0]) {
+    if (ImGui::Button(T("Salvar atual")) && memNome_[0]) {
         Memoria m; m.nome = memNome_; m.f = r_.vfo(); m.modo = r_.modo();
         mem_.insert(std::upper_bound(mem_.begin(), mem_.end(), m, [](const Memoria& a, const Memoria& b) { return a.f < b.f; }), m);
         memNome_[0] = 0; memSujo_ = true; salvarMemorias();
     }
     ImGui::SameLine();
-    if (ImGui::Button("Apagar selecionada") && memSel_ >= 0 && memSel_ < (int)mem_.size()) {
+    if (ImGui::Button(T("Apagar selecionada")) && memSel_ >= 0 && memSel_ < (int)mem_.size()) {
         mem_.erase(mem_.begin() + memSel_); memSel_ = -1; memSujo_ = true; salvarMemorias();
     }
     ImGui::Separator();
@@ -2242,9 +2358,9 @@ void Ui::janelaMemorias()
     for (auto& c : filtro) c = (char)std::tolower((unsigned char)c);
     if (ImGui::BeginTable("##mem", 3, ImGuiTableFlags_ScrollY | ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_Resizable)) {
         ImGui::TableSetupScrollFreeze(0, 1);
-        ImGui::TableSetupColumn("Nome", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn(T("Nome"), ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableSetupColumn("kHz", ImGuiTableColumnFlags_WidthFixed, 110 * s_);
-        ImGui::TableSetupColumn("Modo", ImGuiTableColumnFlags_WidthFixed, 50 * s_);
+        ImGui::TableSetupColumn(T("Modo"), ImGuiTableColumnFlags_WidthFixed, 50 * s_);
         ImGui::TableHeadersRow();
         std::vector<int> lista;
         for (int i = 0; i < (int)mem_.size(); ++i) {
@@ -2291,7 +2407,7 @@ void Ui::alternarGravacao()
     static std::string arquivo;
     if (som.gravando()) {
         som.pararGravacao();
-        erro_ = "Gravação salva em:\n" + arquivo;
+        erro_ = T("Gravação salva em:\n") + arquivo;
         erroAte_ = agoraS() + 5;
         return;
     }
@@ -2305,7 +2421,7 @@ void Ui::alternarGravacao()
                   r_.vfo() / 1000.0, r_.modo().c_str());
     arquivo = pasta + nome;
     if (!som.gravar(arquivo)) {
-        erro_ = "Não foi possível criar o arquivo de gravação:\n" + arquivo;
+        erro_ = T("Não foi possível criar o arquivo de gravação:\n") + arquivo;
         erroAte_ = agoraS() + 6;
     }
 }
@@ -2313,19 +2429,19 @@ void Ui::alternarGravacao()
 void Ui::janelaSobre()
 {
     ImGui::SetNextWindowPos(ImGui::GetIO().DisplaySize * 0.5f, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-    if (!ImGui::Begin("Sobre", &sobreAberta_, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (!ImGui::Begin(T("Sobre###sobre"), &sobreAberta_, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize)) {
         ImGui::End(); return;
     }
     ImGui::PushFont(f_.negrito);
     ImGui::TextColored(ImVec4(0, 0.83f, 0.83f, 1), "RXSDR Nativo v" RXSDR_VERSAO);
     ImGui::PopFont();
-    ImGui::TextUnformatted("Receptor SDR que roda inteiro no Windows (7, 8, 10 e 11), sem navegador.");
-    ImGui::TextUnformatted("Portátil: não precisa instalar - a configuração fica no RXSDR.ini ao lado do programa.");
-    ImGui::TextUnformatted("RTL-SDR, RTL-TCP e SDRplay.  Por PU1XTB.");
+    ImGui::TextUnformatted(T("Receptor SDR que roda inteiro no Windows (7, 8, 10 e 11), sem navegador."));
+    ImGui::TextUnformatted(T("Portátil: não precisa instalar - a configuração fica no RXSDR.ini ao lado do programa."));
+    ImGui::TextUnformatted(T("RTL-SDR, RTL-TCP e SDRplay.  Por PU1XTB."));
     ImGui::Spacing();
-    ImGui::TextUnformatted("Licença: uso livre e NÃO COMERCIAL, mantendo o crédito ao autor (LICENSE.txt).");
-    ImGui::TextDisabled("Decodificadores da pasta decoders: de outros autores, com a licença de cada um (TERCEIROS.txt).");
-    ImGui::TextDisabled("Tela: Dear ImGui (MIT).  Imagens: stb_image (domínio público).");
+    ImGui::TextUnformatted(T("Licença: uso livre e NÃO COMERCIAL, mantendo o crédito ao autor (LICENSE.txt)."));
+    ImGui::TextDisabled(T("Decodificadores da pasta decoders: de outros autores, com a licença de cada um (TERCEIROS.txt)."));
+    ImGui::TextDisabled(T("Tela: Dear ImGui (MIT).  Imagens: stb_image (domínio público)."));
     ImGui::End();
 }
 
@@ -2710,12 +2826,12 @@ const CanalDec kCanaisDsc[] = {
 // 1500 Hz abaixo. A Marinha do Brasil (Rio) transmite meteoromarinha e avisos assim.
 const CanalDec kCanaisPactor[] = {
     {12566700, "0000-2400   12566,7 kHz - Marinha do Brasil (PWPU)", 100, 200, false, "0000-2400", "Marinha do Brasil (PWPU)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0600-2400"},
-    {6448000, "0230-0330   6448 kHz - Marinha do Brasil (Rio)", 100, 200, false, "0230-0330", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
+    {6450000, "0230-0330   6450 kHz - Marinha do Brasil (Rio)", 100, 200, false, "0230-0330", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)\nNa lista constava 6448 kHz; o sinal sai em 6450 kHz (medido no RXSDR em 06/10/2026: tons em 6449,9 e 6450,1 kHz)"},
     {8580000, "0230-0330   8580 kHz - Marinha do Brasil (Rio) - principal", 100, 200, false, "0230-0330", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
     {12709000, "0230-0330   12709 kHz - Marinha do Brasil (Rio)", 100, 200, false, "0230-0330", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
     {16974000, "0230-0330   16974 kHz - Marinha do Brasil (Rio)", 100, 200, false, "0230-0330", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
     {8582000, "0230-0350   8582 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", 100, 200, false, "0230-0350", "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0400-0515, 0600-0715, 1430-1545, 1930-2230"},
-    {6448000, "0400-0445   6448 kHz - Marinha do Brasil (Rio)", 100, 200, false, "0400-0445", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
+    {6450000, "0400-0445   6450 kHz - Marinha do Brasil (Rio)", 100, 200, false, "0400-0445", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)\nNa lista constava 6448 kHz; o sinal sai em 6450 kHz (medido no RXSDR em 06/10/2026: tons em 6449,9 e 6450,1 kHz)"},
     {8580000, "0400-0445   8580 kHz - Marinha do Brasil (Rio) - principal", 100, 200, false, "0400-0445", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
     {12709000, "0400-0445   12709 kHz - Marinha do Brasil (Rio)", 100, 200, false, "0400-0445", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
     {16974000, "0400-0445   16974 kHz - Marinha do Brasil (Rio)", 100, 200, false, "0400-0445", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
@@ -2725,7 +2841,7 @@ const CanalDec kCanaisPactor[] = {
     {8582000, "0400-0515   8582 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", 100, 200, false, "0400-0515", "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0230-0350, 0600-0715, 1430-1545, 1930-2230"},
     {6450000, "0600-0715   6450 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", 100, 200, false, "0600-0715", "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0400-0515, 1430-1545, 1930-2200"},
     {8582000, "0600-0715   8582 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", 100, 200, false, "0600-0715", "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0230-0350, 0400-0515, 1430-1545, 1930-2230"},
-    {6448000, "0600-0730   6448 kHz - Marinha do Brasil (Rio)", 100, 200, false, "0600-0730", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
+    {6450000, "0600-0730   6450 kHz - Marinha do Brasil (Rio)", 100, 200, false, "0600-0730", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)\nNa lista constava 6448 kHz; o sinal sai em 6450 kHz (medido no RXSDR em 06/10/2026: tons em 6449,9 e 6450,1 kHz)"},
     {8580000, "0600-0730   8580 kHz - Marinha do Brasil (Rio) - principal", 100, 200, false, "0600-0730", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
     {12709000, "0600-0730   12709 kHz - Marinha do Brasil (Rio)", 100, 200, false, "0600-0730", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
     {16974000, "0600-0730   16974 kHz - Marinha do Brasil (Rio)", 100, 200, false, "0600-0730", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
@@ -2737,7 +2853,7 @@ const CanalDec kCanaisPactor[] = {
     {8582000, "1430-1545   8582 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", 100, 200, false, "1430-1545", "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0230-0350, 0400-0515, 0600-0715, 1930-2230"},
     {12731000, "1430-1545   12731 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", 100, 200, false, "1430-1545", "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 1930-2155"},
     {16984000, "1600-1800   16984 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", 100, 200, false, "1600-1800", "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0800-0830, 1930-2155"},
-    {6448000, "1845-1930   6448 kHz - Marinha do Brasil (Rio)", 100, 200, false, "1845-1930", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
+    {6450000, "1845-1930   6450 kHz - Marinha do Brasil (Rio)", 100, 200, false, "1845-1930", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)\nNa lista constava 6448 kHz; o sinal sai em 6450 kHz (medido no RXSDR em 06/10/2026: tons em 6449,9 e 6450,1 kHz)"},
     {8580000, "1845-1930   8580 kHz - Marinha do Brasil (Rio) - principal", 100, 200, false, "1845-1930", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
     {12709000, "1845-1930   12709 kHz - Marinha do Brasil (Rio)", 100, 200, false, "1845-1930", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
     {16974000, "1845-1930   16974 kHz - Marinha do Brasil (Rio)", 100, 200, false, "1845-1930", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
@@ -2748,7 +2864,7 @@ const CanalDec kCanaisPactor[] = {
     {6450000, "1930-2200   6450 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", 100, 200, false, "1930-2200", "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0400-0515, 0600-0715, 1430-1545"},
     {8570000, "1930-2200   8570 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", 100, 200, false, "1930-2200", "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0400-0515"},
     {8582000, "1930-2230   8582 kHz - Marinha do Brasil - Rio de Janeiro (PWZ33)", 100, 200, false, "1930-2230", "Marinha do Brasil - Rio de Janeiro (PWZ33)\nPACTOR-I 100 baud, shift 200 Hz (meteoromarinha / avisos)\n\nOutros horários nesta frequência: 0230-0350, 0400-0515, 0600-0715, 1430-1545"},
-    {6448000, "2130-2215   6448 kHz - Marinha do Brasil (Rio)", 100, 200, false, "2130-2215", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
+    {6450000, "2130-2215   6450 kHz - Marinha do Brasil (Rio)", 100, 200, false, "2130-2215", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)\nNa lista constava 6448 kHz; o sinal sai em 6450 kHz (medido no RXSDR em 06/10/2026: tons em 6449,9 e 6450,1 kHz)"},
     {8580000, "2130-2215   8580 kHz - Marinha do Brasil (Rio) - principal", 100, 200, false, "2130-2215", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
     {12709000, "2130-2215   12709 kHz - Marinha do Brasil (Rio)", 100, 200, false, "2130-2215", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
     {16974000, "2130-2215   16974 kHz - Marinha do Brasil (Rio)", 100, 200, false, "2130-2215", "Estação Rádio da Marinha no Rio de Janeiro (NAVAREA V), em USB:\nAvisos-Rádio Náuticos e SAR: 0400-0445 e 2130-2215\nMeteoromarinha: 0230-0330, 0600-0730 e 1845-1930\n(PACTOR-I - antes estava na lista do SITOR-B)"},
@@ -3042,7 +3158,9 @@ bool buscaBate(uint64_t hzCanal, const std::string& texto, const std::string& bu
 bool canalPassaBusca(const CanalDec& c, const std::string& busca)
 {
     if (busca.empty()) return true;
-    return buscaBate(c.hz, std::string(c.nome ? c.nome : "") + "\n" + (c.dica ? c.dica : ""), busca);
+    std::string t = std::string(c.nome ? c.nome : "") + "\n" + (c.dica ? c.dica : "");
+    if (emIngles()) t += "\n" + std::string(TL(c.nome)) + "\n" + TL(c.dica);   // acha tambem pelo texto em ingles
+    return buscaBate(c.hz, t, busca);
 }
 
 // Campo de busca no topo de uma lista aberta (combo): limpa e recebe o cursor
@@ -3061,22 +3179,22 @@ std::string campoBuscaLista(const char* dica)
 void resultadoBusca(const std::string& q, int achados)
 {
     if (q.empty()) return;
-    if (achados) ImGui::TextColored(ImVec4(0.3f, 1.f, 0.5f, 1), "%d na lista com \"%s\"", achados, q.c_str());
-    else ImGui::TextColored(ImVec4(1.f, 0.55f, 0.3f, 1), "\"%s\" não está na lista", q.c_str());
+    if (achados) ImGui::TextColored(ImVec4(0.3f, 1.f, 0.5f, 1), T("%d na lista com \"%s\""), achados, q.c_str());
+    else ImGui::TextColored(ImVec4(1.f, 0.55f, 0.3f, 1), T("\"%s\" não está na lista"), q.c_str());
 }
 
 template <size_t N>
 bool comboCanal(const char* id, const CanalDec (&c)[N], int& sel, bool comBusca = true)
 {
     bool mudou = false;
-    const char* prev = sel >= 0 && sel < (int)N ? c[sel].nome : "- escolha para sintonizar -";
+    const char* prev = sel >= 0 && sel < (int)N ? TL(c[sel].nome) : T("- escolha para sintonizar -");
     if (ImGui::BeginCombo(id, prev, ImGuiComboFlags_HeightLarge)) {
         // ao abrir, a lista (em ordem de horario UTC) rola ate o escolhido ou,
         // sem escolha, ate as transmissoes que comecam agora (meia hora atras em diante)
         bool rolar = ImGui::IsWindowAppearing();
         std::string q;
         if (comBusca) {
-            q = campoBuscaLista("buscar: frequência (8416,5 ou 8.416.5) ou nome (argentina)");
+            q = campoBuscaLista(T("buscar: frequência (8416,5 ou 8.416.5) ou nome (argentina)"));
             if (!q.empty()) {
                 int achados = 0;
                 for (int i = 0; i < (int)N; ++i) if (c[i].hz != 0 && canalPassaBusca(c[i], q)) ++achados;
@@ -3089,7 +3207,7 @@ bool comboCanal(const char* id, const CanalDec (&c)[N], int& sel, bool comBusca 
         SYSTEMTIME st; GetSystemTime(&st);
         const int agora = st.wHour * 60 + st.wMinute;
         for (int i = 0; i < (int)N; ++i) {
-            if (c[i].hz == 0) { if (q.empty()) ImGui::SeparatorText(c[i].nome); continue; }   // titulo de grupo
+            if (c[i].hz == 0) { if (q.empty()) ImGui::SeparatorText(TL(c[i].nome)); continue; }   // titulo de grupo
             if (!q.empty() && !canalPassaBusca(c[i], q)) continue;
             const bool noAr = canalNoAr(c[i].hor);
             int hi = -1, ini = -1;
@@ -3097,11 +3215,11 @@ bool comboCanal(const char* id, const CanalDec (&c)[N], int& sel, bool comBusca 
             if (rolar && (sel >= 0 ? i == sel : ini >= agora - 30)) { ImGui::SetScrollHereY(0.1f); rolar = false; }
             if (noAr) ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 1.f, 0.5f, 1));
             ImGui::PushID(i);
-            if (ImGui::Selectable(c[i].nome, sel == i)) { sel = i; mudou = true; }
+            if (ImGui::Selectable(TL(c[i].nome), sel == i)) { sel = i; mudou = true; }
             ImGui::PopID();
             if (noAr) ImGui::PopStyleColor();
             if (c[i].dica && *c[i].dica && ImGui::IsItemHovered())
-                ImGui::SetTooltip("%s%s(horarios em UTC)", c[i].dica, noAr ? "\n\nNO AR AGORA pela grade " : "\n\n");
+                ImGui::SetTooltip(T("%s%s(horarios em UTC)"), TL(c[i].dica), noAr ? T("\n\nNO AR AGORA pela grade ") : "\n\n");
         }
         if (comBusca) ImGui::EndChild();
         if (comBusca && mudou) ImGui::CloseCurrentPopup();   // a lista fica numa janela-filha
@@ -3252,8 +3370,8 @@ static std::string rotuloDrm(const EmissoraDrm& e)
 {
     char s[220];
     std::snprintf(s, sizeof s, "%s%5d kHz   %02d:%02d-%02d:%02d UTC   %s - %s (%s)",
-                  drmNoAr(e) ? "\xE2\x97\x8F NO AR  " : "",
-                  e.khz, e.ini / 100, e.ini % 100, e.fim / 100, e.fim % 100, e.nome, e.local, e.lingua);
+                  drmNoAr(e) ? T("\xE2\x97\x8F NO AR  ") : "",
+                  e.khz, e.ini / 100, e.ini % 100, e.fim / 100, e.fim % 100, TL(e.nome), TL(e.local), TL(e.lingua));
     return s;
 }
 
@@ -3368,7 +3486,7 @@ void Ui::tabelaAvioes(const char* id, const std::vector<AeronaveHfdl>& avs)
                                           ImVec2(0, 130 * s_)))
         return;
     ImGui::TableSetupScrollFreeze(0, 1);
-    for (const char* c : {"Voo", "Prefixo", "ICAO", "Canal", "Msgs", "Visto"}) ImGui::TableSetupColumn(c);
+    for (const char* c : {T("Voo"), T("Prefixo"), "ICAO", T("Canal"), "Msgs", T("Visto")}) ImGui::TableSetupColumn(c);
     ImGui::TableHeadersRow();
     const double ta = agoraS();
     auto abrir = [](const std::string& url) { ShellExecuteA(nullptr, "open", url.c_str(), nullptr, nullptr, SW_SHOWNORMAL); };
@@ -3380,13 +3498,13 @@ void Ui::tabelaAvioes(const char* id, const std::vector<AeronaveHfdl>& avs)
         if (a.voo.empty()) ImGui::TextUnformatted("-");
         else {
             if (ImGui::TextLink(a.voo.c_str())) abrir(a.urlVoo());
-            if (ImGui::IsItemHovered()) ImGui::SetTooltip("Abrir o voo no FlightAware\n%s", a.urlVoo().c_str());
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip(T("Abrir o voo no FlightAware\n%s"), a.urlVoo().c_str());
         }
         ImGui::TableSetColumnIndex(1);
         if (a.prefixo.empty()) ImGui::TextUnformatted("-");
         else {
             if (ImGui::TextLink(a.prefixo.c_str())) abrir(a.urlPrefixo());
-            if (ImGui::IsItemHovered()) ImGui::SetTooltip("Abrir o avião no FlightAware\n%s", a.urlPrefixo().c_str());
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip(T("Abrir o avião no FlightAware\n%s"), a.urlPrefixo().c_str());
         }
         ImGui::TableSetColumnIndex(2); ImGui::TextUnformatted(a.hex.empty() ? "-" : a.hex.c_str());
         ImGui::TableSetColumnIndex(3);
@@ -3517,14 +3635,14 @@ void Ui::painelSstv()
 
     // --- linha 1: frequencia, VIS automatico, inclinacao, salvar ---
     ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted("Frequência"); ImGui::SameLine();
+    ImGui::TextUnformatted(T("Frequência")); ImGui::SameLine();
     ImGui::SetNextItemWidth(310 * s_);
     const int nF = (int)(sizeof kFreqSstv / sizeof kFreqSstv[0]);
-    if (ImGui::BeginCombo("##sstvfreq", sstvFreqSel_ >= 0 && sstvFreqSel_ < nF ? kFreqSstv[sstvFreqSel_].nome
-                                                                             : "- escolha para sintonizar -",
+    if (ImGui::BeginCombo("##sstvfreq", sstvFreqSel_ >= 0 && sstvFreqSel_ < nF ? TL(kFreqSstv[sstvFreqSel_].nome)
+                                                                             : T("- escolha para sintonizar -"),
                           ImGuiComboFlags_HeightLarge)) {
         for (int i = 0; i < nF; ++i)
-            if (ImGui::Selectable(kFreqSstv[i].nome, sstvFreqSel_ == i)) {
+            if (ImGui::Selectable(TL(kFreqSstv[i].nome), sstvFreqSel_ == i)) {
                 sstvFreqSel_ = i;
                 const FreqSstv& f = kFreqSstv[i];
                 mudarModo(f.modo);
@@ -3536,21 +3654,21 @@ void Ui::painelSstv()
     }
     ImGui::SameLine();
     bool vis = sv.aceitarVis.load();
-    if (ImGui::Checkbox("VIS automático", &vis)) sv.aceitarVis = vis;
-    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Reconhece o modo pelo cabeçalho VIS e começa a imagem sozinho");
+    if (ImGui::Checkbox(T("VIS automático"), &vis)) sv.aceitarVis = vis;
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip(T("Reconhece o modo pelo cabeçalho VIS e começa a imagem sozinho"));
     ImGui::SameLine();
     bool incl = sv.autoInclinacao.load();
-    if (ImGui::Checkbox("Corrigir inclinação", &incl)) sv.autoInclinacao = incl;
+    if (ImGui::Checkbox(T("Corrigir inclinação"), &incl)) sv.autoInclinacao = incl;
     if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Mede o relógio da placa de som de quem transmite pelos pulsos de 1200 Hz\n"
-                          "e endireita a imagem (sem isso ela sai torta)");
+        ImGui::SetTooltip(T("Mede o relógio da placa de som de quem transmite pelos pulsos de 1200 Hz\n"
+                          "e endireita a imagem (sem isso ela sai torta)"));
     ImGui::SameLine();
-    ImGui::Checkbox("Salvar PNG", &sstvSalvar_);
-    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Cada imagem recebida vai para a pasta SSTV ao lado do RXSDR.exe");
+    ImGui::Checkbox(T("Salvar PNG"), &sstvSalvar_);
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip(T("Cada imagem recebida vai para a pasta SSTV ao lado do RXSDR.exe"));
 
     // --- linha 2: comecar sem VIS, terminar, limpar, pasta ---
     ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted("Modo"); ImGui::SameLine();
+    ImGui::TextUnformatted(T("Modo")); ImGui::SameLine();
     ImGui::SetNextItemWidth(130 * s_);
     sstvModoManual_ = std::clamp(sstvModoManual_, 0, SstvCore::nModos() - 1);
     if (ImGui::BeginCombo("##sstvmodo", SstvCore::nomeModo(sstvModoManual_), ImGuiComboFlags_HeightLarge)) {
@@ -3563,17 +3681,17 @@ void Ui::painelSstv()
         ImGui::EndCombo();
     }
     ImGui::SameLine();
-    if (ImGui::Button("Começar agora")) { if (!decRodando_) escolherDecoder(Decoders::SSTV, false); sv.comecarAgora(sstvModoManual_); }
+    if (ImGui::Button(T("Começar agora"))) { if (!decRodando_) escolherDecoder(Decoders::SSTV, false); sv.comecarAgora(sstvModoManual_); }
     if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Pegou a transmissão no meio (sem o VIS)? Escolha o modo e clique:\n"
-                          "a imagem começa já, alinhada pelos próximos pulsos de sincronismo.");
+        ImGui::SetTooltip(T("Pegou a transmissão no meio (sem o VIS)? Escolha o modo e clique:\n"
+                          "a imagem começa já, alinhada pelos próximos pulsos de sincronismo."));
     ImGui::SameLine();
-    if (ImGui::Button("Terminar")) sv.parar();
-    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Encerra a imagem atual como está (e salva, se tiver pelo menos 1/4)");
+    if (ImGui::Button(T("Terminar"))) sv.parar();
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip(T("Encerra a imagem atual como está (e salva, se tiver pelo menos 1/4)"));
     ImGui::SameLine();
-    if (ImGui::Button("Limpar imagem")) sv.limpar();
+    if (ImGui::Button(T("Limpar imagem"))) sv.limpar();
     ImGui::SameLine();
-    if (ImGui::Button("Abrir pasta SSTV")) {
+    if (ImGui::Button(T("Abrir pasta SSTV"))) {
         const std::string pasta = pastaDoExe() + "\\SSTV";
         CreateDirectoryA(pasta.c_str(), nullptr);
         ShellExecuteA(nullptr, "open", pasta.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
@@ -3596,7 +3714,7 @@ void Ui::painelSstv()
         dl->AddRectFilled(a, b, IM_COL32(0x08, 0x08, 0x08, 255));
         if (sstvTex_ && sstvW_ > 0) dl->AddImage(TEXID(sstvTex_), a, b);
         else {
-            const char* msg = decRodando_ ? "esperando uma imagem..." : "decodificador parado";
+            const char* msg = decRodando_ ? T("esperando uma imagem...") : T("decodificador parado");
             const ImVec2 ts = ImGui::CalcTextSize(msg);
             dl->AddText(ImVec2((a.x + b.x - ts.x) * 0.5f, (a.y + b.y - ts.y) * 0.5f), C_DIM, msg);
         }
@@ -3614,9 +3732,9 @@ void Ui::painelSstv()
                           stt.estado == SstvCore::RECEBENDO ? IM_COL32(0x00, 0xb0, 0x50, 255) : IM_COL32(0x30, 0x60, 0x40, 255));
         char pr[160];
         if (stt.modo >= 0)
-            std::snprintf(pr, sizeof pr, "%s  %dx%d  -  linha %d de %d%s", SstvCore::nomeModo(stt.modo), iw, ih,
-                          stt.linha, stt.linhas, stt.estado == SstvCore::RECEBENDO ? "" : "  (pronta)");
-        else std::snprintf(pr, sizeof pr, "sem imagem");
+            std::snprintf(pr, sizeof pr, T("%s  %dx%d  -  linha %d de %d%s"), SstvCore::nomeModo(stt.modo), iw, ih,
+                          stt.linha, stt.linhas, stt.estado == SstvCore::RECEBENDO ? "" : T("  (pronta)"));
+        else std::snprintf(pr, sizeof pr, T("sem imagem"));
         dl->AddText(ImVec2(pa.x + 6 * s_, pa.y + (altBarra - ImGui::GetTextLineHeight()) * 0.5f), C_TEXT, pr);
     }
     ImGui::EndChild();
@@ -3668,18 +3786,18 @@ void Ui::painelSstv()
         dl->AddRect(p0, q, C_BORDER_L);
         ImGui::Dummy(ImVec2(W, H));
         // situacao
-        const char* est = stt.estado == SstvCore::RECEBENDO ? "RECEBENDO" : stt.estado == SstvCore::PRONTA ? "PRONTA" : "ESPERANDO VIS";
+        const char* est = stt.estado == SstvCore::RECEBENDO ? T("RECEBENDO") : stt.estado == SstvCore::PRONTA ? T("PRONTA") : T("ESPERANDO VIS");
         ImGui::TextColored(stt.estado == SstvCore::RECEBENDO ? ImVec4(0.2f, 1.f, 0.4f, 1) : ImVec4(1.f, 0.67f, 0.f, 1), "%s", est);
         if (stt.modo >= 0) {
             ImGui::SameLine();
             ImGui::Text("%s%s", SstvCore::nomeModo(stt.modo), stt.porVis ? " (VIS)" : " (manual)");
-            ImGui::Text("Sintonia: %+.0f Hz   Inclinação: %+.0f ppm", stt.desvioHz, stt.inclinacaoPpm);
-            ImGui::Text("Sincronismos: %d   faltaram: %d", stt.sincronismos, stt.faltas);
+            ImGui::Text(T("Sintonia: %+.0f Hz   Inclinação: %+.0f ppm"), stt.desvioHz, stt.inclinacaoPpm);
+            ImGui::Text(T("Sincronismos: %d   faltaram: %d"), stt.sincronismos, stt.faltas);
         } else {
-            ImGui::TextDisabled("Sintonize e espere o cabeçalho VIS");
+            ImGui::TextDisabled(T("Sintonize e espere o cabeçalho VIS"));
         }
         ImGui::Separator();
-        ImGui::Text("Recebidas (%d)", (int)sstvHist_.size());
+        ImGui::Text(T("Recebidas (%d)"), (int)sstvHist_.size());
         const float tw = (W - 8 * s_) / 2;
         for (size_t i = 0; i < sstvHist_.size(); ++i) {
             const SstvFeita& f = sstvHist_[i];
@@ -3691,12 +3809,12 @@ void Ui::painelSstv()
                     ShellExecuteA(nullptr, "open", f.arquivo.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
             } else ImGui::Dummy(ts);
             if (ImGui::IsItemHovered())
-                ImGui::SetTooltip("%s%s", f.rotulo.c_str(), f.arquivo.empty() ? "\n(não salva)" : "\nclique para abrir o PNG");
+                ImGui::SetTooltip("%s%s", f.rotulo.c_str(), f.arquivo.empty() ? T("\n(não salva)") : T("\nclique para abrir o PNG"));
             ImGui::PopID();
         }
     }
     ImGui::EndChild();
-    ImGui::TextDisabled("USB em 20/15/10 m, LSB em 40/80 m. A imagem começa sozinha no VIS; a linha vermelha mostra onde ela está.");
+    ImGui::TextDisabled(T("USB em 20/15/10 m, LSB em 40/80 m. A imagem começa sozinha no VIS; a linha vermelha mostra onde ela está."));
 }
 
 // ---------------------------------------------------------------------------
@@ -3764,7 +3882,7 @@ void Ui::painelWefax()
 
     // --- linha 1: canal (em ordem de horario), LPM, IOC ---
     ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted("Canal"); ImGui::SameLine();
+    ImGui::TextUnformatted(T("Canal")); ImGui::SameLine();
     ImGui::SetNextItemWidth(400 * s_);
     if (comboCanal("##wfxcanal", kCanaisWefax, decCanalWefax_)) {
         const CanalDec& c = kCanaisWefax[decCanalWefax_];
@@ -3786,7 +3904,7 @@ void Ui::painelWefax()
             if (ImGui::Selectable(t, v == wfxLpm_)) { wfxLpm_ = v; wf.configurar(wfxLpm_, wfxIoc_); } }
         ImGui::EndCombo();
     }
-    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Linhas por minuto (vale para o \"Começar agora\"; com o tom de início a fase mede sozinha)");
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip(T("Linhas por minuto (vale para o \"Começar agora\"; com o tom de início a fase mede sozinha)"));
     ImGui::SameLine();
     ImGui::TextUnformatted("IOC"); ImGui::SameLine();
     ImGui::SetNextItemWidth(70 * s_);
@@ -3799,48 +3917,48 @@ void Ui::painelWefax()
 
     // --- linha 2: opcoes ---
     bool aut = wf.automatico.load();
-    if (ImGui::Checkbox("Automático", &aut)) wf.automatico = aut;
-    if (ImGui::IsItemHovered()) ImGui::SetTooltip("O tom de início (300 Hz) começa a imagem e o de fim (450 Hz) termina e salva");
+    if (ImGui::Checkbox(T("Automático"), &aut)) wf.automatico = aut;
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip(T("O tom de início (300 Hz) começa a imagem e o de fim (450 Hz) termina e salva"));
     ImGui::SameLine();
     bool inv = wf.inverter.load();
-    if (ImGui::Checkbox("Inverter (negativo)", &inv)) wf.inverter = inv;
+    if (ImGui::Checkbox(T("Inverter (negativo)"), &inv)) wf.inverter = inv;
     ImGui::SameLine();
     bool ai = wf.autoInclinacao.load();
-    if (ImGui::Checkbox("Endireitar sozinho", &ai)) wf.autoInclinacao = ai;
-    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Ao terminar, mede a inclinação pelas linhas verticais do mapa e endireita (só se a melhora for clara)");
+    if (ImGui::Checkbox(T("Endireitar sozinho"), &ai)) wf.autoInclinacao = ai;
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip(T("Ao terminar, mede a inclinação pelas linhas verticais do mapa e endireita (só se a melhora for clara)"));
     ImGui::SameLine();
-    ImGui::Checkbox("Salvar PNG", &wfxSalvar_);
+    ImGui::Checkbox(T("Salvar PNG"), &wfxSalvar_);
     ImGui::SameLine();
-    ImGui::TextDisabled("verde na lista = no ar agora (UTC)");
+    ImGui::TextDisabled(T("verde na lista = no ar agora (UTC)"));
 
     // --- linha 3: acoes ---
-    if (ImGui::Button("Começar agora")) { if (!decRodando_) escolherDecoder(Decoders::WEFAX, false); wf.configurar(wfxLpm_, wfxIoc_); wf.comecarAgora(); }
-    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Pegou o fax no meio? Começa já com o LPM/IOC escolhidos; depois use \"Alinhar margem\"");
+    if (ImGui::Button(T("Começar agora"))) { if (!decRodando_) escolherDecoder(Decoders::WEFAX, false); wf.configurar(wfxLpm_, wfxIoc_); wf.comecarAgora(); }
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip(T("Pegou o fax no meio? Começa já com o LPM/IOC escolhidos; depois use \"Alinhar margem\""));
     ImGui::SameLine();
-    if (ImGui::Button("Terminar")) wf.parar();
-    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Encerra a imagem atual e salva");
+    if (ImGui::Button(T("Terminar"))) wf.parar();
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip(T("Encerra a imagem atual e salva"));
     ImGui::SameLine();
-    if (ImGui::Button("Limpar")) wf.limpar();
+    if (ImGui::Button(T("Limpar"))) wf.limpar();
     ImGui::SameLine();
-    if (ImGui::Button("Endireitar")) wf.endireitar();
-    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Mede a inclinação pelas linhas verticais do mapa");
+    if (ImGui::Button(T("Endireitar"))) wf.endireitar();
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip(T("Mede a inclinação pelas linhas verticais do mapa"));
     ImGui::SameLine();
-    ImGui::TextUnformatted("Inclinação"); ImGui::SameLine();
+    ImGui::TextUnformatted(T("Inclinação")); ImGui::SameLine();
     if (ImGui::ArrowButton("##incmenos", ImGuiDir_Left)) wf.definirInclinacao(stt.inclinacao - 0.02);
     ImGui::SameLine();
     ImGui::Text("%+.2f", stt.inclinacao);
     ImGui::SameLine();
     if (ImGui::ArrowButton("##incmais", ImGuiDir_Right)) wf.definirInclinacao(stt.inclinacao + 0.02);
-    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Pixels por linha (o relógio de quem transmite fora do nominal)");
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip(T("Pixels por linha (o relógio de quem transmite fora do nominal)"));
     ImGui::SameLine();
-    if (ImGui::Button("Zerar")) wf.definirInclinacao(0);
+    if (ImGui::Button(T("Zerar"))) wf.definirInclinacao(0);
     ImGui::SameLine();
     if (wfxAlinhar_) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.6f, 0.35f, 0.05f, 1));
-    if (ImGui::Button(wfxAlinhar_ ? "Clique na margem..." : "Alinhar margem")) wfxAlinhar_ = !wfxAlinhar_;
+    if (ImGui::Button(wfxAlinhar_ ? T("Clique na margem...") : T("Alinhar margem"))) wfxAlinhar_ = !wfxAlinhar_;
     if (wfxAlinhar_) ImGui::PopStyleColor();
-    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Clique depois na imagem, onde deveria ser a margem esquerda do mapa");
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip(T("Clique depois na imagem, onde deveria ser a margem esquerda do mapa"));
     ImGui::SameLine();
-    if (ImGui::Button("Abrir pasta WEFAX")) {
+    if (ImGui::Button(T("Abrir pasta WEFAX"))) {
         const std::string pasta = pastaDoExe() + "\\WEFAX";
         CreateDirectoryA(pasta.c_str(), nullptr);
         ShellExecuteA(nullptr, "open", pasta.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
@@ -3870,9 +3988,9 @@ void Ui::painelWefax()
             }
             if (stt.estado == WefaxCore::RECEBENDO && noFim) ImGui::SetScrollHereY(1.0f);
         } else {
-            const char* msg = stt.estado == WefaxCore::INICIO ? "tom de início ouvido - esperando a fase..."
-                            : stt.estado == WefaxCore::FASE   ? "fase: medindo a margem e as linhas por minuto..."
-                            : decRodando_ ? "esperando o tom de início (ou clique Começar agora)" : "decodificador parado";
+            const char* msg = stt.estado == WefaxCore::INICIO ? T("tom de início ouvido - esperando a fase...")
+                            : stt.estado == WefaxCore::FASE   ? T("fase: medindo a margem e as linhas por minuto...")
+                            : decRodando_ ? T("esperando o tom de início (ou clique Começar agora)") : T("decodificador parado");
             ImGui::SetCursorPos(ImVec2(10 * s_, 10 * s_));
             ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1), "%s", msg);
         }
@@ -3891,7 +4009,7 @@ void Ui::painelWefax()
                 if (f.tex && ImGui::ImageButton("##wfxmini", TEXID(f.tex), ImVec2(tw, th)) && !f.arquivo.empty())
                     ShellExecuteA(nullptr, "open", f.arquivo.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
                 if (ImGui::IsItemHovered())
-                    ImGui::SetTooltip("%s%s", f.rotulo.c_str(), f.arquivo.empty() ? "\n(não salva)" : "\nclique para abrir o PNG");
+                    ImGui::SetTooltip("%s%s", f.rotulo.c_str(), f.arquivo.empty() ? T("\n(não salva)") : T("\nclique para abrir o PNG"));
                 ImGui::PopID();
             }
         }
@@ -3905,7 +4023,7 @@ void Ui::janelaDecoders()
     ImGui::SetNextWindowSize(ImVec2(640 * s_, 420 * s_), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowPos(ImGui::GetIO().DisplaySize * 0.5f, ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
     bool aberta = true;
-    if (!ImGui::Begin("Decodificadores", &aberta, ImGuiWindowFlags_NoCollapse)) {
+    if (!ImGui::Begin(T("Decodificadores###dec"), &aberta, ImGuiWindowFlags_NoCollapse)) {
         ImGui::End();
         if (!aberta) { decAberta_ = false; escolherDecoder(Decoders::NENHUM, false); atualizarSstv(); atualizarWefax(); }
         return;
@@ -3927,7 +4045,7 @@ void Ui::janelaDecoders()
 
     // --- escolha do decodificador ---
     ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted("Decodificador");
+    ImGui::TextUnformatted(T("Decodificador"));
     ImGui::SameLine();
     ImGui::SetNextItemWidth(200 * s_);
     if (ImGui::BeginCombo("##dectipo", Decoders::nome((Decoders::Tipo)decTipo_), ImGuiComboFlags_HeightLarge)) {
@@ -3942,24 +4060,24 @@ void Ui::janelaDecoders()
     }
     ImGui::SameLine();
     if (decRodando_) {
-        if (ImGui::Button("Parar")) {
+        if (ImGui::Button(T("Parar"))) {
             d.parar();
             decRodando_ = false;
-            anexarDecTexto(std::string("[") + Decoders::nome((Decoders::Tipo)decTipo_) + "] parado\n");
+            anexarDecTexto(std::string("[") + Decoders::nome((Decoders::Tipo)decTipo_) + T("] parado\n"));
         }
-    } else if (ImGui::Button("Iniciar") && decTipo_ != Decoders::NENHUM) {
+    } else if (ImGui::Button(T("Iniciar")) && decTipo_ != Decoders::NENHUM) {
         escolherDecoder(decTipo_, false);
     }
     ImGui::SameLine();
-    if (ImGui::Button("Reiniciar") && decTipo_ != Decoders::NENHUM) escolherDecoder(decTipo_, false);
+    if (ImGui::Button(T("Reiniciar")) && decTipo_ != Decoders::NENHUM) escolherDecoder(decTipo_, false);
     ImGui::SameLine();
-    if (ImGui::Button("Limpar")) { decTexto_.clear(); decCol_ = 0; decLinhas_ = 0; }
+    if (ImGui::Button(T("Limpar"))) { decTexto_.clear(); decCol_ = 0; decLinhas_ = 0; }
     ImGui::SameLine();
-    if (ImGui::Button("Selecionar tudo")) decSelTudo_ = true;
+    if (ImGui::Button(T("Selecionar tudo"))) decSelTudo_ = true;
     ImGui::SameLine();
-    if (ImGui::Button("Copiar")) ImGui::SetClipboardText(decTexto_.c_str());
+    if (ImGui::Button(T("Copiar"))) ImGui::SetClipboardText(decTexto_.c_str());
     ImGui::SameLine();
-    if (ImGui::Button("Salvar .txt") && !decTexto_.empty()) {
+    if (ImGui::Button(T("Salvar .txt")) && !decTexto_.empty()) {
         std::string pasta = pastaDoExe() + "\\Decodificados";
         CreateDirectoryA(pasta.c_str(), nullptr);
         SYSTEMTIME st; GetLocalTime(&st);
@@ -3971,7 +4089,7 @@ void Ui::janelaDecoders()
         const std::string cam = pasta + nome;
         std::ofstream f(cam, std::ios::binary);
         f << decTexto_;
-        erro_ = f ? "Texto salvo em " + cam : "Não foi possível salvar em " + cam;
+        erro_ = f ? T("Texto salvo em ") + cam : T("Não foi possível salvar em ") + cam;
         erroAte_ = agoraS() + 5;
     }
 
@@ -3979,7 +4097,7 @@ void Ui::janelaDecoders()
     const float wCombo = 330 * s_;
     auto linhaCanal = [&](auto& lista, int& sel, bool aplicaFsk) {
         ImGui::AlignTextToFramePadding();
-        ImGui::TextUnformatted("Canal");
+        ImGui::TextUnformatted(T("Canal"));
         ImGui::SameLine();
         ImGui::SetNextItemWidth(wCombo);
         if (comboCanal("##canal", lista, sel)) {   // com campo de busca (todas as listas)
@@ -4021,24 +4139,24 @@ void Ui::janelaDecoders()
             ImGui::EndCombo();
         }
         ImGui::SameLine();
-        mudou |= ImGui::Checkbox("Inverter (LSB)", &decAj_.rttyInverter);
+        mudou |= ImGui::Checkbox(T("Inverter (LSB)"), &decAj_.rttyInverter);
         if (mudou) escolherDecoder(decTipo_, false);
         break;
     }
     case Decoders::SITORB: {
         linhaCanal(kCanaisSitor, decCanalSitor_, false);
         ImGui::SameLine();
-        if (ImGui::Checkbox("Inverter", &decAj_.sitorInverter)) escolherDecoder(decTipo_, false);
+        if (ImGui::Checkbox(T("Inverter"), &decAj_.sitorInverter)) escolherDecoder(decTipo_, false);
         ImGui::SameLine();
-        ImGui::TextDisabled("verde = no ar agora (grade UTC)");
+        ImGui::TextDisabled(T("verde = no ar agora (grade UTC)"));
         break;
     }
     case Decoders::DSC: {
         linhaCanal(kCanaisDsc, decCanalDsc_, false);
         ImGui::SameLine();
-        if (ImGui::Checkbox("Inverter", &decAj_.dscInverter)) escolherDecoder(decTipo_, false);
+        if (ImGui::Checkbox(T("Inverter"), &decAj_.dscInverter)) escolherDecoder(decTipo_, false);
         ImGui::SameLine();
-        ImGui::TextDisabled("verde = no ar agora (grade UTC)");
+        ImGui::TextDisabled(T("verde = no ar agora (grade UTC)"));
         break;
     }
     case Decoders::ALE:
@@ -4047,13 +4165,13 @@ void Ui::janelaDecoders()
     case Decoders::PACTOR:
         linhaCanal(kCanaisPactor, decCanalPactor_, false);
         ImGui::SameLine();
-        ImGui::TextDisabled("verde = no ar agora (grade UTC)");
-        ImGui::TextDisabled("PACTOR-I (100 ou 200 baud, shift 200 Hz) em USB. O tom, a velocidade e a polaridade sao achados sozinhos;");
-        ImGui::TextDisabled("cada pacote e conferido pelo CRC - texto so aparece quando o pacote chega inteiro.");
+        ImGui::TextDisabled(T("verde = no ar agora (grade UTC)"));
+        ImGui::TextDisabled(T("PACTOR-I (100 ou 200 baud, shift 200 Hz) em USB. O tom, a velocidade e a polaridade sao achados sozinhos;"));
+        ImGui::TextDisabled(T("cada pacote e conferido pelo CRC - texto so aparece quando o pacote chega inteiro."));
         break;
     case Decoders::CW: {
         ImGui::AlignTextToFramePadding();
-        ImGui::TextUnformatted("Tom (Hz, 0 = medir sozinho)"); ImGui::SameLine();
+        ImGui::TextUnformatted(T("Tom (Hz, 0 = medir sozinho)")); ImGui::SameLine();
         ImGui::SetNextItemWidth(110 * s_);
         int tom = (int)decAj_.cwTom;
         if (ImGui::InputInt("##tomcw", &tom, 50, 100)) {
@@ -4064,7 +4182,7 @@ void Ui::janelaDecoders()
     }
     case Decoders::DMR: {
         ImGui::AlignTextToFramePadding();
-        ImGui::TextUnformatted("Modo"); ImGui::SameLine();
+        ImGui::TextUnformatted(T("Modo")); ImGui::SameLine();
         ImGui::SetNextItemWidth(160 * s_);
         bool mudou = false;
         if (ImGui::BeginCombo("##dmrmodo", Dsd::nomeModo(decAj_.dmrModo))) {
@@ -4073,22 +4191,22 @@ void Ui::janelaDecoders()
             ImGui::EndCombo();
         }
         ImGui::SameLine();
-        mudou |= ImGui::Checkbox("Inverter", &decAj_.dmrInverter);
+        mudou |= ImGui::Checkbox(T("Inverter"), &decAj_.dmrInverter);
         ImGui::SameLine();
         ImGui::SetNextItemWidth(150 * s_);
-        if (ImGui::SliderInt("##taxavoz", &decAj_.dmrTaxaVoz, 14000, 18000, "voz %d Hz"))
+        if (ImGui::SliderInt("##taxavoz", &decAj_.dmrTaxaVoz, 14000, 18000, T("voz %d Hz")))
             d.dsd().setTaxaVoz(decAj_.dmrTaxaVoz);
-        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Ajuste fino da velocidade da voz decodificada (padrão 16150)");
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip(T("Ajuste fino da velocidade da voz decodificada (padrão 16150)"));
         ImGui::SameLine();
         bool crua = d.dsd().linhasCruas.load();
-        if (ImGui::Checkbox("Linhas do dsd-fme", &crua)) d.dsd().linhasCruas = crua;
+        if (ImGui::Checkbox(T("Linhas do dsd-fme"), &crua)) d.dsd().linhasCruas = crua;
         if (mudou && decRodando_) escolherDecoder(decTipo_, false);
 
         // quadro dos dois slots (igual ao painel da pagina)
         const EstadoDmr e = d.dsd().estado();
         const double t = agoraS();
         if (ImGui::BeginTable("##slots", 8, ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchProp)) {
-            const char* cab[] = {"Slot", "Voz", "Tipo", "Origem (SRC)", "Destino (TGT)", "Q. voz", "Q. dados", "FEC"};
+            const char* cab[] = {"Slot", T("Voz"), T("Tipo"), T("Origem (SRC)"), T("Destino (TGT)"), T("Q. voz"), T("Q. dados"), "FEC"};
             for (const char* c : cab) ImGui::TableSetupColumn(c);
             ImGui::TableHeadersRow();
             for (int i = 0; i < 2; ++i) {
@@ -4098,7 +4216,7 @@ void Ui::janelaDecoders()
                 ImGui::TableNextRow();
                 ImGui::TableSetColumnIndex(0); ImGui::Text("TS%d", i + 1);
                 ImGui::TableSetColumnIndex(1);
-                ImGui::TextColored(vozAgora ? ImVec4(0, 1, 0.4f, 1) : ImVec4(0.35f, 0.3f, 0.2f, 1), vozAgora ? "● VOZ" : "●");
+                ImGui::TextColored(vozAgora ? ImVec4(0, 1, 0.4f, 1) : ImVec4(0.35f, 0.3f, 0.2f, 1), vozAgora ? T("● VOZ") : "●");
                 ImGui::TableSetColumnIndex(2); ImGui::TextUnformatted(s.tipo.c_str());
                 ImGui::TableSetColumnIndex(3);
                 ImGui::TextColored(ativo ? ImVec4(1, 1, 1, 1) : ImVec4(0.6f, 0.6f, 0.6f, 1), "%s", s.src.c_str());
@@ -4110,18 +4228,18 @@ void Ui::janelaDecoders()
             }
             ImGui::EndTable();
         }
-        if (ImGui::SmallButton("Zerar contadores")) d.dsd().limparContadores();
+        if (ImGui::SmallButton(T("Zerar contadores"))) d.dsd().limparContadores();
         ImGui::SameLine();
-        ImGui::TextDisabled("Receba em NFM 12,5 kHz. A voz decodificada sai no lugar do áudio do rádio.");
+        ImGui::TextDisabled(T("Receba em NFM 12,5 kHz. A voz decodificada sai no lugar do áudio do rádio."));
         break;
     }
     case Decoders::TETRA: {
-        if (ImGui::Checkbox("Inverter espectro (IQ conjugado)", &decAj_.tetraInverter) && decRodando_)
+        if (ImGui::Checkbox(T("Inverter espectro (IQ conjugado)"), &decAj_.tetraInverter) && decRodando_)
             escolherDecoder(decTipo_, false);
         ImGui::SameLine();
         bool cruas = d.tetra().linhasCruas.load();
-        if (ImGui::Checkbox("Linhas do tetra-rx", &cruas)) d.tetra().linhasCruas = cruas;
-        ImGui::TextDisabled("Sintonize a portadora TETRA (pi/4-DQPSK, 25 kHz). A voz sai no lugar do áudio.");
+        if (ImGui::Checkbox(T("Linhas do tetra-rx"), &cruas)) d.tetra().linhasCruas = cruas;
+        ImGui::TextDisabled(T("Sintonize a portadora TETRA (pi/4-DQPSK, 25 kHz). A voz sai no lugar do áudio."));
         const EstadoTetra e = d.tetra().estado();
         const double tq = agoraS();
         const bool vozAgora = tq - e.ultVoz < 1.0;
@@ -4129,31 +4247,31 @@ void Ui::janelaDecoders()
         if (ImGui::BeginTable("##tetra", 2, ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_SizingStretchSame)) {
             ImGui::TableNextRow();
             ImGui::TableSetColumnIndex(0);
-            ImGui::TextColored(ImVec4(0.88f, 0.56f, 1.f, 1), "SYNC / CÉLULA");
-            ImGui::Text("Sync: %s", e.adquirindo ? "procurando portadora" : e.travado ? "travado" : "procurando");
+            ImGui::TextColored(ImVec4(0.88f, 0.56f, 1.f, 1), T("SYNC / CÉLULA"));
+            ImGui::Text("Sync: %s", e.adquirindo ? T("procurando portadora") : e.travado ? T("travado") : T("procurando"));
             if (e.snr > -50) ImGui::Text("SNR: %.1f dB", e.snr); else ImGui::TextUnformatted("SNR: -");
             ImGui::Text("AFC: %+.0f Hz", e.afc);
             ImGui::Text("Color Code: %s", num(e.cc).c_str());
             ImGui::Text("MCC / MNC: %s / %s", num(e.mcc).c_str(), num(e.mnc).c_str());
-            ImGui::Text("Cripto: %s", e.cripto.c_str());
+            ImGui::Text(T("Cripto: %s"), e.cripto.c_str());
             ImGui::TableSetColumnIndex(1);
-            ImGui::TextColored(ImVec4(0.88f, 0.56f, 1.f, 1), "FRAME / RECEPÇÃO");
+            ImGui::TextColored(ImVec4(0.88f, 0.56f, 1.f, 1), T("FRAME / RECEPÇÃO"));
             ImGui::Text("Bursts: %d   TETMON: %d", e.bursts, e.tetmon);
             ImGui::Text("SB sync: %d   NDB sync: %d", e.sb, e.ndb);
             ImGui::Text("Slots: 1 %s  2 %s  3 %s  4 %s", e.ts[0].c_str(), e.ts[1].c_str(), e.ts[2].c_str(), e.ts[3].c_str());
-            ImGui::TextColored(vozAgora ? ImVec4(0, 1, 0.4f, 1) : ImVec4(1, 1, 1, 1), "%s Voz: %d quadros", vozAgora ? "●" : "○", e.voz);
-            ImGui::Text("Última chamada: %s", e.ultimaChamada.empty() ? "-" : e.ultimaChamada.c_str());
+            ImGui::TextColored(vozAgora ? ImVec4(0, 1, 0.4f, 1) : ImVec4(1, 1, 1, 1), T("%s Voz: %d quadros"), vozAgora ? "●" : "○", e.voz);
+            ImGui::Text(T("Última chamada: %s"), e.ultimaChamada.empty() ? "-" : e.ultimaChamada.c_str());
             ImGui::EndTable();
         }
         break;
     }
     case Decoders::HFDL: {
         ImGui::AlignTextToFramePadding();
-        ImGui::TextUnformatted("Banda"); ImGui::SameLine();
+        ImGui::TextUnformatted(T("Banda")); ImGui::SameLine();
         ImGui::SetNextItemWidth(wCombo);
         auto rotulo = [](const BandaHfdl& b) {
             double lo, ce; unsigned tx; medidasHfdl(b, lo, ce, tx);
-            char s[96]; std::snprintf(s, sizeof s, "%s  (%d canais, %.3f Msps)", b.nome, (int)b.canais.size(), tx / 1e6);
+            char s[96]; std::snprintf(s, sizeof s, T("%s  (%d canais, %.3f Msps)"), b.nome, (int)b.canais.size(), tx / 1e6);
             return std::string(s);
         };
         const int bi = std::clamp(decHfdlBanda_, 0, (int)kHfdl.size() - 1);
@@ -4165,15 +4283,15 @@ void Ui::janelaDecoders()
                 }
             ImGui::EndCombo();
         }
-        ImGui::TextDisabled("O rádio vai para o centro da banda (em USB) e o dumphfdl acompanha todos os canais "
-                            "de uma vez. Não mexa na sintonia enquanto ouve.");
+        ImGui::TextDisabled(T("O rádio vai para o centro da banda (em USB) e o dumphfdl acompanha todos os canais "
+                            "de uma vez. Não mexa na sintonia enquanto ouve."));
         // Os avioes ouvidos, com o voo e o prefixo ligados ao FlightAware (igual a pagina)
         const auto avs = d.hfdl().aeronaves();
         if (!avs.empty() && ImGui::BeginTable("##avioes", 7, ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_RowBg |
                                               ImGuiTableFlags_ScrollY | ImGuiTableFlags_SizingStretchProp,
                                               ImVec2(0, 130 * s_))) {
             ImGui::TableSetupScrollFreeze(0, 1);
-            for (const char* c : {"Voo", "Prefixo", "ICAO", "Posição", "Canal", "Msgs", "Visto"}) ImGui::TableSetupColumn(c);
+            for (const char* c : {T("Voo"), T("Prefixo"), "ICAO", T("Posição"), T("Canal"), "Msgs", T("Visto")}) ImGui::TableSetupColumn(c);
             ImGui::TableHeadersRow();
             const double ta = agoraS();
             auto abrir = [](const std::string& url) { ShellExecuteA(nullptr, "open", url.c_str(), nullptr, nullptr, SW_SHOWNORMAL); };
@@ -4185,13 +4303,13 @@ void Ui::janelaDecoders()
                 if (a.voo.empty()) ImGui::TextUnformatted("-");
                 else {
                     if (ImGui::TextLink(a.voo.c_str())) abrir(a.urlVoo());
-                    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Abrir o voo no FlightAware\n%s", a.urlVoo().c_str());
+                    if (ImGui::IsItemHovered()) ImGui::SetTooltip(T("Abrir o voo no FlightAware\n%s"), a.urlVoo().c_str());
                 }
                 ImGui::TableSetColumnIndex(1);
                 if (a.prefixo.empty()) ImGui::TextUnformatted("-");
                 else {
                     if (ImGui::TextLink(a.prefixo.c_str())) abrir(a.urlPrefixo());
-                    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Abrir o avião no FlightAware\n%s", a.urlPrefixo().c_str());
+                    if (ImGui::IsItemHovered()) ImGui::SetTooltip(T("Abrir o avião no FlightAware\n%s"), a.urlPrefixo().c_str());
                 }
                 ImGui::TableSetColumnIndex(2); ImGui::TextUnformatted(a.hex.empty() ? "-" : a.hex.c_str());
                 ImGui::TableSetColumnIndex(3);
@@ -4210,18 +4328,18 @@ void Ui::janelaDecoders()
     }
     case Decoders::AIS: {
         const int porta = d.ais().portaWeb();
-        if (ImGui::Button("Abrir o mapa dos navios") && porta > 0 && d.ais().rodando()) {
+        if (ImGui::Button(T("Abrir o mapa dos navios")) && porta > 0 && d.ais().rodando()) {
             char url[64]; std::snprintf(url, sizeof url, "http://127.0.0.1:%d", porta);
             ShellExecuteA(nullptr, "open", url, nullptr, nullptr, SW_SHOWNORMAL);
         }
         ImGui::SameLine();
-        ImGui::TextDisabled("162,000 MHz: canais 161,975 e 162,025 ao mesmo tempo (mapa do próprio AIS-catcher).");
+        ImGui::TextDisabled(T("162,000 MHz: canais 161,975 e 162,025 ao mesmo tempo (mapa do próprio AIS-catcher)."));
         const auto nav = d.ais().navios();
         if (!nav.empty() && ImGui::BeginTable("##navios", 7, ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_RowBg |
                                               ImGuiTableFlags_ScrollY | ImGuiTableFlags_SizingStretchProp,
                                               ImVec2(0, 130 * s_))) {
             ImGui::TableSetupScrollFreeze(0, 1);
-            for (const char* c : {"MMSI", "Nome", "Indicativo", "Posição", "Velocidade", "Rumo", "Visto"}) ImGui::TableSetupColumn(c);
+            for (const char* c : {"MMSI", T("Nome"), T("Indicativo"), T("Posição"), T("Velocidade"), T("Rumo"), T("Visto")}) ImGui::TableSetupColumn(c);
             ImGui::TableHeadersRow();
             const double ta = agoraS();
             int idn = 0;
@@ -4235,16 +4353,16 @@ void Ui::janelaDecoders()
                 const std::string vf = std::string("https://www.vesselfinder.com/?mmsi=") + mm;
                 const std::string mt = std::string("https://www.marinetraffic.com/en/ais/details/ships/mmsi:") + mm;
                 if (ImGui::TextLink(mm)) ShellExecuteA(nullptr, "open", vf.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
-                if (ImGui::IsItemHovered()) ImGui::SetTooltip("Abrir no VesselFinder\n%s", vf.c_str());
+                if (ImGui::IsItemHovered()) ImGui::SetTooltip(T("Abrir no VesselFinder\n%s"), vf.c_str());
                 ImGui::SameLine();
                 if (ImGui::TextLink("MT")) ShellExecuteA(nullptr, "open", mt.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
-                if (ImGui::IsItemHovered()) ImGui::SetTooltip("Abrir no MarineTraffic\n%s", mt.c_str());
+                if (ImGui::IsItemHovered()) ImGui::SetTooltip(T("Abrir no MarineTraffic\n%s"), mt.c_str());
                 ImGui::TableSetColumnIndex(1); ImGui::TextUnformatted(n.nome.empty() ? "-" : n.nome.c_str());
                 ImGui::TableSetColumnIndex(2); ImGui::TextUnformatted(n.indicativo.empty() ? "-" : n.indicativo.c_str());
                 ImGui::TableSetColumnIndex(3);
                 if (n.lat <= 90) ImGui::Text("%.4f %.4f", n.lat, n.lon); else ImGui::TextUnformatted("-");
                 ImGui::TableSetColumnIndex(4);
-                if (n.vel >= 0) ImGui::Text("%.1f nós", n.vel); else ImGui::TextUnformatted("-");
+                if (n.vel >= 0) ImGui::Text(T("%.1f nós"), n.vel); else ImGui::TextUnformatted("-");
                 ImGui::TableSetColumnIndex(5);
                 if (n.rumo >= 0) ImGui::Text("%.0f°", n.rumo); else ImGui::TextUnformatted("-");
                 ImGui::TableSetColumnIndex(6);
@@ -4259,11 +4377,11 @@ void Ui::janelaDecoders()
     case Decoders::DRM: {
         // emissoras: as que estao no ar agora aparecem em verde
         ImGui::AlignTextToFramePadding();
-        ImGui::TextUnformatted("Emissora"); ImGui::SameLine();
+        ImGui::TextUnformatted(T("Emissora")); ImGui::SameLine();
         ImGui::SetNextItemWidth(std::max(wCombo, ImGui::GetContentRegionAvail().x - 4 * s_));
         const int nDrm = (int)(sizeof kDrm / sizeof kDrm[0]);
         const std::string atual = decDrmSel_ >= 0 && decDrmSel_ < nDrm ? rotuloDrm(kDrm[decDrmSel_])
-                                                                        : std::string("- escolha para sintonizar -");
+                                                                        : std::string(T("- escolha para sintonizar -"));
         // sintoniza a emissora i (so quando voce clica; nada e varrido sozinho)
         auto irPara = [&](int i) {
             decDrmSel_ = i;
@@ -4277,7 +4395,7 @@ void Ui::janelaDecoders()
             escolherDecoder(Decoders::DRM, false);    // recomeca a procura do sinal
         };
         if (ImGui::BeginCombo("##drmemis", atual.c_str(), ImGuiComboFlags_HeightLarge)) {
-            const std::string q = campoBuscaLista("buscar: frequência (kHz) ou emissora, país, idioma");
+            const std::string q = campoBuscaLista(T("buscar: frequência (kHz) ou emissora, país, idioma"));
             auto bate = [&](int i) { return buscaBate((uint64_t)kDrm[i].khz * 1000, rotuloDrm(kDrm[i]), q); };
             if (!q.empty()) {
                 int achados = 0;
@@ -4304,7 +4422,7 @@ void Ui::janelaDecoders()
         // No ar agora (pela grade): um botao por emissora; clicou, sintonizou
         {
             ImGui::AlignTextToFramePadding();
-            ImGui::TextColored(ImVec4(0.3f, 1.f, 0.5f, 1), "\xE2\x97\x8F No ar agora:");
+            ImGui::TextColored(ImVec4(0.3f, 1.f, 0.5f, 1), T("\xE2\x97\x8F No ar agora:"));
             int mostradas = 0;
             for (int i = 0; i < nDrm; ++i) {
                 if (!drmNoAr(kDrm[i])) continue;
@@ -4317,18 +4435,18 @@ void Ui::janelaDecoders()
                 if (ImGui::SmallButton(rot)) irPara(i);
                 if (atualEsta) ImGui::PopStyleColor();
                 if (ImGui::IsItemHovered())
-                    ImGui::SetTooltip("%s - %s (%s)\n%02d:%02d-%02d:%02d UTC", kDrm[i].nome, kDrm[i].local, kDrm[i].lingua,
+                    ImGui::SetTooltip("%s - %s (%s)\n%02d:%02d-%02d:%02d UTC", TL(kDrm[i].nome), TL(kDrm[i].local), TL(kDrm[i].lingua),
                                       kDrm[i].ini / 100, kDrm[i].ini % 100, kDrm[i].fim / 100, kDrm[i].fim % 100);
                 ++mostradas;
             }
-            if (!mostradas) { ImGui::SameLine(); ImGui::TextDisabled("nenhuma pela grade"); }
+            if (!mostradas) { ImGui::SameLine(); ImGui::TextDisabled(T("nenhuma pela grade")); }
         }
-        if (ImGui::Checkbox("Inverter espectro", &decAj_.drmInverter) && decRodando_)
+        if (ImGui::Checkbox(T("Inverter espectro"), &decAj_.drmInverter) && decRodando_)
             escolherDecoder(decTipo_, false);
-        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Só se o sinal nunca travar: troca I e Q (espectro de cabeça para baixo)");
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip(T("Só se o sinal nunca travar: troca I e Q (espectro de cabeça para baixo)"));
         ImGui::SameLine();
         bool cruas = d.drm().linhasCruas.load();
-        if (ImGui::Checkbox("Linhas do dream", &cruas)) d.drm().linhasCruas = cruas;
+        if (ImGui::Checkbox(T("Linhas do dream"), &cruas)) d.drm().linhasCruas = cruas;
 
         const EstadoDrm e = d.drm().estado();
         // as "luzes" do Dream: verde = ok, amarelo = erro de CRC, vermelho = erro, cinza = nada ainda
@@ -4341,12 +4459,12 @@ void Ui::janelaDecoders()
             if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", dica);
             ImGui::SameLine(0, 14 * s_);
         };
-        luz("Entrada", e.io, "IQ chegando ao dream");
-        luz("Tempo", e.tempo, "sincronismo de tempo (achou o sinal OFDM)");
-        luz("Quadro", e.quadro, "sincronismo de quadro");
-        luz("FAC", e.fac, "canal de acesso rápido: modo, largura e QAM");
-        luz("SDC", e.sdc, "descrição do serviço: nome da emissora, idioma, país");
-        luz("Áudio", e.msc, "canal principal (o áudio)");
+        luz(T("Entrada"), e.io, T("IQ chegando ao dream"));
+        luz(T("Tempo"), e.tempo, T("sincronismo de tempo (achou o sinal OFDM)"));
+        luz(T("Quadro"), e.quadro, T("sincronismo de quadro"));
+        luz("FAC", e.fac, T("canal de acesso rápido: modo, largura e QAM"));
+        luz("SDC", e.sdc, T("descrição do serviço: nome da emissora, idioma, país"));
+        luz(T("Áudio"), e.msc, T("canal principal (o áudio)"));
         ImGui::NewLine();
 
         static const char kRob[] = "ABCDE";
@@ -4354,84 +4472,84 @@ void Ui::janelaDecoders()
         if (ImGui::BeginTable("##drm", 2, ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_SizingStretchSame)) {
             ImGui::TableNextRow();
             ImGui::TableSetColumnIndex(0);
-            ImGui::TextColored(ImVec4(0.88f, 0.56f, 1.f, 1), "SINAL");
+            ImGui::TextColored(ImVec4(0.88f, 0.56f, 1.f, 1), T("SINAL"));
             if (e.comStatus && e.tempo == 0) ImGui::Text("SNR: %.1f dB", e.snr); else ImGui::TextUnformatted("SNR: -");
             if (e.robustez >= 0 && e.robustez < 5)
-                ImGui::Text("Modo %c   %.0f kHz   intercalador %s", kRob[e.robustez], e.larguraKHz,
-                            e.intercalador == 1 ? "curto" : e.intercalador == 0 ? "longo" : "-");
-            else ImGui::TextUnformatted("Modo: -");
+                ImGui::Text(T("Modo %c   %.0f kHz   intercalador %s"), kRob[e.robustez], e.larguraKHz,
+                            e.intercalador == 1 ? T("curto") : e.intercalador == 0 ? T("longo") : "-");
+            else ImGui::TextUnformatted(T("Modo: -"));
             ImGui::Text("MSC %s   SDC %s", e.mscQam >= 0 && e.mscQam < 5 ? kQam[e.mscQam] : "-",
                         e.sdcQam == 0 ? "4-QAM" : e.sdcQam == 1 ? "16-QAM" : "-");
-            if (e.doppler >= 0) ImGui::Text("Doppler %.2f Hz   atraso %.2f ms", e.doppler, e.atrasoMs >= 0 ? e.atrasoMs : 0.0);
-            else ImGui::TextUnformatted("Doppler / atraso: -");
-            ImGui::Text("Áudio guardado: %.1f s", e.bufferS);
+            if (e.doppler >= 0) ImGui::Text(T("Doppler %.2f Hz   atraso %.2f ms"), e.doppler, e.atrasoMs >= 0 ? e.atrasoMs : 0.0);
+            else ImGui::TextUnformatted(T("Doppler / atraso: -"));
+            ImGui::Text(T("Áudio guardado: %.1f s"), e.bufferS);
             ImGui::TableSetColumnIndex(1);
-            ImGui::TextColored(ImVec4(0.88f, 0.56f, 1.f, 1), "EMISSORA");
+            ImGui::TextColored(ImVec4(0.88f, 0.56f, 1.f, 1), T("EMISSORA"));
             ImGui::PushFont(f_.negrito);
             ImGui::TextColored(ImVec4(0, 0.83f, 0.83f, 1), "%s", e.estacao.empty() ? "-" : e.estacao.c_str());
             ImGui::PopFont();
             std::string lugar = e.pais;
             if (!e.idioma.empty()) lugar += (lugar.empty() ? "" : "  |  ") + e.idioma;
             ImGui::TextUnformatted(lugar.empty() ? "-" : lugar.c_str());
-            if (!e.programa.empty()) ImGui::Text("Programa: %s", e.programa.c_str());
+            if (!e.programa.empty()) ImGui::Text(T("Programa: %s"), e.programa.c_str());
             if (!e.codec.empty())
                 ImGui::Text("%s  %.1f kbps  %s%s%s", e.codec.c_str(), e.kbps, e.modoAudio.c_str(),
                             e.protecao.empty() ? "" : "  |  ", e.protecao.c_str());
-            if (!e.horaDrm.empty()) ImGui::Text("Hora da emissora: %s UTC", e.horaDrm.c_str());
+            if (!e.horaDrm.empty()) ImGui::Text(T("Hora da emissora: %s UTC"), e.horaDrm.c_str());
             ImGui::EndTable();
         }
         if (!e.texto.empty()) {
-            ImGui::TextColored(ImVec4(1, 0.85f, 0.4f, 1), "Texto:");
+            ImGui::TextColored(ImVec4(1, 0.85f, 0.4f, 1), T("Texto:"));
             ImGui::SameLine();
             ImGui::TextWrapped("%s", e.texto.c_str());
         }
-        ImGui::TextDisabled("Sintonize a frequência anunciada (o centro do canal). Enquanto o áudio DRM não sai limpo, você");
-        ImGui::TextDisabled("ouve o rádio normal; quando a luz Áudio fica verde, entra o som decodificado (AAC / xHE-AAC).");
-        ImGui::TextDisabled("Precisa de uns 10 dB de SNR em 16-QAM ou 15 dB em 64-QAM.");
+        ImGui::TextDisabled(T("Sintonize a frequência anunciada (o centro do canal). Enquanto o áudio DRM não sai limpo, você"));
+        ImGui::TextDisabled(T("ouve o rádio normal; quando a luz Áudio fica verde, entra o som decodificado (AAC / xHE-AAC)."));
+        ImGui::TextDisabled(T("Precisa de uns 10 dB de SNR em 16-QAM ou 15 dB em 64-QAM."));
         break;
     }
     case Decoders::ACARS:
-        ImGui::TextDisabled("131,550 e 131,825 MHz ao mesmo tempo (AM). O rádio fica com o centro no meio dos dois;");
-        ImGui::TextDisabled("não mexa na sintonia enquanto ouve. Voo e prefixo abrem no FlightAware.");
+        ImGui::TextDisabled(T("131,550 e 131,825 MHz ao mesmo tempo (AM). O rádio fica com o centro no meio dos dois;"));
+        ImGui::TextDisabled(T("não mexa na sintonia enquanto ouve. Voo e prefixo abrem no FlightAware."));
         tabelaAvioes("##avacars", d.acars().aeronaves());
         break;
     case Decoders::VDL2:
-        ImGui::TextDisabled("136,975 MHz (VDL modo 2, 31,5 kbit/s). O dongle passa para 1,05 Msps enquanto ouve.");
-        ImGui::TextDisabled("Não mexa na sintonia enquanto ouve. Voo e prefixo abrem no FlightAware.");
+        ImGui::TextDisabled(T("136,975 MHz (VDL modo 2, 31,5 kbit/s). O dongle passa para 1,05 Msps enquanto ouve."));
+        ImGui::TextDisabled(T("Não mexa na sintonia enquanto ouve. Voo e prefixo abrem no FlightAware."));
         tabelaAvioes("##avvdl2", d.vdl2().aeronaves());
         break;
     case Decoders::APRS: {
         ImGui::AlignTextToFramePadding();
-        ImGui::TextUnformatted("Canal"); ImGui::SameLine();
+        ImGui::TextUnformatted(T("Canal")); ImGui::SameLine();
         ImGui::SetNextItemWidth(wCombo);
         const int ai = std::clamp(decAprsCanal_, 0, 3);
-        if (ImGui::BeginCombo("##aprscanal", kAprs[ai].nome)) {
+        if (ImGui::BeginCombo("##aprscanal", TL(kAprs[ai].nome))) {
             for (int i = 0; i < 4; ++i)
-                if (ImGui::Selectable(kAprs[i].nome, i == ai)) {
+                if (ImGui::Selectable(TL(kAprs[i].nome), i == ai)) {
                     decAprsCanal_ = i;
                     escolherDecoder(Decoders::APRS, true);
                 }
             ImGui::EndCombo();
         }
-        ImGui::TextDisabled("O direwolf ouve o áudio do rádio: 1200 baud em FM (VHF) ou 300 baud em USB (HF).");
+        ImGui::TextDisabled(T("O direwolf ouve o áudio do rádio: 1200 baud em FM (VHF) ou 300 baud em USB (HF)."));
         // estacoes ouvidas: indicativo e digipeaters abrem no aprs.fi (igual a pagina)
         const auto est = d.aprs().estacoes();
         if (!est.empty() && ImGui::BeginTable("##aprs", 6, ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_RowBg |
                                               ImGuiTableFlags_ScrollY | ImGuiTableFlags_SizingStretchProp,
                                               ImVec2(0, 130 * s_))) {
             ImGui::TableSetupScrollFreeze(0, 1);
-            ImGui::TableSetupColumn("Indicativo", ImGuiTableColumnFlags_WidthStretch, 1.0f);
+            ImGui::TableSetupColumn(T("Indicativo"), ImGuiTableColumnFlags_WidthStretch, 1.0f);
             ImGui::TableSetupColumn("Via", ImGuiTableColumnFlags_WidthStretch, 1.6f);
-            ImGui::TableSetupColumn("Posição", ImGuiTableColumnFlags_WidthStretch, 1.1f);
-            ImGui::TableSetupColumn("Pac.", ImGuiTableColumnFlags_WidthStretch, 0.4f);
-            ImGui::TableSetupColumn("Visto", ImGuiTableColumnFlags_WidthStretch, 0.5f);
-            ImGui::TableSetupColumn("Mensagem", ImGuiTableColumnFlags_WidthStretch, 3.0f);
+            ImGui::TableSetupColumn(T("Posição"), ImGuiTableColumnFlags_WidthStretch, 1.1f);
+            ImGui::TableSetupColumn(T("Pac."), ImGuiTableColumnFlags_WidthStretch, 0.4f);
+            ImGui::TableSetupColumn(T("Visto"), ImGuiTableColumnFlags_WidthStretch, 0.5f);
+            ImGui::TableSetupColumn(T("Mensagem"), ImGuiTableColumnFlags_WidthStretch, 3.0f);
             ImGui::TableHeadersRow();
             const double ta = agoraS();
             auto link = [](const std::string& call) {
                 if (ImGui::TextLink(call.c_str()))
                     ShellExecuteA(nullptr, "open", Aprs::urlAprsFi(call).c_str(), nullptr, nullptr, SW_SHOWNORMAL);
-                if (ImGui::IsItemHovered()) ImGui::SetTooltip("Abrir no aprs.fi\n%s", Aprs::urlAprsFi(call).c_str());
+                if (ImGui::IsItemHovered()) ImGui::SetTooltip(T("Abrir no aprs.fi\n%s"), Aprs::urlAprsFi(call).c_str());
             };
             int id = 0;
             for (const auto& e : est) {
@@ -4469,13 +4587,13 @@ void Ui::janelaDecoders()
         break;
     case Decoders::ANALISE: {
         const float p = d.progressoAnalise();
-        ImGui::ProgressBar(p, ImVec2(260 * s_, 0), p >= 1 ? "pronta" : nullptr);
+        ImGui::ProgressBar(p, ImVec2(260 * s_, 0), p >= 1 ? T("pronta") : nullptr);
         ImGui::SameLine();
-        ImGui::TextDisabled("Sintonize o sinal em USB; mede tons, shift e velocidade.");
+        ImGui::TextDisabled(T("Sintonize o sinal em USB; mede tons, shift e velocidade."));
         break;
     }
     default:
-        ImGui::TextDisabled("Escolha um decodificador. DMR, TETRA, HFDL, AIS e APRS usam programas da pasta decoders.");
+        ImGui::TextDisabled(T("Escolha um decodificador. DMR, TETRA, HFDL, AIS e APRS usam programas da pasta decoders."));
         break;
     }
 
@@ -4625,7 +4743,7 @@ void Ui::ifDisplay(float x, float y, float w, float h)
     dl->AddRectFilled(ImVec2(x + 1, y + 1), ImVec2(x + w - 1, y + hc), IM_COL32(0x06, 0x0c, 0x08, 255), 4 * s_, ImDrawFlags_RoundCornersTop);
     ImGui::PushFont(f_.pequena);
     dl->AddText(ImVec2(x + 6 * s_, y + (hc - ImGui::GetFontSize()) * 0.5f), IM_COL32(0x7f, 0xb0, 0xff, 255), "IF Display — 20 kHz");
-    static const char* nomes[3] = {"estreita", "média", "larga"};
+    const char* nomes[3] = {T("estreita"), T("média"), T("larga")};   // sem static: muda com o idioma
     const float cw = 74 * s_;
     ImGui::SetCursorScreenPos(ImVec2(x + w - cw - 4 * s_, y + 2 * s_));
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4 * s_, 1 * s_));

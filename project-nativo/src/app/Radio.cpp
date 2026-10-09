@@ -1,4 +1,5 @@
 #include "Radio.h"
+#include "../ui/Idioma.h"
 #include "Config.h"
 
 #include "../dsp/DemodAM.h"
@@ -84,7 +85,7 @@ std::vector<DispositivoInfo> Radio::listar(const std::string& tipoAberto, const 
     // perguntar ao libusb por um aparelho que esta no meio de uma leitura
     // arrisca derrubar o programa. O que esta aberto entra como "em uso".
     if (tipoAberto == "rtlsdr" && !serialAberto.empty())
-        v.push_back({"rtlsdr", serialAberto, "RTL-SDR (em uso)"});
+        v.push_back({"rtlsdr", serialAberto, T("RTL-SDR (em uso)")});
     else
         for (const auto& i : RtlSdrDevice::enumerate())  v.push_back({"rtlsdr", i.serial, i.name});
     if (sdrplay)
@@ -104,7 +105,7 @@ bool Radio::selecionar(const std::string& tipo, const std::string& serialPedido,
         ligado_ = false;
     }
     auto d = DeviceFactory::create(tipo);
-    if (!d) { erro = "Tipo de aparelho desconhecido: " + tipo; return false; }
+    if (!d) { erro = T("Tipo de aparelho desconhecido: ") + tipo; return false; }
 
     std::string arg = serialPedido;
     if (tipo == "rtltcp") {
@@ -117,12 +118,15 @@ bool Radio::selecionar(const std::string& tipo, const std::string& serialPedido,
     d->setQuadrature(qAtual_);
     d->setPpm(c.ppm());
     d->setBias(c.biasT());
-    d->setCenterFreq(f);
+    // abre com o centro ao lado do VFO: cravado nele, o "apito" do DC caia em
+    // cima da estacao ate a primeira sintonia fora da tela (visto em 8580,5 kHz)
+    const uint64_t centro = centroSemDc(f);
+    d->setCenterFreq(centro);
     if (tipo != "sdrplay") d->setGain(c.agc() ? -1 : c.gainTenths());
 
     if (!d->open(arg)) {
         erro = d->lastError();
-        if (erro.empty()) erro = "Nao foi possivel abrir o " + tipo + (arg.empty() ? "" : " (" + arg + ")");
+        if (erro.empty()) erro = T("Nao foi possivel abrir o ") + tipo + (arg.empty() ? "" : " (" + arg + ")");
         return false;
     }
     dev_ = d;
@@ -138,7 +142,7 @@ bool Radio::selecionar(const std::string& tipo, const std::string& serialPedido,
     dev_->setPpm(c.ppm());
     ppmAplicado_ = c.ppm();
     dev_->setBias(c.biasT());
-    dev_->setCenterFreq(f);
+    dev_->setCenterFreq(centro);
     if (tipo_ == "sdrplay") {
         if (auto* s = dynamic_cast<SdrplayDevice*>(dev_.get()))
             s->setSdrplayParams(c.sdrplayIfMode(), c.sdrplayLna(), c.sdrplayIfGain(), c.sdrplayIfAgc(), c.sdrplayBw());
@@ -194,6 +198,21 @@ bool Radio::sintonizar(uint64_t hz)
         return true;
     }
     return false;
+}
+
+uint64_t Radio::centroSemDc(uint64_t vfo)
+{
+    const auto td = dec_.tipo();
+    if (td == Decoders::HFDL || td == Decoders::ACARS || td == Decoders::VDL2) return vfo;
+    if (Config::instance().sampleRate() < 200000) return vfo;
+    const std::string m = modo();
+    int64_t d;
+    if (m == "WFM") return vfo;
+    if (m == "LSB") d = 20000;
+    else if (m == "USB" || m == "CW") d = -20000;
+    else d = -(int64_t)(banda() / 2 + 20000);
+    const int64_t c = (int64_t)vfo + d;
+    return c > 150000 ? (uint64_t)c : vfo + 20000;
 }
 
 void Radio::centralizar(uint64_t hz)
@@ -279,7 +298,7 @@ void Radio::aplicarConfig()
         dev_->setQuadrature(qAtual_);
         dev_->setPpm(c.ppm());
         ppmAplicado_ = c.ppm();
-        dev_->setCenterFreq(f);
+        dev_->setCenterFreq(centroSemDc(f));
     }
     dev_->setBias(c.biasT());
     if (tipo_ == "sdrplay") {

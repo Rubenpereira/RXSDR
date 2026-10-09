@@ -65,6 +65,9 @@ public:
     // recentraliza sozinho. Devolve true se o centro mudou.
     bool sintonizar(uint64_t hz);
     void centralizar(uint64_t hz);        // muda o centro do dongle
+    // Centro do dongle para um VFO, fora do "apito" do DC: USB/CW/AM/FM 20 kHz
+    // abaixo, LSB 20 kHz acima, WFM no centro (HFDL/ACARS/VDL2: no proprio VFO)
+    uint64_t centroSemDc(uint64_t vfo);
     uint64_t vfo() const { return vfo_.load(); }
     uint64_t centro() const;
     uint32_t taxa() const;

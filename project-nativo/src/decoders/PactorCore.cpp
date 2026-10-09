@@ -80,6 +80,11 @@ uint16_t crcNormal(const std::vector<uint8_t>& b, uint16_t ini)
 uint16_t inverte16(uint16_t v) { uint16_t r = 0; for (int i = 0; i < 16; ++i) if (v & (1 << i)) r |= uint16_t(1 << (15 - i)); return r; }
 
 bool imprimivel(int c) { return (c >= 32 && c < 127) || c == 10 || c == 13; }
+// Texto em ASCII pode vir em UTF-8: a Marinha manda o espaco como C2 A0
+// (espaco que nao quebra) e os acentos como C3 xx. So C2/C3 e o byte de
+// continuacao (80..BF) contam como texto: aceitar qualquer byte alto deixava
+// passar pacote de lixo (e saiam letras cirilicas no meio do boletim).
+bool textoAscii(int c) { return imprimivel(c) || c == 0xC2 || c == 0xC3 || (c >= 0x80 && c <= 0xBF); }
 } // namespace
 
 PactorCore::PactorCore(double fs) : fs_(fs)
@@ -184,11 +189,15 @@ void PactorCore::novoBit(Seq& s, float v)
     s.soft.push_back(v);
     if (s.soft.size() > L) s.soft.pop_front();
     if (s.soft.size() < L) return;
-    // cabecalho 0x55 = 1,0,1,0,1,0,1,0 (o menos significativo primeiro), nas duas polaridades
+    // Cabecalho: os pacotes ALTERNAM 0x55 e 0xAA (visto na Marinha do Brasil,
+    // 6450 kHz, 06/10/2026: "NO REST" com 0x55, "ANTE DA" com 0xAA, ...) - e a
+    // copia repetida do FEC vem com a polaridade trocada. 0xAA numa polaridade
+    // e 0x55 na outra, entao basta ver se os 8 bits alternam e testar o CRC
+    // nas duas polaridades (o CRC diz qual e a certa).
+    bool alterna = true;
+    for (int i = 1; i < 8 && alterna; ++i) alterna = (s.soft[size_t(i)] > 0) != (s.soft[size_t(i - 1)] > 0);
+    if (!alterna) return;
     for (int p : {1, -1}) {
-        bool ok = true;
-        for (int i = 0; i < 8 && ok; ++i) ok = ((s.soft[size_t(i)] * p > 0) == ((0x55 >> i) & 1));
-        if (!ok) continue;
         std::vector<float> soft(s.soft.begin(), s.soft.end());
         if (p < 0) for (auto& x : soft) x = -x;
         tentar(soft, s.baud, false, t_);
@@ -230,7 +239,10 @@ bool PactorCore::tentar(const std::vector<float>& soft, int baud, bool somado, u
         if (variante_ < 0) {
             // antes de travar a variante do CRC, o primeiro pacote espera um
             // segundo com a mesma (em 60 s): so entao os dois saem
-            if (pendente_.var == var && double(t - pendente_.t) < fs_ * 60 && pendente_.dados != dados) {
+            // (pacotes "ociosos" - so 0x1E - tem os dados iguais, mas o contador
+            // no status muda de um para o outro: tambem vale)
+            if (pendente_.var == var && double(t - pendente_.t) < fs_ * 60 &&
+                (pendente_.dados != dados || pendente_.status != corpo[size_t(nd)])) {
                 variante_ = var;
                 aceitar(pendente_.dados, pendente_.status, pendente_.baud, false, pendente_.t);
             } else {
@@ -250,12 +262,17 @@ bool PactorCore::tentar(const std::vector<float>& soft, int baud, bool somado, u
     // memoria-ARQ: soma com copias anteriores que tambem falharam
     for (const auto& f : falhos_) {
         if (f.baud != baud || t - f.t < uint64_t(fs_ * 0.5)) continue;
+        // so a copia do mesmo pacote: o FEC repete de pacote em pacote
+        // (0,97 s); somar com qualquer coisa fazia o CRC passar por acaso
+        const double per = fs_ * 0.97, dt = double(t - f.t);
+        const double k = std::round(dt / per);
+        if (k < 1 || k > 4 || std::fabs(dt - k * per) > 3.0 * fs_ / baud) continue;
         std::vector<float> s2(soft.size());
         for (size_t i = 0; i < soft.size(); ++i) s2[i] = soft[i] + f.soft[i];
         if (tentar(s2, baud, true, t)) return true;
     }
     falhos_.push_back({t, baud, soft});
-    while (!falhos_.empty() && (falhos_.size() > 10 || t - falhos_.front().t > uint64_t(fs_ * 8))) falhos_.pop_front();
+    while (!falhos_.empty() && (falhos_.size() > 20 || t - falhos_.front().t > uint64_t(fs_ * 8))) falhos_.pop_front();
     ++ruins_;
     return false;
 }
@@ -287,13 +304,24 @@ void PactorCore::aceitar(const std::vector<uint8_t>& dados, uint8_t status, int 
     // o FEC repete o pacote: a copia (igual, com o mesmo status) entra uma vez so
     if (dados == ultDados_ && status == ultStatus_ && double(t - ultT_) < fs_ * 8) { ultT_ = t; ultimoOk_ = t; return; }
     ultDados_ = dados; ultStatus_ = status; ultT_ = t;
+    // Pacote ocioso: a estacao esta no ar, mas sem mensagem (so enchimento
+    // 0x1E). Visto em 8582 kHz em 06/10/2026: o mesmo pacote de 0x1E com o
+    // contador do status girando 0-1-2-3. Mostra que esta recebendo, sem texto.
+    bool ocioso = true;
+    for (uint8_t c : dados) if (c != 0x1E && c != 0) { ocioso = false; break; }
+    if (ocioso) {
+        ultimoOk_ = t; algumOk_ = true; baudTravado_ = baud;
+        if (somado) ++okSomados_; else ++okPacotes_;
+        formato_ = "ocioso (sem texto)";
+        return;
+    }
     // ASCII ou Huffman? O que der texto mais "limpo"
     std::string asc;
     int boaA = 0;
     for (uint8_t c : dados) {
         if (c == 0x1E || c == 0) continue;               // enchimento
         asc += char(c);
-        if (imprimivel(c)) ++boaA;
+        if (textoAscii(c)) ++boaA;
     }
     std::vector<int> bits;
     for (uint8_t c : dados) for (int i = 0; i < 8; ++i) bits.push_back((c >> i) & 1);
@@ -310,27 +338,49 @@ void PactorCore::aceitar(const std::vector<uint8_t>& dados, uint8_t status, int 
     else if (podeA && !podeH) usaH = false;
     else if (podeA && podeH) usaH = votoH_ > 0;
     else { ++ruins_; return; }
+    // Formato ja firme (varios pacotes seguidos num so formato): um pacote que
+    // so "serve" no outro e quase sempre lixo que passou no CRC por acaso -
+    // descarta em vez de escrever um pedaco embaralhado no meio do texto.
+    if ((usaH && !podeA && votoH_ <= -3) || (!usaH && !podeH && votoH_ >= 3)) {
+        if (podeH != podeA) votoH_ = std::clamp(votoH_ + (podeH ? 1 : -1), -6, 6);
+        ++ruins_; return;
+    }
     if (podeH != podeA) votoH_ = std::clamp(votoH_ + (podeH ? 1 : -1), -6, 6);
     const std::string txt = usaH ? huf : asc;
     formato_ = usaH ? "Huffman" : "ASCII";
     ultimoOk_ = t; algumOk_ = true; baudTravado_ = baud;
     if (somado) ++okSomados_; else ++okPacotes_;
-    for (char c : txt) {
+    for (char ch : txt) {
+        const unsigned char c = (unsigned char)ch;
+        // UTF-8 de 2 bytes (a letra pode vir partida entre dois pacotes):
+        // C2 A0 vira espaco; as outras (acentos) saem como estao
+        if (!usaH && (c == 0xC2 || c == 0xC3)) { utf8Pend_.assign(1, ch); continue; }
+        if (!usaH && c >= 0x80 && c <= 0xBF) {
+            if (utf8Pend_.size() == 1) {
+                if ((unsigned char)utf8Pend_[0] == 0xC2 && c == 0xA0) saida_ += ' ';
+                else { saida_ += utf8Pend_; saida_ += ch; }
+            }
+            utf8Pend_.clear();
+            continue;
+        }
+        utf8Pend_.clear();
         if (c == '\r') { saida_ += '\n'; continue; }
         if (c == '\n') { if (saida_.empty() || saida_.back() != '\n') saida_ += '\n'; continue; }
-        if (imprimivel((unsigned char)c)) saida_ += c;
+        if (imprimivel(c)) saida_ += ch;
     }
     // indicativo: palavra de 4 a 7 com letra e numero (PWZ33), a mais recente
     recente_ += txt;
     if (recente_.size() > 300) recente_.erase(0, recente_.size() - 300);
     std::string w;
-    for (size_t i = 0; i <= recente_.size(); ++i) {
-        const char c = i < recente_.size() ? recente_[i] : ' ';
+    // (a ultima palavra do buffer ainda pode continuar no proximo pacote:
+    // "O061" + "902Z" dava o falso indicativo O061 - so conta palavra fechada)
+    for (size_t i = 0; i < recente_.size(); ++i) {
+        const char c = recente_[i];
         if ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) { w += c; continue; }
-        // forma de indicativo: 1 a 3 letras, um numero, depois 1 a 3 letras/numeros (PWZ33, PWR44)
+        // forma de indicativo: 2 ou 3 letras, um numero, depois 1 a 3 letras/numeros (PWZ33, PWR44)
         size_t k = 0;
         while (k < w.size() && w[k] >= 'A' && w[k] <= 'Z') ++k;
-        const bool forma = k >= 1 && k <= 3 && k < w.size() && w[k] >= '0' && w[k] <= '9' &&
+        const bool forma = k >= 2 && k <= 3 && k < w.size() && w[k] >= '0' && w[k] <= '9' &&
                            w.size() - k >= 2 && w.size() - k <= 4 && w.size() >= 4;
         if (forma) indicativo_ = w;
         w.clear();

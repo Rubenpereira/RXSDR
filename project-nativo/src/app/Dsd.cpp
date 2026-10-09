@@ -1,4 +1,5 @@
 #include "Dsd.h"
+#include "../ui/Idioma.h"
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -68,7 +69,7 @@ const Modo kModos[] = {
 };
 } // namespace
 
-const char* Dsd::nomeModo(int i) { return (i >= 0 && i < nModos()) ? kModos[i].nome : "?"; }
+const char* Dsd::nomeModo(int i) { return (i >= 0 && i < nModos()) ? T(kModos[i].nome) : "?"; }
 int Dsd::nModos() { return (int)(sizeof kModos / sizeof kModos[0]); }
 
 Dsd::Dsd() {}
@@ -88,14 +89,14 @@ bool Dsd::iniciar(int modo, bool inverter, std::string& erro)
         voz_.clear(); tocando_ = false; caudaVoz_.clear(); posVoz_ = 0;
     }
     if (!windowsNovoParaCygwin()) {
-        erro = "O decodificador DMR (dsd-fme) precisa do Windows 8.1, 10 ou 11 - no Windows 7 ele nao abre.";
+        erro = T("O decodificador DMR (dsd-fme) precisa do Windows 8.1, 10 ou 11 - no Windows 7 ele nao abre.");
         std::lock_guard<std::mutex> lk(estMutex_); est_.erro = erro;
         return false;
     }
     const std::wstring pasta = pastaDecoders();
     const std::wstring exe = pasta + L"\\dsd-fme.exe";
     if (GetFileAttributesW(exe.c_str()) == INVALID_FILE_ATTRIBUTES) {
-        erro = "Nao achei decoders\\dsd-fme.exe ao lado do RXSDR.exe.";
+        erro = T("Nao achei decoders\\dsd-fme.exe ao lado do RXSDR.exe.");
         std::lock_guard<std::mutex> lk(estMutex_); est_.erro = erro;
         return false;
     }
@@ -103,14 +104,14 @@ bool Dsd::iniciar(int modo, bool inverter, std::string& erro)
     // UDP local para a voz decodificada
     WSADATA w; WSAStartup(MAKEWORD(2, 2), &w);
     SOCKET s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if (s == INVALID_SOCKET) { erro = "sem socket UDP"; return false; }
+    if (s == INVALID_SOCKET) { erro = T("sem socket UDP"); return false; }
     sockaddr_in a{};
     a.sin_family = AF_INET;
     a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     a.sin_port = 0;
     int alen = sizeof a;
     if (bind(s, (sockaddr*)&a, sizeof a) != 0 || getsockname(s, (sockaddr*)&a, &alen) != 0) {
-        closesocket(s); erro = "nao consegui reservar a porta UDP da voz"; return false;
+        closesocket(s); erro = T("nao consegui reservar a porta UDP da voz"); return false;
     }
     DWORD to = 200;
     setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (const char*)&to, sizeof to);
@@ -122,7 +123,7 @@ bool Dsd::iniciar(int modo, bool inverter, std::string& erro)
     SECURITY_ATTRIBUTES sa{sizeof sa, nullptr, TRUE};
     HANDLE inR = nullptr, inW = nullptr, outR = nullptr, outW = nullptr;
     if (!CreatePipe(&inR, &inW, &sa, 1 << 20) || !CreatePipe(&outR, &outW, &sa, 1 << 16)) {
-        closesocket(s); erro = "CreatePipe falhou"; return false;
+        closesocket(s); erro = T("CreatePipe falhou"); return false;
     }
     SetHandleInformation(inW, HANDLE_FLAG_INHERIT, 0);
     SetHandleInformation(outR, HANDLE_FLAG_INHERIT, 0);
@@ -149,7 +150,7 @@ bool Dsd::iniciar(int modo, bool inverter, std::string& erro)
     CloseHandle(inR); CloseHandle(outW);
     if (!ok) {
         CloseHandle(inW); CloseHandle(outR); closesocket(s);
-        erro = "nao consegui abrir o dsd-fme.exe (erro " + std::to_string(GetLastError()) + ")";
+        erro = T("nao consegui abrir o dsd-fme.exe (erro ") + std::to_string(GetLastError()) + ")";
         std::lock_guard<std::mutex> lk(estMutex_); est_.erro = erro;
         return false;
     }
@@ -160,9 +161,9 @@ bool Dsd::iniciar(int modo, bool inverter, std::string& erro)
     thTexto_ = std::thread([this] { lerTexto(); });
     thUdp_ = std::thread([this] { lerUdp(); });
     if (aoTexto) {
-        std::string t = "[DMR] dsd-fme iniciado - modo ";
+        std::string t = T("[DMR] dsd-fme iniciado - modo ");
         t += m.nome;
-        if (inverter && *m.inv) t += " (invertido)";
+        if (inverter && *m.inv) t += T(" (invertido)");
         t += "\n";
         aoTexto(t);
     }
@@ -215,7 +216,7 @@ void Dsd::escrever(const int16_t* pcm, size_t n)
             vivo_ = false;
             std::lock_guard<std::mutex> le(estMutex_);
             est_.rodando = false;
-            if (est_.erro.empty()) est_.erro = "o dsd-fme fechou";
+            if (est_.erro.empty()) est_.erro = T("o dsd-fme fechou");
             return;
         }
         p += w; resta -= w;
@@ -296,7 +297,7 @@ void Dsd::lerTexto()
         vivo_ = false;
         std::lock_guard<std::mutex> lk(estMutex_);
         est_.rodando = false;
-        if (est_.erro.empty()) est_.erro = "o dsd-fme fechou sozinho";
+        if (est_.erro.empty()) est_.erro = T("o dsd-fme fechou sozinho");
     }
 }
 
@@ -361,9 +362,9 @@ void Dsd::tratarLinhaSegura(std::string l)
             s.ultAtivo = t;
             if (std::regex_search(l, mm, reSrc)) s.src = mm[1];
             if (std::regex_search(l, mm, reTgt)) s.tgt = mm[1];
-            if (baixo.find("group") != std::string::npos) s.tipo = "Grupo";
-            else if (baixo.find("priv") != std::string::npos) s.tipo = "Privado";
-            else if (baixo.find("data") != std::string::npos) s.tipo = "Dados";
+            if (baixo.find("group") != std::string::npos) s.tipo = T("Grupo");
+            else if (baixo.find("priv") != std::string::npos) s.tipo = T("Privado");
+            else if (baixo.find("data") != std::string::npos) s.tipo = T("Dados");
             if (!quadroVoz && !semValidacao && baixo.find("data") != std::string::npos) s.dados++;
             if (std::regex_search(l, mm, reFec)) s.fec = std::stoi(mm[1]);
         }
@@ -371,7 +372,7 @@ void Dsd::tratarLinhaSegura(std::string l)
         if (sv > 0 && quadroVoz) {
             SlotDmr& s = est_.ts[sv - 1];
             s.voz++; s.ultVoz = t; s.ultAtivo = t;
-            if (s.tipo == "-") s.tipo = "Voz";
+            if (s.tipo == "-") s.tipo = T("Voz");
         }
         if (!std::regex_search(l, reSyncErr) && std::regex_search(l, reMsg) && l != ultimaMsg_) {
             ultimaMsg_ = l;

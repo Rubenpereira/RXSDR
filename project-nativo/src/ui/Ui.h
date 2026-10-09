@@ -111,6 +111,8 @@ private:
     void linhaCachoeira();
     void carregarImagens();
     bool interacaoEspectro(float x, float y, float w, float h, const char* id);
+    void menuBandas();                                   // botao direito na cachoeira/espectro
+    void irParaBanda(uint64_t hz, const char* modo);
     double hzParaX(double hz, float x, float w) const;
     double xParaHz(float px, float x, float w) const;
     std::string fmtFreq(uint64_t hz) const;

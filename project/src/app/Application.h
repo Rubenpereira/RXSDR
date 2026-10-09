@@ -57,6 +57,10 @@ public:
     bool isHeadless() const { return headless_; }
 
 private:
+    // Centro do dongle para um VFO: nunca cravado nele, onde mora o "apito"
+    // do DC (USB/CW/AM/FM 20 kHz abaixo, LSB 20 kHz acima, WFM no centro).
+    int64_t centroSemDc(int64_t vfo, bool direta, uint32_t taxa) const;
+
     std::unique_ptr<HttpServer> http_;
     std::unique_ptr<WsServer>   ws_;
     std::unique_ptr<RestApi>    rest_;

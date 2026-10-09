@@ -147,7 +147,8 @@ void PactorManager::processar(const std::vector<int16_t>& pcm, uint32_t sps)
         emit textoFluxo(cab + QLatin1Char('\n'));
     }
     ultimoTexto_ = relogio_;
-    emit textoFluxo(QString::fromLatin1(saida.data(), int(saida.size())));
+    // o nucleo entrega UTF-8 (acentos da Marinha; o espaco C2 A0 ja vira espaco)
+    emit textoFluxo(QString::fromUtf8(saida.data(), int(saida.size())));
 }
 
 } // namespace masdr

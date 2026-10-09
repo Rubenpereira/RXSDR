@@ -1,4 +1,5 @@
 #include "Decoders.h"
+#include "../ui/Idioma.h"
 
 #include "../decoders/AleCore.h"
 #include "../decoders/AnaliseCore.h"
@@ -46,17 +47,17 @@ const char* Decoders::nome(Tipo t)
     case ALE: return "ALE 2G";
     case DMR: return "DMR / P25 / NXDN (dsd-fme)";
     case TETRA: return "TETRA";
-    case HFDL: return "HFDL (ACARS em HF)";
-    case AIS: return "AIS (navios)";
+    case HFDL: return T("HFDL (ACARS em HF)");
+    case AIS: return T("AIS (navios)");
     case APRS: return "APRS";
     case ACARS: return "ACARS (131,550 / 131,825)";
     case VDL2: return "VDL2 (136,975)";
-    case ANALISE: return "Analisar sinal";
-    case DRM: return "DRM (rádio digital)";
-    case SSTV: return "SSTV (imagens)";
-    case WEFAX: return "WEFAX (fax meteorológico)";
-    case PACTOR: return "PACTOR-I (Marinha / FEC)";
-    default: return "Nenhum";
+    case ANALISE: return T("Analisar sinal");
+    case DRM: return T("DRM (rádio digital)");
+    case SSTV: return T("SSTV (imagens)");
+    case WEFAX: return T("WEFAX (fax meteorológico)");
+    case PACTOR: return T("PACTOR-I (Marinha / FEC)");
+    default: return T("Nenhum");
     }
 }
 
@@ -99,7 +100,7 @@ void Decoders::iniciar(Tipo t, const Ajustes& a)
         p.tomHz = a.cwTom > 0 ? a.cwTom : 0.0;
         p.autoTom = a.cwTom <= 0;
         cw_ = std::make_unique<CwCore>(p);
-        escrever("[CW] iniciado - o tom e a velocidade sao medidos sozinhos\n");
+        escrever(T("[CW] iniciado - o tom e a velocidade sao medidos sozinhos\n"));
         break;
     }
     case RTTY: {
@@ -110,8 +111,8 @@ void Decoders::iniciar(Tipo t, const Ajustes& a)
         p.invert = a.rttyInverter;
         rtty_ = std::make_unique<RttyCore>(p);
         char b[128];
-        std::snprintf(b, sizeof b, "[RTTY] iniciado - %.2f baud, shift %.0f Hz%s\n", a.rttyBaud, a.rttyShift,
-                      a.rttyInverter ? ", invertido" : "");
+        std::snprintf(b, sizeof b, T("[RTTY] iniciado - %.2f baud, shift %.0f Hz%s\n"), a.rttyBaud, a.rttyShift,
+                      a.rttyInverter ? T(", invertido") : "");
         escrever(b);
         break;
     }
@@ -121,7 +122,7 @@ void Decoders::iniciar(Tipo t, const Ajustes& a)
         p.shift = a.sitorShift;
         p.invert = a.sitorInverter;
         sitor_ = std::make_unique<SitorBCore>(p);
-        escrever("[SITOR-B] iniciado - 100 baud, recepcao em USB\n");
+        escrever(T("[SITOR-B] iniciado - 100 baud, recepcao em USB\n"));
         break;
     }
     case DSC: {
@@ -129,17 +130,17 @@ void Decoders::iniciar(Tipo t, const Ajustes& a)
         p.sampleRate = kTaxa;
         p.invert = a.dscInverter;
         dsc_ = std::make_unique<DscCore>(p);
-        escrever("[DSC] iniciado - 100 baud, shift 170 Hz, recepcao em USB\n");
+        escrever(T("[DSC] iniciado - 100 baud, shift 170 Hz, recepcao em USB\n"));
         break;
     }
     case PACTOR:
         pactor_ = std::make_unique<PactorCore>(kTaxa);
         pactorUltimo_ = -1e9; pactorRelogio_ = 0;
-        escrever("[PACTOR-I] iniciado - procurando pacotes (100/200 baud, shift 200 Hz, USB)\n");
+        escrever(T("[PACTOR-I] iniciado - procurando pacotes (100/200 baud, shift 200 Hz, USB)\n"));
         break;
     case ALE:
         ale_ = std::make_unique<AleCore>();
-        escrever("[ALE] iniciado - 2G ALE (MIL-STD-188-141), 8-FSK 125 baud, USB com BW de 3 kHz\n");
+        escrever(T("[ALE] iniciado - 2G ALE (MIL-STD-188-141), 8-FSK 125 baud, USB com BW de 3 kHz\n"));
         break;
     case DMR: {
         dsd_.aoTexto = [this](const std::string& s) { escrever(s); };
@@ -195,17 +196,17 @@ void Decoders::iniciar(Tipo t, const Ajustes& a)
         sstv_.parar();      // Reiniciar: a imagem pela metade (1/4 ou mais) ainda e salva
         colherSstv();
         sstv_.limpar();
-        escrever("[SSTV] esperando o VIS (cabecalho) - Robot, Martin, Scottie, SC2 e PD sao reconhecidos sozinhos\n");
+        escrever(T("[SSTV] esperando o VIS (cabecalho) - Robot, Martin, Scottie, SC2 e PD sao reconhecidos sozinhos\n"));
         break;
     case WEFAX:
         wefax_.parar();     // Reiniciar: a imagem pela metade ainda e salva
         colherWefax();
         wefax_.limpar();
-        escrever("[WEFAX] esperando o tom de inicio (300 Hz) - a fase acerta a margem e as linhas por minuto sozinha\n");
+        escrever(T("[WEFAX] esperando o tom de inicio (300 Hz) - a fase acerta a margem e as linhas por minuto sozinha\n"));
         break;
     case ANALISE:
         analise_ = std::make_unique<AnaliseCore>(kTaxa);
-        escrever("[ANALISE] juntando 12 s de audio do sinal sintonizado...\n");
+        escrever(T("[ANALISE] juntando 12 s de audio do sinal sintonizado...\n"));
         break;
     default:
         break;
@@ -399,16 +400,16 @@ void Decoders::alimentar(const float* x, size_t n)
     std::string saida;
     {
         std::lock_guard<std::mutex> lk(coreMutex_);
-        if (cw_) saida = cw_->feed(x, n);
+        if (cw_) saida = TAvisos(cw_->feed(x, n));
         else if (rtty_) {
-            saida = rtty_->feed(x, n);
+            saida = TAvisos(rtty_->feed(x, n));
             if (rtty_->tomNovo()) {
                 char b[80];
-                std::snprintf(b, sizeof b, "\n[RTTY] tom central medido: %.0f Hz\n", rtty_->tomMedido());
+                std::snprintf(b, sizeof b, T("\n[RTTY] tom central medido: %.0f Hz\n"), rtty_->tomMedido());
                 saida = b + saida;
             }
         }
-        else if (sitor_) saida = sitor_->feed(x, n);
+        else if (sitor_) saida = TAvisos(sitor_->feed(x, n));
         else if (pactor_) {
             saida = pactor_->feed(x, n);
             pactorRelogio_ += double(n) / kTaxa;
@@ -419,7 +420,7 @@ void Decoders::alimentar(const float* x, size_t n)
                 pactorUltimo_ = pactorRelogio_;
             }
         }
-        else if (dsc_) saida = dsc_->feed(x, n);
+        else if (dsc_) saida = TDsc(dsc_->feed(x, n));
         else if (ale_) {
             for (const auto& c : ale_->feed(x, n)) saida += "[ALE] " + horaUtc() + " UTC  " + c + "\n";
         }
@@ -427,8 +428,8 @@ void Decoders::alimentar(const float* x, size_t n)
             if (analise_->alimentar(x, n)) {
                 analiseFeita_ = true;
                 const auto r = analise_->analisar();
-                saida += "\n[ANALISE] " + horaUtc() + " UTC\n";
-                for (const auto& l : r.linhas) saida += "  " + l + "\n";
+                saida += T("\n[ANALISE] ") + horaUtc() + " UTC\n";
+                for (const auto& l : r.linhas) saida += "  " + TAnalise(l) + "\n";
                 saida += "\n";
             }
         }
@@ -449,7 +450,7 @@ void Decoders::colherSstv()
         char rot[128];
         std::snprintf(rot, sizeof rot, "%s  %s UTC  %.3f MHz", nomeModo.c_str(), horaUtc().substr(0, 5).c_str(), hz / 1e6);
         im.rotulo = rot;
-        std::string linha = std::string("[SSTV] ") + rot + (im.porVis ? "" : "  (sem VIS)");
+        std::string linha = std::string("[SSTV] ") + rot + (im.porVis ? "" : T("  (sem VIS)"));
         if (sstvSalvar.load()) {
             char exe[MAX_PATH]{};
             GetModuleFileNameA(nullptr, exe, MAX_PATH);
@@ -471,8 +472,8 @@ void Decoders::colherSstv()
             const std::string cam = pasta + nome;
             std::ofstream f(cam, std::ios::binary);
             f.write(png.data(), (std::streamsize)png.size());
-            if (!png.empty() && f) { im.arquivo = cam; linha += std::string("  salva em SSTV") + nome; }
-            else linha += "  (nao consegui salvar em " + pasta + ")";
+            if (!png.empty() && f) { im.arquivo = cam; linha += std::string(T("  salva em SSTV")) + nome; }
+            else linha += T("  (nao consegui salvar em ") + pasta + ")";
         }
         escrever(linha + "\n");
         std::lock_guard<std::mutex> lk(sstvMutex_);
@@ -512,8 +513,8 @@ void Decoders::colherWefax()
             const std::string cam = pasta + nome;
             std::ofstream f(cam, std::ios::binary);
             f.write(png.data(), (std::streamsize)png.size());
-            if (!png.empty() && f) { im.arquivo = cam; linha += std::string("  salva em WEFAX") + nome; }
-            else linha += "  (nao consegui salvar em " + pasta + ")";
+            if (!png.empty() && f) { im.arquivo = cam; linha += std::string(T("  salva em WEFAX")) + nome; }
+            else linha += T("  (nao consegui salvar em ") + pasta + ")";
         }
         escrever(linha + "\n");
         std::lock_guard<std::mutex> lk(sstvMutex_);
@@ -543,7 +544,16 @@ bool Decoders::pegarImagemSstv(ImagemSstv& im)
 void Decoders::escrever(const std::string& s)
 {
     std::lock_guard<std::mutex> lk(textoMutex_);
+    // A linha "[XXX] iniciado" (e as outras de aviso) sempre comeca numa
+    // linha nova: o texto do PACTOR/RTTY/CW chega aos pedacos e o aviso
+    // grudava no fim de uma palavra ("VISIBIL[PACTOR-I] iniciado").
+    if (ultimoChar_ != '\n' && s.size() > 3 && s[0] == '[') {
+        size_t i = 1;   // so um aviso "[ETIQUETA] ..." (o texto recebido pode ter '[' solto)
+        while (i < s.size() && i < 14 && ((s[i] >= 'A' && s[i] <= 'Z') || (s[i] >= '0' && s[i] <= '9') || s[i] == '-')) ++i;
+        if (i > 1 && i + 1 < s.size() && s[i] == ']' && s[i + 1] == ' ') texto_ += '\n';
+    }
     texto_ += s;
+    if (!s.empty()) ultimoChar_ = s.back();
     if (texto_.size() > 200000) texto_.erase(0, texto_.size() - 100000);
 }
 
@@ -558,108 +568,109 @@ std::string Decoders::pegarTexto()
 std::string Decoders::estado()
 {
     std::lock_guard<std::mutex> lk(coreMutex_);
-    char b[200] = "Parado";
+    char b[200];
+    std::snprintf(b, sizeof b, "%s", T("Parado"));
     if (cw_)
-        std::snprintf(b, sizeof b, "tom %.0f Hz  |  %.0f palavras/min  |  %d letras",
+        std::snprintf(b, sizeof b, T("tom %.0f Hz  |  %.0f palavras/min  |  %d letras"),
                       cw_->tomMedido(), cw_->ppm(), cw_->letras());
     else if (rtty_)
-        std::snprintf(b, sizeof b, "%s  |  tom %.0f Hz  |  %d caracteres  |  %d erros",
-                      rtty_->sincronizado() ? "SINCRONIZADO" : "procurando", rtty_->tomMedido(),
+        std::snprintf(b, sizeof b, T("%s  |  tom %.0f Hz  |  %d caracteres  |  %d erros"),
+                      rtty_->sincronizado() ? T("SINCRONIZADO") : T("procurando"), rtty_->tomMedido(),
                       rtty_->totalChars(), rtty_->erros());
     else if (pactor_)
-        std::snprintf(b, sizeof b, "%s  |  %s  |  tom %.0f Hz  |  %d pacotes (%d somados)  |  %s%s%s",
-                      pactor_->travado() ? "RECEBENDO" : "procurando",
+        std::snprintf(b, sizeof b, T("%s  |  %s  |  tom %.0f Hz  |  %d pacotes (%d somados)  |  %s%s%s"),
+                      pactor_->travado() ? T("RECEBENDO") : T("procurando"),
                       pactor_->baud() ? (pactor_->baud() == 200 ? "200 baud" : "100 baud") : "- baud",
                       pactor_->tomCentral(), pactor_->pacotes(), pactor_->somados(), pactor_->formato(),
                       pactor_->indicativo().empty() ? "" : "  |  ", pactor_->indicativo().c_str());
     else if (sitor_)
-        std::snprintf(b, sizeof b, "%s  |  %d/%d validos  |  %d salvos pela copia RX",
-                      sitor_->sincronizado() ? "SINCRONIZADO" : "procurando", sitor_->validChars(),
+        std::snprintf(b, sizeof b, T("%s  |  %d/%d validos  |  %d salvos pela copia RX"),
+                      sitor_->sincronizado() ? T("SINCRONIZADO") : T("procurando"), sitor_->validChars(),
                       sitor_->totalChars(), sitor_->corrigidos());
     else if (dsc_)
-        std::snprintf(b, sizeof b, "%s  |  %d mensagens  |  %d/%d simbolos validos",
-                      dsc_->sincronizado() ? "SINCRONIZADO" : "procurando", dsc_->mensagens(),
+        std::snprintf(b, sizeof b, T("%s  |  %d mensagens  |  %d/%d simbolos validos"),
+                      dsc_->sincronizado() ? T("SINCRONIZADO") : T("procurando"), dsc_->mensagens(),
                       dsc_->validos(), dsc_->simbolos());
     else if (ale_)
-        std::snprintf(b, sizeof b, "%s  |  %d palavras  |  %d chamadas  |  desvio %+.0f Hz",
-                      ale_->sincronizado() ? "TRAVADO" : "procurando", ale_->palavras(), ale_->chamadas(),
+        std::snprintf(b, sizeof b, T("%s  |  %d palavras  |  %d chamadas  |  desvio %+.0f Hz"),
+                      ale_->sincronizado() ? T("TRAVADO") : T("procurando"), ale_->palavras(), ale_->chamadas(),
                       ale_->desvioHz());
     else if (tipo_.load() == DMR) {
         const EstadoDmr e = dsd_.estado();
-        if (!e.rodando) std::snprintf(b, sizeof b, "%s", e.erro.empty() ? "Parado" : e.erro.c_str());
-        else std::snprintf(b, sizeof b, "dsd-fme rodando  |  %s  |  CC %s  |  %d linhas",
-                           e.protocolo.empty() ? "sem sincronismo" : e.protocolo.c_str(),
+        if (!e.rodando) std::snprintf(b, sizeof b, "%s", e.erro.empty() ? T("Parado") : e.erro.c_str());
+        else std::snprintf(b, sizeof b, T("dsd-fme rodando  |  %s  |  CC %s  |  %d linhas"),
+                           e.protocolo.empty() ? T("sem sincronismo") : e.protocolo.c_str(),
                            e.cc >= 0 ? std::to_string(e.cc).c_str() : "-", e.linhas);
     }
     else if (tipo_.load() == TETRA) {
         const EstadoTetra e = tetra_.estado();
-        if (!e.rodando) std::snprintf(b, sizeof b, "%s", e.erro.empty() ? "Parado" : e.erro.c_str());
-        else if (e.adquirindo) std::snprintf(b, sizeof b, "procurando a portadora...");
-        else std::snprintf(b, sizeof b, "%s  |  AFC %+.0f Hz  |  %d bursts  |  voz %d",
-                           e.travado ? "SINCRONIZADO" : "procurando", e.afc, e.bursts, e.voz);
+        if (!e.rodando) std::snprintf(b, sizeof b, "%s", e.erro.empty() ? T("Parado") : e.erro.c_str());
+        else if (e.adquirindo) std::snprintf(b, sizeof b, T("procurando a portadora..."));
+        else std::snprintf(b, sizeof b, T("%s  |  AFC %+.0f Hz  |  %d bursts  |  voz %d"),
+                           e.travado ? T("SINCRONIZADO") : T("procurando"), e.afc, e.bursts, e.voz);
     }
     else if (tipo_.load() == HFDL) {
         const EstadoExterno e = hfdl_.estado();
-        if (!e.rodando) std::snprintf(b, sizeof b, "%s", e.erro.empty() ? "dumphfdl parado" : e.erro.c_str());
-        else if (hfdl_.foraDaBanda()) std::snprintf(b, sizeof b, "o radio saiu da banda - clique Reiniciar  |  %d mensagens", e.mensagens);
-        else std::snprintf(b, sizeof b, "dumphfdl ouvindo  |  %d mensagens", e.mensagens);
+        if (!e.rodando) std::snprintf(b, sizeof b, "%s", e.erro.empty() ? T("dumphfdl parado") : e.erro.c_str());
+        else if (hfdl_.foraDaBanda()) std::snprintf(b, sizeof b, T("o radio saiu da banda - clique Reiniciar  |  %d mensagens"), e.mensagens);
+        else std::snprintf(b, sizeof b, T("dumphfdl ouvindo  |  %d mensagens"), e.mensagens);
     }
     else if (tipo_.load() == ACARS || tipo_.load() == VDL2) {
         const bool ac = tipo_.load() == ACARS;
         const EstadoExterno e = ac ? acars_.estado() : vdl2_.estado();
         const bool fora = ac ? acars_.foraDaBanda() : vdl2_.foraDaBanda();
         const char* prog = ac ? "acarsdec" : "dumpvdl2";
-        if (!e.rodando) std::snprintf(b, sizeof b, "%s", e.erro.empty() ? (ac ? "acarsdec parado" : "dumpvdl2 parado") : e.erro.c_str());
-        else if (fora) std::snprintf(b, sizeof b, "o radio saiu do centro combinado - clique Reiniciar  |  %d mensagens", e.mensagens);
-        else std::snprintf(b, sizeof b, "%s ouvindo  |  %d mensagens", prog, e.mensagens);
+        if (!e.rodando) std::snprintf(b, sizeof b, "%s", e.erro.empty() ? (ac ? T("acarsdec parado") : T("dumpvdl2 parado")) : e.erro.c_str());
+        else if (fora) std::snprintf(b, sizeof b, T("o radio saiu do centro combinado - clique Reiniciar  |  %d mensagens"), e.mensagens);
+        else std::snprintf(b, sizeof b, T("%s ouvindo  |  %d mensagens"), prog, e.mensagens);
     }
     else if (tipo_.load() == AIS) {
         const EstadoExterno e = ais_.estado();
-        if (!e.rodando) std::snprintf(b, sizeof b, "%s", e.erro.empty() ? "AIS-catcher parado" : e.erro.c_str());
-        else std::snprintf(b, sizeof b, "AIS-catcher ouvindo  |  %d mensagens  |  %s", e.mensagens, e.info.c_str());
+        if (!e.rodando) std::snprintf(b, sizeof b, "%s", e.erro.empty() ? T("AIS-catcher parado") : e.erro.c_str());
+        else std::snprintf(b, sizeof b, T("AIS-catcher ouvindo  |  %d mensagens  |  %s"), e.mensagens, e.info.c_str());
     }
     else if (tipo_.load() == APRS) {
         const EstadoExterno e = aprs_.estado();
-        if (!e.rodando) std::snprintf(b, sizeof b, "%s", e.erro.empty() ? "direwolf parado" : e.erro.c_str());
-        else std::snprintf(b, sizeof b, "direwolf ouvindo  |  %d pacotes  |  %s", e.mensagens, e.info.c_str());
+        if (!e.rodando) std::snprintf(b, sizeof b, "%s", e.erro.empty() ? T("direwolf parado") : e.erro.c_str());
+        else std::snprintf(b, sizeof b, T("direwolf ouvindo  |  %d pacotes  |  %s"), e.mensagens, e.info.c_str());
     }
     else if (tipo_.load() == DRM) {
         const EstadoDrm e = drm_.estado();
         static const char kRob[] = "ABCDE";
         static const char* kQam[] = {"4-QAM", "16-QAM", "64-QAM", "64-QAM", "64-QAM"};
-        if (!e.rodando) std::snprintf(b, sizeof b, "%s", e.erro.empty() ? "dream parado" : e.erro.c_str());
-        else if (!e.comStatus) std::snprintf(b, sizeof b, "abrindo o dream...");
-        else if (e.tempo != 0) std::snprintf(b, sizeof b, "procurando o sinal DRM  |  sintonize o centro do canal");
-        else if (e.fac != 0) std::snprintf(b, sizeof b, "sinal achado, sincronizando (FAC)  |  SNR %.1f dB", e.snr);
-        else std::snprintf(b, sizeof b, "DRM %s  |  SNR %.1f dB  |  modo %c  %.0f kHz  %s  |  %s %.1f kbps%s",
-                           e.estacao.empty() ? "(lendo SDC)" : e.estacao.c_str(), e.snr,
+        if (!e.rodando) std::snprintf(b, sizeof b, "%s", e.erro.empty() ? T("dream parado") : e.erro.c_str());
+        else if (!e.comStatus) std::snprintf(b, sizeof b, T("abrindo o dream..."));
+        else if (e.tempo != 0) std::snprintf(b, sizeof b, T("procurando o sinal DRM  |  sintonize o centro do canal"));
+        else if (e.fac != 0) std::snprintf(b, sizeof b, T("sinal achado, sincronizando (FAC)  |  SNR %.1f dB"), e.snr);
+        else std::snprintf(b, sizeof b, T("DRM %s  |  SNR %.1f dB  |  modo %c  %.0f kHz  %s  |  %s %.1f kbps%s"),
+                           e.estacao.empty() ? T("(lendo SDC)") : e.estacao.c_str(), e.snr,
                            e.robustez >= 0 && e.robustez < 5 ? kRob[e.robustez] : '?', e.larguraKHz,
                            e.mscQam >= 0 && e.mscQam < 5 ? kQam[e.mscQam] : "?",
                            e.codec.empty() ? "?" : e.codec.c_str(), e.kbps,
-                           e.msc == 0 ? "" : "  |  áudio com erros");
+                           e.msc == 0 ? "" : T("  |  áudio com erros"));
     }
     else if (tipo_.load() == SSTV) {
         const SstvCore::Status s = sstv_.status();
         if (s.estado == SstvCore::RECEBENDO)
-            std::snprintf(b, sizeof b, "recebendo %s%s  |  linha %d de %d  |  sintonia %+.0f Hz  |  inclinacao %+.0f ppm",
+            std::snprintf(b, sizeof b, T("recebendo %s%s  |  linha %d de %d  |  sintonia %+.0f Hz  |  inclinacao %+.0f ppm"),
                           SstvCore::nomeModo(s.modo), s.porVis ? " (VIS)" : "", s.linha, s.linhas, s.desvioHz,
                           s.inclinacaoPpm);
         else
-            std::snprintf(b, sizeof b, "esperando o VIS  |  sinal %.0f dB  |  %d imagens recebidas", s.nivelDb, s.imagens);
+            std::snprintf(b, sizeof b, T("esperando o VIS  |  sinal %.0f dB  |  %d imagens recebidas"), s.nivelDb, s.imagens);
     }
     else if (tipo_.load() == WEFAX) {
         const WefaxCore::Status s = wefax_.status();
-        static const char* kEst[] = {"esperando o tom de inicio", "tom de inicio - IOC %d", "fase: medindo a margem e as linhas por minuto",
-                                     "recebendo", "pronta"};
+        const char* kEst[] = {T("esperando o tom de inicio"), T("tom de inicio - IOC %d"), T("fase: medindo a margem e as linhas por minuto"),
+                                     T("recebendo"), T("pronta")};
         if (s.estado == WefaxCore::RECEBENDO)
-            std::snprintf(b, sizeof b, "recebendo  |  %d LPM, IOC %d  |  %d linhas  |  margem %s", s.lpm, s.ioc, s.linhas,
-                          s.alinhadoPelaFase ? "pela fase" : "manual");
+            std::snprintf(b, sizeof b, T("recebendo  |  %d LPM, IOC %d  |  %d linhas  |  margem %s"), s.lpm, s.ioc, s.linhas,
+                          s.alinhadoPelaFase ? T("pela fase") : "manual");
         else if (s.estado == WefaxCore::INICIO) std::snprintf(b, sizeof b, kEst[1], s.ioc);
-        else std::snprintf(b, sizeof b, "%s  |  sinal %.0f dB  |  %d imagens recebidas", kEst[s.estado], s.nivelDb, s.imagens);
+        else std::snprintf(b, sizeof b, T("%s  |  sinal %.0f dB  |  %d imagens recebidas"), kEst[s.estado], s.nivelDb, s.imagens);
     }
     else if (analise_)
-        std::snprintf(b, sizeof b, analiseFeita_ ? "analise pronta - clique Reiniciar para medir de novo"
-                                                 : "juntando audio: %.0f de %.0f s",
+        std::snprintf(b, sizeof b, analiseFeita_ ? T("analise pronta - clique Reiniciar para medir de novo")
+                                                 : T("juntando audio: %.0f de %.0f s"),
                       analise_->segundosJuntados(), analise_->segundosNecessarios());
     return b;
 }

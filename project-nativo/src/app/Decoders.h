@@ -188,6 +188,7 @@ private:
     // texto de saida
     std::mutex textoMutex_;
     std::string texto_;
+    char ultimoChar_ = '\n';      // ultimo caractere escrito (para o aviso comecar em linha nova)
 };
 
 } // namespace masdr

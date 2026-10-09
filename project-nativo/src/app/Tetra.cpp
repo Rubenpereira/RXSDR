@@ -1,4 +1,5 @@
 #include "Tetra.h"
+#include "../ui/Idioma.h"
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -109,7 +110,7 @@ long numero(const std::string& v, bool hexPrimeiro)
     } catch (...) { return 0; }
 }
 
-const char* nomeTea(long c) { return c == 0 ? "sem cripto" : c == 1 ? "TEA1" : c == 2 ? "TEA2" : c == 3 ? "TEA3" : "?"; }
+const char* nomeTea(long c) { return c == 0 ? T("sem cripto") : c == 1 ? "TEA1" : c == 2 ? "TEA2" : c == 3 ? "TEA3" : "?"; }
 
 // Bloco de ambiente com as variaveis que o tetra-rx usa para mandar o TETMON
 std::vector<wchar_t> ambienteCom(const std::vector<std::wstring>& extras)
@@ -200,7 +201,7 @@ bool Tetra::iniciar(bool inverterIQ, std::string& erro)
     const std::wstring pasta = pastaDecoders();
     const std::wstring rx = pasta + L"\\tetra-rx.exe";
     if (!existe(rx) || !existe(pasta + L"\\cdecoder.exe") || !existe(pasta + L"\\sdecoder.exe")) {
-        erro = "Faltam arquivos do TETRA na pasta decoders (tetra-rx.exe, cdecoder.exe, sdecoder.exe).";
+        erro = T("Faltam arquivos do TETRA na pasta decoders (tetra-rx.exe, cdecoder.exe, sdecoder.exe).");
         std::lock_guard<std::mutex> lk(estMutex_); est_.erro = erro;
         return false;
     }
@@ -212,7 +213,7 @@ bool Tetra::iniciar(bool inverterIQ, std::string& erro)
     int alen = sizeof a;
     if (s == INVALID_SOCKET || bind(s, (sockaddr*)&a, sizeof a) != 0 || getsockname(s, (sockaddr*)&a, &alen) != 0) {
         if (s != INVALID_SOCKET) closesocket(s);
-        erro = "nao consegui reservar a porta UDP do TETMON";
+        erro = T("nao consegui reservar a porta UDP do TETMON");
         return false;
     }
     DWORD to = 200; setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (const char*)&to, sizeof to);
@@ -222,7 +223,7 @@ bool Tetra::iniciar(bool inverterIQ, std::string& erro)
     SECURITY_ATTRIBUTES sa{sizeof sa, nullptr, TRUE};
     HANDLE inR, inW, outR, outW;
     if (!CreatePipe(&inR, &inW, &sa, 1 << 20) || !CreatePipe(&outR, &outW, &sa, 1 << 16)) {
-        closesocket(s); erro = "CreatePipe falhou"; return false;
+        closesocket(s); erro = T("CreatePipe falhou"); return false;
     }
     SetHandleInformation(inW, HANDLE_FLAG_INHERIT, 0);
     SetHandleInformation(outR, HANDLE_FLAG_INHERIT, 0);
@@ -242,7 +243,7 @@ bool Tetra::iniciar(bool inverterIQ, std::string& erro)
     CloseHandle(inR); CloseHandle(outW); if (nul != INVALID_HANDLE_VALUE) CloseHandle(nul);
     if (!ok) {
         CloseHandle(inW); CloseHandle(outR); closesocket(s);
-        erro = "nao consegui abrir o tetra-rx.exe (erro " + std::to_string(GetLastError()) + ")";
+        erro = T("nao consegui abrir o tetra-rx.exe (erro ") + std::to_string(GetLastError()) + ")";
         std::lock_guard<std::mutex> lk(estMutex_); est_.erro = erro;
         return false;
     }
@@ -253,8 +254,8 @@ bool Tetra::iniciar(bool inverterIQ, std::string& erro)
     thDemod_ = std::thread([this] { lacoDemod(); });
     thRx_ = std::thread([this] { lerTetraRx(); });
     thTetmon_ = std::thread([this] { lerTetmon(); });
-    msg(std::string("[TETRA] iniciado - pi/4-DQPSK 18 ksimb/s, osmo-tetra + ACELP") + (inverter_ ? " (espectro invertido)" : "") +
-        "\n[TETRA] procurando a portadora (1 s de aquisicao)...\n");
+    msg(std::string(T("[TETRA] iniciado - pi/4-DQPSK 18 ksimb/s, osmo-tetra + ACELP")) + (inverter_ ? T(" (espectro invertido)") : "") +
+        T("\n[TETRA] procurando a portadora (1 s de aquisicao)...\n"));
     return true;
 }
 
@@ -397,7 +398,7 @@ void Tetra::adquirir()
         est_.adquirindo = false; est_.afcInicial = (float)hz;
     }
     char m[120];
-    std::snprintf(m, sizeof m, "[TETRA] portadora a %+.0f Hz do VFO - acompanhando\n", hz);
+    std::snprintf(m, sizeof m, T("[TETRA] portadora a %+.0f Hz do VFO - acompanhando\n"), hz);
     msg(m);
 }
 
@@ -626,7 +627,7 @@ void Tetra::lerTetraRx()
                     uso = t.substr(q, 1);
                     if (tn >= 1 && tn <= 4) {
                         std::lock_guard<std::mutex> lk(estMutex_);
-                        est_.ts[tn - 1] = (uso == "U") ? "livre" : "ocupado";
+                        est_.ts[tn - 1] = (uso == "U") ? T("livre") : T("ocupado");
                     }
                 }
             }
@@ -652,7 +653,7 @@ void Tetra::lerTetraRx()
         filaCv_.notify_all();
         std::lock_guard<std::mutex> lk(estMutex_);
         est_.rodando = false;
-        if (est_.erro.empty()) est_.erro = "o tetra-rx fechou sozinho";
+        if (est_.erro.empty()) est_.erro = T("o tetra-rx fechou sozinho");
     }
 }
 
@@ -731,35 +732,35 @@ void Tetra::lerTetmon()
                 est_.mcc = (int)mcc; est_.mnc = (int)mnc; est_.cc = (int)cc;
             }
             char m[160];
-            std::snprintf(m, sizeof m, "Celula: MCC %ld  MNC %ld  CC %ld", mcc, mnc, cc);
+            std::snprintf(m, sizeof m, T("Celula: MCC %ld  MNC %ld  CC %ld"), mcc, mnc, cc);
             if (m != ultMeta_ || t - ultNet > 60) { ultMeta_ = m; ultNet = t; linha = m; }
         } else if (func == "FREQINFO1") {
             if (t - ultFreq > 30) {
                 ultFreq = t;
                 const double dl = (double)numero(campo(payload, "DLF"), false), ul = (double)numero(campo(payload, "ULF"), false);
                 char m[120];
-                if (ul > 0) std::snprintf(m, sizeof m, "Frequencias da celula: descida %.4f MHz, subida %.4f MHz", dl / 1e6, ul / 1e6);
-                else std::snprintf(m, sizeof m, "Frequencia da celula (descida): %.4f MHz", dl / 1e6);
+                if (ul > 0) std::snprintf(m, sizeof m, T("Frequencias da celula: descida %.4f MHz, subida %.4f MHz"), dl / 1e6, ul / 1e6);
+                else std::snprintf(m, sizeof m, T("Frequencia da celula (descida): %.4f MHz"), dl / 1e6);
                 linha = m;
             }
         } else if (func == "ENCINFO1") {
             const long cr = numero(campo(payload, "CRYPT"), false);
             { std::lock_guard<std::mutex> lk(estMutex_); est_.cripto = nomeTea(cr); tetmonCripto_ = true; }
-            if (t - ultEnc > 60) { ultEnc = t; linha = std::string("Criptografia da celula: ") + nomeTea(cr); }
+            if (t - ultEnc > 60) { ultEnc = t; linha = std::string(T("Criptografia da celula: ")) + nomeTea(cr); }
         } else if (func == "DSETUPDEC") {
-            linha = "Chamada: SSI " + campo(payload, "SSI") + " -> " + campo(payload, "SSI2");
+            linha = T("Chamada: SSI ") + campo(payload, "SSI") + " -> " + campo(payload, "SSI2");
             std::lock_guard<std::mutex> lk(estMutex_);
             est_.ultimaChamada = "SSI " + campo(payload, "SSI") + " -> " + campo(payload, "SSI2");
         } else if (func == "DCONNECTDEC") {
-            linha = "Chamada conectada: SSI " + campo(payload, "SSI");
+            linha = T("Chamada conectada: SSI ") + campo(payload, "SSI");
         } else if (func == "DTXGRANTDEC") {
-            linha = "Fala liberada para SSI " + campo(payload, "SSI");
+            linha = T("Fala liberada para SSI ") + campo(payload, "SSI");
         } else if (func == "DRELEASEDEC" || func == "D-RELEASE") {
-            linha = "Chamada encerrada";
+            linha = T("Chamada encerrada");
         } else if (func == "DSTATUSDEC") {
-            linha = "Status de SSI " + campo(payload, "SSI") + ": " + campo(payload, "STATUS");
+            linha = T("Status de SSI ") + campo(payload, "SSI") + ": " + campo(payload, "STATUS");
         } else if (func == "SDSDEC") {
-            linha = "SDS (mensagem curta) de SSI " + campo(payload, "SSI");
+            linha = T("SDS (mensagem curta) de SSI ") + campo(payload, "SSI");
         }
         if (!linha.empty()) msg("[" + horaUtc() + "] " + linha + "\n");
     }

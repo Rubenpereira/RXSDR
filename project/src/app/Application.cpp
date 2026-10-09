@@ -226,6 +226,27 @@ QString resolveDeviceEndpoint(const QString& type, const QString& serial)
 }
 }
 
+// ---------------------------------------------------------------------------
+//  Centro do dongle "sem DC": usado ao abrir o aparelho, ao ligar, quando a
+//  estacao sai da tela e no botao >.< (pedido do autor, igual ao Nativo).
+//  Com o centro cravado no VFO o vazamento do oscilador (o "apito") caia em
+//  cima da estacao - visto em 8580,5 kHz logo depois de abrir o programa.
+// ---------------------------------------------------------------------------
+int64_t Application::centroSemDc(int64_t vfo, bool direta, uint32_t taxa) const
+{
+    if (taxa < 200000) return vfo;
+    if (hfdlDeco_ && hfdlDeco_->state() == HfdlManager::State::Running) return vfo;
+    const QString m = mode_.toUpper();
+    if (m == QLatin1String("WFM")) return vfo;
+    int64_t c;
+    if (m == QLatin1String("LSB")) c = vfo + kDesvioDcHz;
+    else if (m == QLatin1String("USB") || m == QLatin1String("CW")) c = vfo - kDesvioDcHz;
+    else c = vfo - (int64_t(bwHz_.load()) / 2 + kDesvioDcHz);
+    if (direta && c > kTetoDiretaHz) c = vfo - kDesvioDcHz;
+    if (c < kPisoCentroHz) c = vfo + kDesvioDcHz;
+    return c;
+}
+
 Application::Application() = default;
 Application::~Application()
 {
@@ -361,10 +382,9 @@ bool Application::start()
             dev->setQuadrature(direta);
             dev->setPpm(cfg.ppm());
             dev->setBias(cfg.biasT());
-            // O LO ja abre desviado do VFO - ver centroComDesvioDoLo.
-            dev->setCenterFreq(static_cast<quint64>(centroComDesvioDoLo(
-                static_cast<int64_t>(currentFreq), static_cast<int64_t>(currentFreq), direta,
-                dev->sampleRate())));
+            // O LO ja abre desviado do VFO - ver centroSemDc.
+            dev->setCenterFreq(static_cast<quint64>(centroSemDc(
+                static_cast<int64_t>(currentFreq), direta, dev->sampleRate())));
             dev->setGain(cfg.agc() ? -1 : cfg.gainTenths());
         }
 
@@ -405,9 +425,8 @@ bool Application::start()
             // para cima do DC.
             const uint64_t f = freqA_.load();
             const bool direta = Config::instance().quadratureEm(f);
-            device_->setCenterFreq(static_cast<quint64>(centroComDesvioDoLo(
-                static_cast<int64_t>(f), static_cast<int64_t>(f), direta,
-                device_->sampleRate())));
+            device_->setCenterFreq(static_cast<quint64>(centroSemDc(
+                static_cast<int64_t>(f), direta, device_->sampleRate())));
         }
         // Reaplica o ganho APÓS setCenterFreq porque o driver RTL-SDR
         // reseta o ganho internamente ao mudar a frequência central.
@@ -479,15 +498,7 @@ bool Application::start()
                 //   WFM                   : no centro (canal de 200 kHz)
                 // Clicar dentro da tela continua NAO mexendo na cachoeira - ver
                 // centroComDesvioDoLo, desligado por isso em 28/08/2026.
-                int64_t centro = centroComDesvioDoLo(static_cast<int64_t>(freq),
-                                                     static_cast<int64_t>(freq), direta, sr);
-                const bool hfdlRodando = hfdlDeco_ && hfdlDeco_->state() == HfdlManager::State::Running;
-                if (!hfdlRodando && newMode != QLatin1String("WFM") && sr >= 200000) {
-                    const int64_t f = static_cast<int64_t>(freq);
-                    centro = (newMode == QLatin1String("LSB")) ? f + kDesvioDcHz : f - kDesvioDcHz;
-                    if (direta && centro > kTetoDiretaHz) centro = f - kDesvioDcHz;
-                    if (centro < kPisoCentroHz) centro = f + kDesvioDcHz;
-                }
+                const int64_t centro = centroSemDc(static_cast<int64_t>(freq), direta, sr);
                 device_->setCenterFreq(static_cast<quint64>(centro));
                 // Re-aplica o ganho: o driver RTL-SDR reseta o ganho de hardware
                 // internamente ao mudar a frequência central — sem isso o ganho
@@ -540,11 +551,10 @@ bool Application::start()
             // Arrastar a cachoeira para um centro qualquer continua igual. So o
             // caso em que o centro pedido cai em cima do VFO - o botao >.< - e
             // que ganha o desvio.
-            const int64_t centro = centroComDesvioDoLo(
-                static_cast<int64_t>(freq),
-                static_cast<int64_t>(freqA_.load()),
-                direta,
-                device_->sampleRate());
+            // O >.< manda o proprio VFO: esse ganha o desvio do DC.
+            const int64_t centro = (freq == freqA_.load())
+                ? centroSemDc(static_cast<int64_t>(freq), direta, device_->sampleRate())
+                : static_cast<int64_t>(freq);
             device_->setCenterFreq(static_cast<quint64>(centro));
             if (deviceType_ == QStringLiteral("sdrplay")) {
                 auto* sdrplay = dynamic_cast<SdrplayDevice*>(device_.get());
@@ -608,9 +618,8 @@ bool Application::start()
                 // VFO para cima do DC.
                 const uint64_t f = freqA_.load();
                 const bool direta = Config::instance().quadratureEm(f);
-                device_->setCenterFreq(static_cast<quint64>(centroComDesvioDoLo(
-                    static_cast<int64_t>(f), static_cast<int64_t>(f), direta,
-                    device_->sampleRate())));
+                device_->setCenterFreq(static_cast<quint64>(centroSemDc(
+                    static_cast<int64_t>(f), direta, device_->sampleRate())));
             }
             // Reaplica o ganho APÓS setCenterFreq porque o driver RTL-SDR
             // reseta o ganho internamente ao mudar a frequência central.

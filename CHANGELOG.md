@@ -18,7 +18,15 @@ RXSDR e RXSDR Nativo 1.0.4: ao escolher um canal na lista do SITOR-B, DSC, RTTY 
 
 RXSDR e RXSDR Nativo 1.0.4: SITOR-B do Servicio de Hidrografia Naval (Argentina) acertado com sinais recebidos: em 12579 kHz o sinal sai na verdade em 12580,7 kHz (a lista agora sintoniza certo); o shift é de 200 Hz em 8416,5 e 12580,7 kHz e de 170 Hz em 16806,5 kHz.
 
+RXSDR e RXSDR Nativo 1.0.4: PACTOR-I acertado com a transmissão real da Marinha do Brasil (meteoromarinha, 6450 kHz). Os pacotes alternam o cabeçalho (0x55 e 0xAA) e a cópia repetida vem com a polaridade trocada; antes só metade dos pacotes era aceita e o texto saía embaralhado. O texto vem em ASCII com o espaço em UTF-8, que agora é reconhecido. O canal que constava como 6448 kHz passou para 6450 kHz, onde o sinal realmente sai. Quando a estação está no ar sem mensagem (pacotes ociosos, como em 8582 kHz), a janela agora mostra RECEBENDO e "ocioso (sem texto)" em vez de ficar procurando.
+
+RXSDR e RXSDR Nativo 1.0.4: o centro do dongle também fica 20 kHz ao lado da sintonia ao abrir o programa, ao ligar o rádio, ao mudar a configuração e no botão >.< (antes, logo depois de abrir, o "apito" do DC caía em cima da estação).
+
+RXSDR Nativo 1.0.4: botão direito do mouse na cachoeira ou no espectro abre a lista das bandas (Ondas Médias, 160 a 10 m, PX, 6 m, FM, aviação, 2 m, marítimo, 70 cm e rádios comunicadores). Um clique leva o rádio para a banda com o modo e a largura padrão, e com a amostragem direta em automático.
+
 RXSDR Nativo 1.0.4: relógio digital em UTC (por exemplo 15:36 UTC) ao lado do botão IF DISPLAY - as grades de horários das estações são todas em UTC.
+
+RXSDR Nativo 1.0.4: agora em inglês também (English / Português). Na primeira abertura aparece a janela IDIOMA / LANGUAGE para escolher; depois é só trocar no botão PT / EN no topo, que vale na hora e fica gravado no RXSDR.ini. Traduz os menus, a configuração, as janelas dos decodificadores, os avisos e o relatório da análise; as siglas (USB, SITOR-B, DSC, MMSI...) ficam como são e o texto recebido pelos decodificadores nunca é traduzido.
 
 ## 1.0.68
 

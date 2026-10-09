@@ -1,4 +1,5 @@
 #include "Externos.h"
+#include "../ui/Idioma.h"
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -196,11 +197,11 @@ bool Externo::iniciar(const std::wstring& exe, const std::wstring& args, const s
                       const std::wstring& pipeNomeado, std::string& erro)
 {
     parar();
-    if (!existe(exe)) { erro = "nao achei " + utf8(exe); return false; }
+    if (!existe(exe)) { erro = T("nao achei ") + utf8(exe); return false; }
 
     SECURITY_ATTRIBUTES sa{sizeof sa, nullptr, TRUE};
     HANDLE inR = nullptr, inW = nullptr, outR = nullptr, outW = nullptr;
-    if (!CreatePipe(&outR, &outW, &sa, 1 << 16)) { erro = "CreatePipe falhou"; return false; }
+    if (!CreatePipe(&outR, &outW, &sa, 1 << 16)) { erro = T("CreatePipe falhou"); return false; }
     SetHandleInformation(outR, HANDLE_FLAG_INHERIT, 0);
 
     usaPipe_ = !pipeNomeado.empty();
@@ -210,7 +211,7 @@ bool Externo::iniciar(const std::wstring& exe, const std::wstring& args, const s
                                     1, 1 << 20, 0, 0, nullptr);
         if (p == INVALID_HANDLE_VALUE) {
             CloseHandle(outR); CloseHandle(outW);
-            erro = "nao consegui criar o cano " + utf8(nomePipe_);
+            erro = T("nao consegui criar o cano ") + utf8(nomePipe_);
             return false;
         }
         entrada_ = p;
@@ -218,7 +219,7 @@ bool Externo::iniciar(const std::wstring& exe, const std::wstring& args, const s
     } else {
         if (!CreatePipe(&inR, &inW, &sa, 1 << 20)) {
             CloseHandle(outR); CloseHandle(outW);
-            erro = "CreatePipe falhou"; return false;
+            erro = T("CreatePipe falhou"); return false;
         }
         SetHandleInformation(inW, HANDLE_FLAG_INHERIT, 0);
         entrada_ = inW;
@@ -230,7 +231,7 @@ bool Externo::iniciar(const std::wstring& exe, const std::wstring& args, const s
             CloseHandle(outR); CloseHandle(outW);
             if (inR && inR != INVALID_HANDLE_VALUE) CloseHandle(inR);
             CloseHandle((HANDLE)entrada_); entrada_ = nullptr;
-            erro = "CreatePipe falhou"; return false;
+            erro = T("CreatePipe falhou"); return false;
         }
         SetHandleInformation(binR, HANDLE_FLAG_INHERIT, 0);
     }
@@ -252,7 +253,7 @@ bool Externo::iniciar(const std::wstring& exe, const std::wstring& args, const s
         CloseHandle((HANDLE)entrada_); entrada_ = nullptr;
         CloseHandle(outR);
         if (binR) CloseHandle(binR);
-        erro = "nao consegui abrir " + utf8(exe) + " (erro " + std::to_string(e) + ")";
+        erro = T("nao consegui abrir ") + utf8(exe) + T(" (erro ") + std::to_string(e) + ")";
         return false;
     }
     CloseHandle(pi.hThread);
@@ -390,7 +391,7 @@ bool Hfdl::iniciar(const std::vector<double>& canaisKHz, double centroHz, uint32
         est_ = EstadoExterno();
         emMsg_ = false;
     }
-    if (canaisKHz.empty() || taxa == 0) { erro = "faltou a banda ou a taxa"; return false; }
+    if (canaisKHz.empty() || taxa == 0) { erro = T("faltou a banda ou a taxa"); return false; }
     const std::wstring pasta = pastaDecoders();
     const std::wstring exe = pasta + L"\\dumphfdl.exe";
     wchar_t b[64];
@@ -409,7 +410,7 @@ bool Hfdl::iniciar(const std::vector<double>& canaisKHz, double centroHz, uint32
         return false;
     }
     char t[160];
-    std::snprintf(t, sizeof t, "[HFDL] dumphfdl iniciado - %d canais, centro %.3f MHz, %.3f Msps\n",
+    std::snprintf(t, sizeof t, T("[HFDL] dumphfdl iniciado - %d canais, centro %.3f MHz, %.3f Msps\n"),
                   (int)canaisKHz.size(), centroHz / 1e6, taxa / 1e6);
     if (aoTexto) aoTexto(t);
     // Diagnostico: decoders\hfdl_teste.txt (saida gravada do dumphfdl) e lido como se tivesse chegado agora
@@ -566,7 +567,7 @@ bool Ais::iniciar(std::string& erro)
     }
     if (aoTexto) {
         char t[200];
-        std::snprintf(t, sizeof t, "[AIS] AIS-catcher iniciado - canais 161,975 e 162,025 MHz. Mapa: http://127.0.0.1:%d\n",
+        std::snprintf(t, sizeof t, T("[AIS] AIS-catcher iniciado - canais 161,975 e 162,025 MHz. Mapa: http://127.0.0.1:%d\n"),
                       portaWeb_);
         aoTexto(t);
     }
@@ -657,8 +658,8 @@ void Ais::linha(const std::string& l)
         if (!n.nome.empty()) k += std::snprintf(b + k, sizeof b - k, "  %s", n.nome.c_str());
         if (!n.indicativo.empty()) k += std::snprintf(b + k, sizeof b - k, " (%s)", n.indicativo.c_str());
         if (n.lat <= 90) k += std::snprintf(b + k, sizeof b - k, "  %.5f %.5f", n.lat, n.lon);
-        if (n.vel >= 0) k += std::snprintf(b + k, sizeof b - k, "  %.1f nós", n.vel);
-        if (n.rumo >= 0) k += std::snprintf(b + k, sizeof b - k, "  rumo %.0f°", n.rumo);
+        if (n.vel >= 0) k += std::snprintf(b + k, sizeof b - k, T("  %.1f nós"), n.vel);
+        if (n.rumo >= 0) k += std::snprintf(b + k, sizeof b - k, T("  rumo %.0f°"), n.rumo);
         if (!n.destino.empty()) k += std::snprintf(b + k, sizeof b - k, "  -> %s", n.destino.c_str());
         linhaTxt = std::string(b) + "\n";
     }
@@ -671,7 +672,7 @@ EstadoExterno Ais::estado()
     EstadoExterno e = est_;
     e.rodando = ext_.vivo();
     char b[64];
-    std::snprintf(b, sizeof b, "%d navios", (int)navios_.size());
+    std::snprintf(b, sizeof b, T("%d navios"), (int)navios_.size());
     e.info = b;
     return e;
 }
@@ -705,7 +706,7 @@ bool Aprs::iniciar(int baud, std::string& erro)
     portaAgw_ = portaLivre(8000);
     {
         FILE* f = _wfopen(conf_.c_str(), L"wb");
-        if (!f) { erro = "nao consegui gravar " + utf8(conf_); return false; }
+        if (!f) { erro = T("nao consegui gravar ") + utf8(conf_); return false; }
         std::fprintf(f, "# gerado pelo RXSDR Nativo\r\nADEVICE stdin null\r\nCHANNEL 0\r\n");
         if (baud == 300)
             // HF: varios decodificadores espalhados de 30 em 30 Hz (sintonia nunca e exata)
@@ -722,8 +723,8 @@ bool Aprs::iniciar(int baud, std::string& erro)
         std::lock_guard<std::mutex> lk(m_); est_.erro = erro;
         return false;
     }
-    if (aoTexto) aoTexto(baud == 300 ? "[APRS] direwolf iniciado - HF, 300 baud (USB)\n"
-                                     : "[APRS] direwolf iniciado - VHF, 1200 baud (FM)\n");
+    if (aoTexto) aoTexto(baud == 300 ? T("[APRS] direwolf iniciado - HF, 300 baud (USB)\n")
+                                     : T("[APRS] direwolf iniciado - VHF, 1200 baud (FM)\n"));
     agwVivo_ = true;
     thAgw_ = std::thread([this] { lacoAgw(); });
     return true;
@@ -769,7 +770,7 @@ void Aprs::lacoAgw()
         closesocket(s); s = INVALID_SOCKET;
     }
     if (s == INVALID_SOCKET) {
-        if (agwVivo_ && aoTexto) aoTexto("[APRS] a porta AGW do direwolf nao respondeu - os pacotes vem pelo texto (com atraso)\n");
+        if (agwVivo_ && aoTexto) aoTexto(T("[APRS] a porta AGW do direwolf nao respondeu - os pacotes vem pelo texto (com atraso)\n"));
         return;
     }
     sockAgw_ = (uintptr_t)s;
@@ -907,7 +908,7 @@ EstadoExterno Aprs::estado()
     std::lock_guard<std::mutex> lk(m_);
     EstadoExterno e = est_;
     e.rodando = ext_.vivo();
-    e.info = agwPronto_ ? "AGW em tempo real" : "esperando o primeiro pacote";
+    e.info = agwPronto_ ? T("AGW em tempo real") : T("esperando o primeiro pacote");
     return e;
 }
 
@@ -924,7 +925,7 @@ bool Acars::iniciar(const std::vector<double>& canaisHz, double centroHz, uint32
         est_ = EstadoExterno();
         bloco_.clear();
     }
-    if (canaisHz.empty() || taxa < 100000) { erro = "faltou o canal ou a taxa"; return false; }
+    if (canaisHz.empty() || taxa < 100000) { erro = T("faltou o canal ou a taxa"); return false; }
     centroHz_ = centroHz; taxa_ = taxa; fora_ = false;
     freqs_ = canaisHz;
     canais_.assign(canaisHz.size(), Canal());
@@ -950,10 +951,10 @@ bool Acars::iniciar(const std::vector<double>& canaisHz, double centroHz, uint32
         return false;
     }
     if (aoTexto) {
-        std::string t = "[ACARS] acarsdec iniciado - canais";
+        std::string t = T("[ACARS] acarsdec iniciado - canais");
         char b[32];
         for (double f : canaisHz) { std::snprintf(b, sizeof b, " %.3f", f / 1e6); t += b; }
-        t += " MHz, ao mesmo tempo\n";
+        t += T(" MHz, ao mesmo tempo\n");
         aoTexto(t);
     }
     return true;
@@ -1081,8 +1082,8 @@ bool Vdl2::iniciar(const std::vector<double>& canaisHz, double centroHz, uint32_
         est_ = EstadoExterno();
         bloco_.clear(); emMsg_ = false;
     }
-    if (canaisHz.empty()) { erro = "faltou o canal"; return false; }
-    if (taxa != kTaxa) { erro = "o VDL2 precisa do dongle em 1,05 Msps"; return false; }
+    if (canaisHz.empty()) { erro = T("faltou o canal"); return false; }
+    if (taxa != kTaxa) { erro = T("o VDL2 precisa do dongle em 1,05 Msps"); return false; }
     centroHz_ = centroHz; taxa_ = taxa; fora_ = false;
     const std::wstring pasta = pastaDecoders();
     const std::wstring exe = pasta + L"\\dumpvdl2.exe";
@@ -1096,7 +1097,7 @@ bool Vdl2::iniciar(const std::vector<double>& canaisHz, double centroHz, uint32_
         return false;
     }
     if (aoTexto) {
-        std::string t = "[VDL2] dumpvdl2 iniciado - canais";
+        std::string t = T("[VDL2] dumpvdl2 iniciado - canais");
         char b[32];
         for (double f : canaisHz) { std::snprintf(b, sizeof b, " %.3f", f / 1e6); t += b; }
         t += " MHz\n";
@@ -1319,7 +1320,7 @@ bool Drm::iniciar(std::string& erro)
         std::lock_guard<std::mutex> lk(m_);
         est_.rodando = true;
     }
-    if (aoTexto) aoTexto("[DRM] " + horaUtc() + " UTC  dream iniciado - procurando o sinal DRM...\n");
+    if (aoTexto) aoTexto("[DRM] " + horaUtc() + T(" UTC  dream iniciado - procurando o sinal DRM...\n"));
     return true;
 }
 
@@ -1566,7 +1567,7 @@ void Drm::linha(const std::string& l)
                 e.codec = c == 0 ? "AAC" : c == 1 ? "Opus" : c == 3 ? "xHE-AAC" : "?";
             }
             if (numJsonEm(l, oi, of, "bitrate_kbps", v)) e.kbps = v;
-            if (txtJsonEm(l, oi, of, "audio_mode", s)) e.modoAudio = s == "Mono" ? "mono" : s == "Stereo" ? "estéreo" : s == "P-Stereo" ? "estéreo paramétrico" : s;
+            if (txtJsonEm(l, oi, of, "audio_mode", s)) e.modoAudio = s == "Mono" ? "mono" : s == "Stereo" ? T("estéreo") : s == "P-Stereo" ? T("estéreo paramétrico") : s;
             if (txtJsonEm(l, oi, of, "protection_mode", s)) e.protecao = s;
             if (txtJsonEm(l, oi, of, "text", s)) e.texto = s;
             size_t si = 0, sf = 0;
@@ -1592,10 +1593,10 @@ void Drm::linha(const std::string& l)
             ultEstacao_ = e.estacao;
             static const char kRob[] = "ABCDE";
             char q[200];
-            std::snprintf(q, sizeof q, "  (modo %c, %.0f kHz, %s %.1f kbps, SNR %.1f dB)",
+            std::snprintf(q, sizeof q, T("  (modo %c, %.0f kHz, %s %.1f kbps, SNR %.1f dB)"),
                           e.robustez >= 0 && e.robustez < 5 ? kRob[e.robustez] : '?', e.larguraKHz,
                           e.codec.c_str(), e.kbps, e.snr);
-            novo += "[DRM] " + horaUtc() + " UTC  Estacao: " + e.estacao + q + "\n";
+            novo += "[DRM] " + horaUtc() + T(" UTC  Estacao: ") + e.estacao + q + "\n";
             std::string extra;
             if (!e.pais.empty()) extra += e.pais;
             if (!e.idioma.empty()) extra += (extra.empty() ? "" : ", ") + e.idioma;

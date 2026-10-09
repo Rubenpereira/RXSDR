@@ -53,6 +53,7 @@ set(SOURCES
     src/decoders/WefaxCore.cpp
     src/decoders/PactorCore.cpp
     src/ui/Ui.cpp
+    src/ui/Idioma.cpp
     src/dsp/Demodulator.cpp
     src/dsp/DemodAM.cpp
     src/dsp/DemodFM.cpp
