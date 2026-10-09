@@ -16,8 +16,6 @@ Recepção da meteoromarinha e dos avisos aos navegantes em PACTOR-I
 
 ![PACTOR-I no RXSDR Nativo](project-nativo/tela/rxsdr_nativo_pactor.gif)
 
-▶ [Vídeo completo, com som (2 min 38 s)](project-nativo/tela/rxsdr_nativo_pactor.mp4)
-
 **[⬇ Baixar a última versão (Releases)](https://github.com/Rubenpereira/RXSDR/releases/latest)**
 
 ---
@@ -38,7 +36,7 @@ Download the `RXSDR_Nativo_x.x.x.zip` from the
 
 ## O que ele faz
 
-- Recepção em **AM, SAM, FM, NFM, WFM, USB, LSB e CW**
+- Recepção em **AM, FM, NFM, WFM, USB, LSB e CW**
 - **Espectro e cachoeira** com zoom, ajuste de range, brilho e velocidade.
   O botão **AUTO** ajusta a cor da cachoeira sozinho a cada banda, a partir
   do jeito que você deixou e gravou em **PADRÃO**
