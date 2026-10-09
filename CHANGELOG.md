@@ -1,5 +1,11 @@
 # Histórico de mudanças
 
+## Nativo 1.0.5
+
+Botão direito do mouse na cachoeira ou no espectro abre a lista das bandas (Ondas Médias, 160 a 10 m, PX, 6 m, FM, aviação, 2 m, marítimo, 70 cm e rádios comunicadores). Um clique leva o rádio para a banda com o modo e a largura padrão, e com a amostragem direta em automático.
+
+Agora em inglês também (English / Português). Na primeira abertura aparece a janela IDIOMA / LANGUAGE para escolher; depois é só trocar no botão PT / EN no topo, que vale na hora e fica gravado no RXSDR.ini. Traduz os menus, a configuração, as janelas dos decodificadores, os avisos e o relatório da análise; as siglas (USB, SITOR-B, DSC, MMSI...) ficam como são e o texto recebido pelos decodificadores nunca é traduzido.
+
 ## 1.0.69
 
 Nova Versão RXSDR v1.0.69
@@ -22,11 +28,7 @@ RXSDR e RXSDR Nativo 1.0.4: PACTOR-I acertado com a transmissão real da Marinha
 
 RXSDR e RXSDR Nativo 1.0.4: o centro do dongle também fica 20 kHz ao lado da sintonia ao abrir o programa, ao ligar o rádio, ao mudar a configuração e no botão >.< (antes, logo depois de abrir, o "apito" do DC caía em cima da estação).
 
-RXSDR Nativo 1.0.4: botão direito do mouse na cachoeira ou no espectro abre a lista das bandas (Ondas Médias, 160 a 10 m, PX, 6 m, FM, aviação, 2 m, marítimo, 70 cm e rádios comunicadores). Um clique leva o rádio para a banda com o modo e a largura padrão, e com a amostragem direta em automático.
-
 RXSDR Nativo 1.0.4: relógio digital em UTC (por exemplo 15:36 UTC) ao lado do botão IF DISPLAY - as grades de horários das estações são todas em UTC.
-
-RXSDR Nativo 1.0.4: agora em inglês também (English / Português). Na primeira abertura aparece a janela IDIOMA / LANGUAGE para escolher; depois é só trocar no botão PT / EN no topo, que vale na hora e fica gravado no RXSDR.ini. Traduz os menus, a configuração, as janelas dos decodificadores, os avisos e o relatório da análise; as siglas (USB, SITOR-B, DSC, MMSI...) ficam como são e o texto recebido pelos decodificadores nunca é traduzido.
 
 ## 1.0.68
 
